@@ -4,19 +4,18 @@
     "repository": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce",
     "repoOwner": "Lucasdoreac",
     "repoName": "taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-28T21:33:51.000Z"
+    "lastUpdated": "2025-03-28T22:00:00.000Z"
   },
   "development": {
-    "currentFile": "docs/hostinger_deploy.md",
-    "currentComponent": "Implantação",
+    "currentFile": "app/helpers/Router.php",
+    "currentComponent": "Sistema de Roteamento",
     "inProgress": {
-      "type": "deployment",
-      "description": "Preparação e implantação do sistema na Hostinger",
+      "type": "bug-fix",
+      "description": "Correção de problemas de roteamento no ambiente Hostinger",
       "remainingTasks": [
-        "Implantação no servidor Hostinger",
-        "Configuração do domínio e SSL",
-        "Testes finais em ambiente de produção",
-        "Verificação de compatibilidade"
+        "Verificar se as correções resolveram o problema de roteamento",
+        "Reverter configurações de debug após confirmação",
+        "Remover ou proteger página de diagnóstico"
       ]
     }
   },
@@ -43,38 +42,58 @@
       "Preparação para Implantação"
     ],
     "inProgress": [
-      "Implantação na Hostinger"
+      "Implantação na Hostinger",
+      "Correção do Sistema de Roteamento"
     ],
     "pending": [
       "Testes de Produção"
     ]
   },
   "context": {
-    "lastThought": "Atualizados todos os arquivos necessários para implantação na Hostinger: adicionado seed_data.sql, configurado .htaccess na raiz, atualizado config.php e melhorado o checklist de implantação.",
+    "lastThought": "Implementadas correções no sistema de roteamento para resolver o problema no ambiente Hostinger. As rotas estavam todas redirecionando para a homepage, indicando problemas na configuração do .htaccess e no método getUri() da classe Router.",
     "nextSteps": [
-      "Upload de arquivos via FTP ou gerenciador de arquivos",
-      "Importar esquema e dados iniciais do banco de dados (schema.sql e seed_data.sql)",
-      "Aplicar atualizações do banco (updates/add_saved_customizations.sql)",
-      "Configurar permissões de diretórios de uploads e logs",
-      "Testar funcionalidades em ambiente de produção"
+      "Verificar se as correções resolveram o problema no servidor Hostinger",
+      "Testar específicamente as rotas: /login, /produtos, /admin",
+      "Reverter configurações de debug após confirmação",
+      "Continuar com testes em ambiente de produção"
     ],
     "hostingerCredentials": {
       "db_name": "u135851624_taverna",
-      "db_user": "u135851624_taverna",
-      "db_password": "#Taverna"
+      "db_user": "u135851624_teverna",
+      "db_password": "#Taverna1"
     },
     "filesUpdated": [
-      "database/seed_data.sql",
       ".htaccess",
+      "public/.htaccess",
+      "app/helpers/Router.php",
       "app/config/config.php",
-      "docs/hostinger_deploy.md"
+      "app/views/errors/500.php",
+      "public/phpinfo.php",
+      "docs/CORRECAO_ROTEAMENTO.md"
     ]
   },
   "git": {
     "remoteUrl": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce.git",
     "mainBranch": "main",
     "currentBranch": "main",
-    "lastCommit": "80b7aedd450b9a5557cbaa8940ac7607ef9bcc33",
-    "lastCommitMessage": "Atualizar checklist de implantação com passos detalhados"
+    "lastCommit": "9f38e84ebdc708dad7a67791e68f04b7192c3969",
+    "lastCommitMessage": "Documentar correções do sistema de roteamento"
+  },
+  "deploymentStatus": {
+    "url": "https://darkblue-cattle-647559.hostingersite.com/",
+    "lastDeployed": "2025-03-28",
+    "environment": "production",
+    "issues": [
+      {
+        "description": "Sistema de roteamento não funcionando corretamente",
+        "status": "corrected",
+        "solution": "Implementadas correções no .htaccess e Router.php para compatibilidade com Hostinger"
+      }
+    ],
+    "nextDeploymentTasks": [
+      "Atualizar arquivos .htaccess",
+      "Atualizar Router.php",
+      "Verificar página de diagnóstico em /phpinfo.php?noauth (remover após teste)"
+    ]
   }
 }
