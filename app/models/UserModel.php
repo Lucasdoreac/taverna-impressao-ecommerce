@@ -5,7 +5,7 @@
 class UserModel extends Model {
     protected $table = 'users';
     protected $fillable = [
-        'name', 'email', 'password', 'phone', 'role'
+        'name', 'email', 'password', 'phone', 'role', 'is_active'
     ];
     
     /**
@@ -26,6 +26,11 @@ class UserModel extends Model {
         }
         
         if (!password_verify($password, $user['password'])) {
+            return false;
+        }
+        
+        // Verificar se o usuário está ativo
+        if (isset($user['is_active']) && !$user['is_active']) {
             return false;
         }
         
@@ -55,8 +60,15 @@ class UserModel extends Model {
         // Hash da senha
         $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
         
-        // Definir papel como 'customer' (cliente)
-        $data['role'] = 'customer';
+        // Definir papel como 'customer' (cliente) se não for especificado
+        if (!isset($data['role'])) {
+            $data['role'] = 'customer';
+        }
+
+        // Definir como ativo por padrão
+        if (!isset($data['is_active'])) {
+            $data['is_active'] = 1;
+        }
         
         // Inserir no banco
         $userId = $this->create($data);
@@ -71,12 +83,15 @@ class UserModel extends Model {
         // Obter usuário cadastrado
         $user = $this->find($userId);
         
-        // Remover senha da sessão
-        unset($user['password']);
-        
-        // Guardar na sessão
-        $_SESSION['user'] = $user;
-        $_SESSION['user_logged_in'] = true;
+        // Se a requisição veio do painel administrativo, não fazer login
+        if (!isset($data['admin_request'])) {
+            // Remover senha da sessão
+            unset($user['password']);
+            
+            // Guardar na sessão
+            $_SESSION['user'] = $user;
+            $_SESSION['user_logged_in'] = true;
+        }
         
         return [
             'success' => true,
@@ -230,5 +245,96 @@ class UserModel extends Model {
             'success' => true,
             'message' => 'Senha redefinida com sucesso. Você já pode fazer login com sua nova senha.'
         ];
+    }
+
+    /**
+     * Obtém a lista de usuários para o painel administrativo
+     */
+    public function getAdminList($page = 1, $limit = 10, $search = '', $role = '') {
+        $offset = ($page - 1) * $limit;
+        
+        // Construir condição SQL
+        $conditions = [];
+        $params = [];
+        
+        if ($search) {
+            $conditions[] = "(name LIKE :search OR email LIKE :search)";
+            $params['search'] = "%{$search}%";
+        }
+        
+        if ($role) {
+            $conditions[] = "role = :role";
+            $params['role'] = $role;
+        }
+        
+        $whereClause = count($conditions) > 0 ? implode(' AND ', $conditions) : '1=1';
+        
+        // Contar total de registros
+        $countSql = "SELECT COUNT(*) as total FROM {$this->table} WHERE {$whereClause}";
+        $countResult = $this->db()->select($countSql, $params);
+        $total = $countResult[0]['total'];
+        
+        // Buscar registros paginados
+        $sql = "SELECT * FROM {$this->table} WHERE {$whereClause} ORDER BY name ASC LIMIT {$offset}, {$limit}";
+        $items = $this->db()->select($sql, $params);
+        
+        return [
+            'items' => $items,
+            'total' => $total,
+            'currentPage' => $page,
+            'perPage' => $limit,
+            'lastPage' => ceil($total / $limit),
+            'from' => $offset + 1,
+            'to' => min($offset + $limit, $total)
+        ];
+    }
+
+    /**
+     * Obtém estatísticas de usuários para o dashboard
+     */
+    public function getStats() {
+        $stats = [
+            'total' => 0,
+            'admins' => 0,
+            'customers' => 0,
+            'active' => 0,
+            'inactive' => 0,
+            'recent' => []
+        ];
+        
+        // Total de usuários
+        $sql = "SELECT COUNT(*) as total FROM {$this->table}";
+        $result = $this->db()->select($sql);
+        $stats['total'] = $result[0]['total'];
+        
+        // Usuários por papel
+        $sql = "SELECT role, COUNT(*) as count FROM {$this->table} GROUP BY role";
+        $result = $this->db()->select($sql);
+        
+        foreach ($result as $row) {
+            if ($row['role'] == 'admin') {
+                $stats['admins'] = $row['count'];
+            } else if ($row['role'] == 'customer') {
+                $stats['customers'] = $row['count'];
+            }
+        }
+        
+        // Usuários ativos/inativos
+        $sql = "SELECT is_active, COUNT(*) as count FROM {$this->table} GROUP BY is_active";
+        $result = $this->db()->select($sql);
+        
+        foreach ($result as $row) {
+            if ($row['is_active']) {
+                $stats['active'] = $row['count'];
+            } else {
+                $stats['inactive'] = $row['count'];
+            }
+        }
+        
+        // Usuários recentes
+        $sql = "SELECT * FROM {$this->table} ORDER BY created_at DESC LIMIT 5";
+        $stats['recent'] = $this->db()->select($sql);
+        
+        return $stats;
     }
 }
