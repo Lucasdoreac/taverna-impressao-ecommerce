@@ -58,6 +58,14 @@ class AdminDashboardController {
     }
     
     /**
+     * Exibe a página de relatórios
+     */
+    public function reports() {
+        // Renderizar view
+        require_once VIEWS_PATH . '/admin/reports.php';
+    }
+    
+    /**
      * Obter estatísticas gerais
      */
     private function getStats() {
@@ -221,121 +229,328 @@ class AdminDashboardController {
     }
     
     /**
-     * Gera um relatório de vendas em CSV
+     * Gera um relatório de vendas
      */
-    public function exportSalesReport() {
+    public function salesReport() {
         // Verificar parâmetros
         $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
         $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
         $groupBy = isset($_GET['group_by']) ? $_GET['group_by'] : 'daily';
+        $format = isset($_GET['format']) ? $_GET['format'] : '';
         
         // Obter dados do relatório
         $sales = $this->orderModel->getSalesByDateRange($startDate, $endDate, $groupBy);
         
-        // Definir cabeçalhos para download
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="relatorio_vendas_' . date('Y-m-d') . '.csv"');
-        
-        // Criar arquivo CSV
-        $output = fopen('php://output', 'w');
-        
-        // Adicionar BOM para suporte a caracteres UTF-8
-        fputs($output, "\xEF\xBB\xBF");
-        
-        // Cabeçalhos do CSV
-        fputcsv($output, ['Data', 'Quantidade de Pedidos', 'Total Vendido (R$)']);
-        
-        // Dados do CSV
-        foreach ($sales as $sale) {
-            fputcsv($output, [
-                $sale['date'],
-                $sale['count'],
-                $sale['total']
-            ]);
+        // Verificar formato de saída
+        if ($format === 'csv') {
+            // Cabeçalhos para CSV
+            $headers = ['Data', 'Quantidade de Pedidos', 'Total Vendido (R$)'];
+            
+            // Preparar dados para o CSV
+            $csvData = [];
+            foreach ($sales as $sale) {
+                $csvData[] = [
+                    $sale['date'],
+                    $sale['count'],
+                    $sale['total']
+                ];
+            }
+            
+            // Gerar arquivo CSV
+            ReportHelper::generateCSV(
+                $csvData, 
+                $headers, 
+                'relatorio_vendas_' . date('Y-m-d') . '.csv'
+            );
+        } else if ($format === 'pdf') {
+            // Cabeçalhos para PDF
+            $headers = ['Data', 'Quantidade de Pedidos', 'Total Vendido (R$)'];
+            
+            // Preparar dados para o PDF
+            $pdfData = [];
+            foreach ($sales as $sale) {
+                $pdfData[] = [
+                    $sale['date'],
+                    $sale['count'],
+                    AdminHelper::formatMoney($sale['total'])
+                ];
+            }
+            
+            // Configurações do relatório
+            $config = [
+                'dateRange' => 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate),
+                'extraInfo' => [
+                    'Agrupado por' => ($groupBy === 'daily' ? 'Dia' : ($groupBy === 'weekly' ? 'Semana' : 'Mês')),
+                    'Total de Pedidos' => array_sum(array_column($sales, 'count')),
+                    'Total Vendido' => AdminHelper::formatMoney(array_sum(array_column($sales, 'total')))
+                ]
+            ];
+            
+            // Gerar arquivo PDF
+            ReportHelper::generatePDF(
+                $pdfData, 
+                $headers, 
+                'Relatório de Vendas', 
+                'relatorio_vendas_' . date('Y-m-d') . '.pdf',
+                $config
+            );
+        } else {
+            // Renderizar view com os dados
+            $reportTitle = 'Relatório de Vendas';
+            $reportPeriod = 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate);
+            $reportData = $sales;
+            $groupByLabel = ($groupBy === 'daily' ? 'Dia' : ($groupBy === 'weekly' ? 'Semana' : 'Mês'));
+            
+            require_once VIEWS_PATH . '/admin/reports/sales_report.php';
         }
-        
-        fclose($output);
-        exit;
     }
     
     /**
-     * Gera um relatório de produtos em CSV
+     * Gera um relatório de produtos
      */
-    public function exportProductsReport() {
+    public function productsReport() {
         // Verificar parâmetros
         $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
         $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
+        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 0;
+        $format = isset($_GET['format']) ? $_GET['format'] : '';
         
         // Obter dados do relatório
-        $products = $this->productModel->getProductsSalesReport($startDate, $endDate);
+        $products = $this->productModel->getProductsSalesReport($startDate, $endDate, $limit);
         
-        // Definir cabeçalhos para download
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="relatorio_produtos_' . date('Y-m-d') . '.csv"');
-        
-        // Criar arquivo CSV
-        $output = fopen('php://output', 'w');
-        
-        // Adicionar BOM para suporte a caracteres UTF-8
-        fputs($output, "\xEF\xBB\xBF");
-        
-        // Cabeçalhos do CSV
-        fputcsv($output, ['ID', 'Nome do Produto', 'Categoria', 'Quantidade Vendida', 'Total Vendido (R$)', 'Estoque Atual']);
-        
-        // Dados do CSV
-        foreach ($products as $product) {
-            fputcsv($output, [
-                $product['id'],
-                $product['name'],
-                $product['category_name'],
-                $product['quantity_sold'],
-                $product['total_sales'],
-                $product['stock']
-            ]);
+        // Verificar formato de saída
+        if ($format === 'csv') {
+            // Cabeçalhos para CSV
+            $headers = ['ID', 'Nome do Produto', 'Categoria', 'Quantidade Vendida', 'Total Vendido (R$)', 'Estoque Atual'];
+            
+            // Preparar dados para o CSV
+            $csvData = [];
+            foreach ($products as $product) {
+                $csvData[] = [
+                    $product['id'],
+                    $product['name'],
+                    $product['category_name'],
+                    $product['quantity_sold'],
+                    $product['total_sales'],
+                    $product['stock']
+                ];
+            }
+            
+            // Gerar arquivo CSV
+            ReportHelper::generateCSV(
+                $csvData, 
+                $headers, 
+                'relatorio_produtos_' . date('Y-m-d') . '.csv'
+            );
+        } else if ($format === 'pdf') {
+            // Cabeçalhos para PDF
+            $headers = ['ID', 'Nome do Produto', 'Categoria', 'Qtd. Vendida', 'Total Vendido (R$)', 'Estoque'];
+            
+            // Preparar dados para o PDF
+            $pdfData = [];
+            foreach ($products as $product) {
+                $pdfData[] = [
+                    $product['id'],
+                    $product['name'],
+                    $product['category_name'],
+                    $product['quantity_sold'],
+                    AdminHelper::formatMoney($product['total_sales']),
+                    $product['stock']
+                ];
+            }
+            
+            // Configurações do relatório
+            $config = [
+                'orientation' => 'L', // Paisagem
+                'dateRange' => 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate),
+                'extraInfo' => [
+                    'Total de Produtos' => count($products),
+                    'Total Vendido' => AdminHelper::formatMoney(array_sum(array_column($products, 'total_sales'))),
+                    'Quantidade Total Vendida' => array_sum(array_column($products, 'quantity_sold')) . ' unidades'
+                ]
+            ];
+            
+            // Gerar arquivo PDF
+            ReportHelper::generatePDF(
+                $pdfData, 
+                $headers, 
+                'Relatório de Produtos', 
+                'relatorio_produtos_' . date('Y-m-d') . '.pdf',
+                $config
+            );
+        } else {
+            // Renderizar view com os dados
+            $reportTitle = 'Relatório de Produtos';
+            $reportPeriod = 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate);
+            $reportData = $products;
+            
+            require_once VIEWS_PATH . '/admin/reports/products_report.php';
         }
-        
-        fclose($output);
-        exit;
     }
     
     /**
-     * Gera um relatório de clientes em CSV
+     * Gera um relatório de clientes
      */
-    public function exportCustomersReport() {
+    public function customersReport() {
         // Verificar parâmetros
         $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
         $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
+        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 0;
+        $format = isset($_GET['format']) ? $_GET['format'] : '';
         
         // Obter dados do relatório
-        $customers = $this->userModel->getCustomersSalesReport($startDate, $endDate);
+        $customers = $this->userModel->getCustomersSalesReport($startDate, $endDate, $limit);
         
-        // Definir cabeçalhos para download
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="relatorio_clientes_' . date('Y-m-d') . '.csv"');
-        
-        // Criar arquivo CSV
-        $output = fopen('php://output', 'w');
-        
-        // Adicionar BOM para suporte a caracteres UTF-8
-        fputs($output, "\xEF\xBB\xBF");
-        
-        // Cabeçalhos do CSV
-        fputcsv($output, ['ID', 'Nome do Cliente', 'E-mail', 'Telefone', 'Quantidade de Pedidos', 'Total Gasto (R$)', 'Data de Cadastro']);
-        
-        // Dados do CSV
-        foreach ($customers as $customer) {
-            fputcsv($output, [
-                $customer['id'],
-                $customer['name'],
-                $customer['email'],
-                $customer['phone'] ?? 'Não informado',
-                $customer['order_count'],
-                $customer['total_spent'],
-                $customer['created_at']
-            ]);
+        // Verificar formato de saída
+        if ($format === 'csv') {
+            // Cabeçalhos para CSV
+            $headers = ['ID', 'Nome do Cliente', 'E-mail', 'Telefone', 'Quantidade de Pedidos', 'Total Gasto (R$)', 'Data de Cadastro'];
+            
+            // Preparar dados para o CSV
+            $csvData = [];
+            foreach ($customers as $customer) {
+                $csvData[] = [
+                    $customer['id'],
+                    $customer['name'],
+                    $customer['email'],
+                    $customer['phone'] ?? 'Não informado',
+                    $customer['order_count'],
+                    $customer['total_spent'],
+                    $customer['created_at']
+                ];
+            }
+            
+            // Gerar arquivo CSV
+            ReportHelper::generateCSV(
+                $csvData, 
+                $headers, 
+                'relatorio_clientes_' . date('Y-m-d') . '.csv'
+            );
+        } else if ($format === 'pdf') {
+            // Cabeçalhos para PDF
+            $headers = ['ID', 'Nome do Cliente', 'E-mail', 'Qtd. Pedidos', 'Total Gasto (R$)', 'Cadastro'];
+            
+            // Preparar dados para o PDF
+            $pdfData = [];
+            foreach ($customers as $customer) {
+                $pdfData[] = [
+                    $customer['id'],
+                    $customer['name'],
+                    $customer['email'],
+                    $customer['order_count'],
+                    AdminHelper::formatMoney($customer['total_spent']),
+                    AdminHelper::formatDate($customer['created_at'])
+                ];
+            }
+            
+            // Configurações do relatório
+            $config = [
+                'orientation' => 'L', // Paisagem
+                'dateRange' => 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate),
+                'extraInfo' => [
+                    'Total de Clientes' => count($customers),
+                    'Total Gasto' => AdminHelper::formatMoney(array_sum(array_column($customers, 'total_spent'))),
+                    'Total de Pedidos' => array_sum(array_column($customers, 'order_count'))
+                ]
+            ];
+            
+            // Gerar arquivo PDF
+            ReportHelper::generatePDF(
+                $pdfData, 
+                $headers, 
+                'Relatório de Clientes', 
+                'relatorio_clientes_' . date('Y-m-d') . '.pdf',
+                $config
+            );
+        } else {
+            // Renderizar view com os dados
+            $reportTitle = 'Relatório de Clientes';
+            $reportPeriod = 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate);
+            $reportData = $customers;
+            
+            require_once VIEWS_PATH . '/admin/reports/customers_report.php';
         }
+    }
+    
+    /**
+     * Gera um relatório de categorias
+     */
+    public function categoriesReport() {
+        // Verificar parâmetros
+        $startDate = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
+        $endDate = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
+        $parentOnly = isset($_GET['parent_only']) ? intval($_GET['parent_only']) : 0;
+        $format = isset($_GET['format']) ? $_GET['format'] : '';
         
-        fclose($output);
-        exit;
+        // Obter dados do relatório
+        $categories = $this->categoryModel->getCategoriesSalesReport($startDate, $endDate, $parentOnly);
+        
+        // Verificar formato de saída
+        if ($format === 'csv') {
+            // Cabeçalhos para CSV
+            $headers = ['ID', 'Nome da Categoria', 'Categoria Pai', 'Total de Produtos', 'Produtos Vendidos', 'Total Vendido (R$)'];
+            
+            // Preparar dados para o CSV
+            $csvData = [];
+            foreach ($categories as $category) {
+                $csvData[] = [
+                    $category['id'],
+                    $category['name'],
+                    $category['parent_name'] ?? 'Principal',
+                    $category['product_count'],
+                    $category['sold_count'],
+                    $category['total_sales']
+                ];
+            }
+            
+            // Gerar arquivo CSV
+            ReportHelper::generateCSV(
+                $csvData, 
+                $headers, 
+                'relatorio_categorias_' . date('Y-m-d') . '.csv'
+            );
+        } else if ($format === 'pdf') {
+            // Cabeçalhos para PDF
+            $headers = ['ID', 'Nome da Categoria', 'Categoria Pai', 'Total Produtos', 'Produtos Vendidos', 'Total Vendido (R$)'];
+            
+            // Preparar dados para o PDF
+            $pdfData = [];
+            foreach ($categories as $category) {
+                $pdfData[] = [
+                    $category['id'],
+                    $category['name'],
+                    $category['parent_name'] ?? 'Principal',
+                    $category['product_count'],
+                    $category['sold_count'],
+                    AdminHelper::formatMoney($category['total_sales'])
+                ];
+            }
+            
+            // Configurações do relatório
+            $config = [
+                'dateRange' => 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate),
+                'extraInfo' => [
+                    'Total de Categorias' => count($categories),
+                    'Total Vendido' => AdminHelper::formatMoney(array_sum(array_column($categories, 'total_sales'))),
+                    'Filtro' => $parentOnly ? 'Apenas categorias principais' : 'Todas as categorias'
+                ]
+            ];
+            
+            // Gerar arquivo PDF
+            ReportHelper::generatePDF(
+                $pdfData, 
+                $headers, 
+                'Relatório de Categorias', 
+                'relatorio_categorias_' . date('Y-m-d') . '.pdf',
+                $config
+            );
+        } else {
+            // Renderizar view com os dados
+            $reportTitle = 'Relatório de Categorias';
+            $reportPeriod = 'Período: ' . AdminHelper::formatDate($startDate) . ' a ' . AdminHelper::formatDate($endDate);
+            $reportData = $categories;
+            
+            require_once VIEWS_PATH . '/admin/reports/categories_report.php';
+        }
     }
 }
