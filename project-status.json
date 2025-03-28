@@ -5,17 +5,17 @@
     "repoOwner": "Lucasdoreac",
     "repoName": "taverna-impressao-ecommerce",
     "localPath": "C:\\MCP\\taverna-impressao",
-    "lastUpdated": "2025-03-28T18:54:30.000Z"
+    "lastUpdated": "2025-03-28T19:08:30.000Z"
   },
   "development": {
-    "currentFile": "app/views/order-success.php",
-    "currentComponent": "Checkout e Pagamento",
+    "currentFile": "app/views/admin/products/index.php",
+    "currentComponent": "Painel Administrativo",
     "inProgress": {
       "type": "implementation",
-      "description": "Implementação do painel administrativo",
+      "description": "Implementação das views do painel administrativo",
       "remainingTasks": [
-        "Implementar controlador administrativo",
         "Implementar views de administração de produtos",
+        "Implementar views de administração de categorias",
         "Implementar views de administração de pedidos",
         "Implementar views de administração de usuários"
       ]
@@ -28,29 +28,41 @@
       "Modelos Base",
       "Sistema de Autenticação",
       "Carrinho de Compras",
-      "Checkout e Pagamento"
+      "Checkout e Pagamento",
+      "Controladores do Painel Administrativo"
     ],
     "inProgress": [
       "Catálogo de Produtos",
-      "Sistema de Personalização"
+      "Sistema de Personalização",
+      "Painel Administrativo"
     ],
     "pending": [
-      "Painel Administrativo"
+      "Relatórios e Estatísticas",
+      "Refinamento Visual",
+      "Implantação na Hostinger"
     ]
   },
   "context": {
-    "lastThought": "Implementado o sistema completo de checkout, incluindo controlador de checkout, view de checkout e confirmação de pedido",
+    "lastThought": "Implementados os controladores do painel administrativo (AdminController, AdminProductController, AdminCategoryController) e estrutura base do painel com CSS e JS",
     "nextSteps": [
-      "Implementar controlador administrativo",
-      "Implementar views de administração de produtos",
+      "Implementar views de administração de produtos (listar, criar, editar, visualizar)",
+      "Implementar views de administração de categorias (listar, criar, editar)",
       "Implementar views de administração de pedidos",
-      "Implementar views de administração de usuários"
+      "Adicionar funcionalidades de upload e gestão de imagens"
     ],
-    "dependencies": []
+    "dependencies": [
+      {
+        "type": "model",
+        "name": "ProductModel",
+        "description": "Necessita adição de métodos para getImages, getCustomizationOptions, etc."
+      }
+    ]
   },
   "git": {
     "remoteUrl": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce.git",
     "mainBranch": "main",
-    "currentBranch": "main"
+    "currentBranch": "main",
+    "lastCommit": "764e63c522de6d30cc3b841cf388cdbea8c59638",
+    "lastCommitMessage": "Implementar controlador para gerenciamento de categorias"
   }
 }
