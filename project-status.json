@@ -2,18 +2,18 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-28T22:57:00Z"
+    "lastUpdated": "2025-03-28T23:06:00Z"
   },
   "development": {
-    "currentFile": "debug.php",
-    "currentComponent": "Depuração e Correção de Erros",
+    "currentFile": "app/models/CartModel.php",
+    "currentComponent": "Carrinho de Compras",
     "inProgress": {
-      "type": "bugfix",
-      "description": "Correção de erros 500 nas páginas dinâmicas",
+      "type": "feature",
+      "description": "Implementação do sistema de carrinho de compras com persistência",
       "remainingTasks": [
-        "Testar correções implementadas",
-        "Verificar logs de erro",
-        "Remover script de debug após a resolução"
+        "Integrar CartModel ao CartController",
+        "Implementar migração de carrinho da sessão para banco de dados ao fazer login",
+        "Testar sistema de carrinho completo"
       ]
     }
   },
@@ -22,29 +22,29 @@
       "Core Framework",
       "Página Inicial",
       "Navegação",
-      "Listagem de Produtos"
+      "Listagem de Produtos",
+      "Depuração e Correção de Erros"
     ],
     "inProgress": [
       "Detalhes de Produto",
       "Categorias",
-      "Personalização"
+      "Personalização",
+      "Carrinho de Compras"
     ],
     "pending": [
-      "Carrinho de Compras",
       "Checkout e Pagamento",
       "Painel Administrativo",
       "Otimização para Produção"
     ]
   },
   "context": {
-    "lastThought": "Foram implementadas correções para os erros 500 nas páginas de categoria, produto e personalização. Os principais problemas eram falta de tratamento de exceções nos controllers e possíveis problemas com inclusão de arquivos e views.",
+    "lastThought": "Foi melhorado o CartController com tratamento de exceções e adicionado o CartModel para possibilitar persistência do carrinho no banco de dados, além de adicionar métodos para gerenciar os itens do carrinho de forma mais estruturada e seguindo o padrão MVC.",
     "nextSteps": [
-      "Acessar o script de diagnóstico (debug.php) para verificar o estado do sistema",
-      "Testar se as páginas de categoria, produto e personalização estão funcionando corretamente",
-      "Resolver possíveis problemas identificados pelo diagnóstico",
-      "Verificar logs de erro no servidor",
-      "Remover o script de diagnóstico após a resolução",
-      "Continuar o desenvolvimento dos componentes pendentes"
+      "Modificar CartController para usar CartModel em vez de apenas sessões",
+      "Implementar funcionalidade de migração de carrinho ao login",
+      "Corrigir a limpeza do carrinho",
+      "Começar a implementação do Checkout",
+      "Testar fluxo completo do carrinho até o checkout"
     ]
   },
   "fixes": {
@@ -54,9 +54,22 @@
       "files": [
         "app/controllers/CategoryController.php",
         "app/controllers/ProductController.php",
-        "app/controllers/CustomizationController.php"
+        "app/controllers/CustomizationController.php",
+        "app/controllers/CartController.php"
       ],
-      "timestamp": "2025-03-28T22:57:00Z"
+      "timestamp": "2025-03-28T23:04:32Z"
+    }
+  },
+  "implementations": {
+    "cartSystem": {
+      "status": "inProgress",
+      "description": "Sistema de carrinho de compras com persistência em banco de dados",
+      "files": [
+        "app/controllers/CartController.php",
+        "app/models/CartModel.php",
+        "app/views/cart.php"
+      ],
+      "timestamp": "2025-03-28T23:05:08Z"
     }
   }
 }
