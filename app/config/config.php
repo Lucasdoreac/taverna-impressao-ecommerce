@@ -41,11 +41,19 @@ define('COOKIE_SECURE', true);
 define('COOKIE_HTTP_ONLY', true);
 
 // Configurações de ambiente
-define('ENVIRONMENT', 'production'); // 'development', 'testing', 'production'
-define('DISPLAY_ERRORS', false);
+define('ENVIRONMENT', 'development'); // Alterado para 'development' temporariamente
+define('DISPLAY_ERRORS', true);      // Habilitado temporariamente para debug
 define('LOG_ERRORS', true);
 
-// Inicializar sessão
+// Configuração do diretório de logs
+if (!is_dir(LOG_PATH)) {
+    mkdir(LOG_PATH, 0755, true);
+}
+
+// Inicializar sessão com configuração explícita para compatibilidade
+ini_set('session.cookie_domain', COOKIE_DOMAIN);
+ini_set('session.cookie_secure', COOKIE_SECURE);
+ini_set('session.cookie_httponly', COOKIE_HTTP_ONLY);
 session_name(SESSION_NAME);
 session_start();
 
@@ -58,9 +66,9 @@ if (DISPLAY_ERRORS) {
     error_reporting(0);
 }
 
-// Função de log
+// Função de log aprimorada
 function app_log($message, $level = 'info') {
-    if (!LOG_ERRORS) return;
+    if (!LOG_ERRORS && $level != 'error') return;
     
     $log_file = LOG_PATH . '/app_' . date('Y-m-d') . '.log';
     $timestamp = date('Y-m-d H:i:s');
@@ -71,4 +79,14 @@ function app_log($message, $level = 'info') {
     }
     
     file_put_contents($log_file, $log_message, FILE_APPEND);
+    
+    // Para logs de erro, registrar também no log de erro do PHP
+    if ($level == 'error') {
+        error_log($message);
+    }
 }
+
+// Registrar inicialização da aplicação
+app_log('===== Aplicação Inicializada =====');
+app_log('Ambiente: ' . ENVIRONMENT);
+app_log('URI: ' . ($_SERVER['REQUEST_URI'] ?? 'Não definido'));
