@@ -1,214 +1,231 @@
 <?php require_once VIEWS_PATH . '/admin/partials/header.php'; ?>
 
-<div class="content-wrapper">
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0">Gerenciamento de Opções de Personalização</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>admin">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Personalização</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Gerenciar Opções de Personalização</h1>
+        <a href="<?= BASE_URL ?>admin/customization/create" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i> Nova Opção
+        </a>
     </div>
 
-    <section class="content">
-        <div class="container-fluid">
-            <?php if (isset($_SESSION['success'])): ?>
-                <div class="alert alert-success alert-dismissible">
-                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                    <h5><i class="icon fas fa-check"></i> Sucesso!</h5>
-                    <?= $_SESSION['success'] ?>
-                    <?php unset($_SESSION['success']); ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if (isset($_SESSION['error'])): ?>
-                <div class="alert alert-danger alert-dismissible">
-                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                    <h5><i class="icon fas fa-ban"></i> Erro!</h5>
-                    <?= $_SESSION['error'] ?>
-                    <?php unset($_SESSION['error']); ?>
-                </div>
-            <?php endif; ?>
-
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">Produtos Customizáveis</h3>
-                    <div class="card-tools">
-                        <a href="<?= BASE_URL ?>admin/customizacao/criar" class="btn btn-primary btn-sm">
-                            <i class="fas fa-plus"></i> Nova Opção de Personalização
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($products)): ?>
-                        <div class="alert alert-info">
-                            Nenhum produto customizável encontrado. <a href="<?= BASE_URL ?>admin/produtos">Adicione produtos customizáveis</a> para gerenciar opções de personalização.
-                        </div>
-                    <?php else: ?>
-                        <div class="accordion" id="customizableProducts">
-                            <?php foreach ($products as $index => $product): ?>
-                                <div class="card">
-                                    <div class="card-header" id="heading<?= $product['id'] ?>">
-                                        <h2 class="mb-0 d-flex justify-content-between align-items-center">
-                                            <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#collapse<?= $product['id'] ?>" aria-expanded="<?= $index === 0 ? 'true' : 'false' ?>" aria-controls="collapse<?= $product['id'] ?>">
-                                                <?= $product['name'] ?>
-                                                <?php if (empty($product['customization_options'])): ?>
-                                                    <span class="badge badge-warning ml-2">Sem opções</span>
-                                                <?php else: ?>
-                                                    <span class="badge badge-info ml-2"><?= count($product['customization_options']) ?> opções</span>
-                                                <?php endif; ?>
-                                            </button>
-                                            <a href="<?= BASE_URL ?>admin/customizacao/criar?product_id=<?= $product['id'] ?>" class="btn btn-sm btn-primary">
-                                                <i class="fas fa-plus"></i> Adicionar Opção
-                                            </a>
-                                        </h2>
-                                    </div>
-
-                                    <div id="collapse<?= $product['id'] ?>" class="collapse <?= $index === 0 ? 'show' : '' ?>" aria-labelledby="heading<?= $product['id'] ?>" data-parent="#customizableProducts">
-                                        <div class="card-body">
-                                            <?php if (empty($product['customization_options'])): ?>
-                                                <div class="alert alert-info">
-                                                    Este produto não possui opções de personalização. Adicione opções para permitir personalização.
-                                                </div>
-                                            <?php else: ?>
-                                                <div class="table-responsive">
-                                                    <table class="table table-bordered table-hover">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>Nome</th>
-                                                                <th>Tipo</th>
-                                                                <th>Obrigatório</th>
-                                                                <th>Descrição</th>
-                                                                <th>Ações</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody id="options-<?= $product['id'] ?>" class="options-sortable">
-                                                            <?php foreach ($product['customization_options'] as $option): ?>
-                                                                <tr data-option-id="<?= $option['id'] ?>">
-                                                                    <td>
-                                                                        <i class="fas fa-grip-vertical handle mr-2 text-muted"></i>
-                                                                        <?= $option['name'] ?>
-                                                                    </td>
-                                                                    <td>
-                                                                        <?php if ($option['type'] === 'text'): ?>
-                                                                            <span class="badge badge-info">Texto</span>
-                                                                        <?php elseif ($option['type'] === 'select'): ?>
-                                                                            <span class="badge badge-success">Seleção</span>
-                                                                        <?php elseif ($option['type'] === 'upload'): ?>
-                                                                            <span class="badge badge-warning">Upload</span>
-                                                                        <?php endif; ?>
-                                                                    </td>
-                                                                    <td>
-                                                                        <?php if ($option['required']): ?>
-                                                                            <span class="badge badge-danger">Sim</span>
-                                                                        <?php else: ?>
-                                                                            <span class="badge badge-secondary">Não</span>
-                                                                        <?php endif; ?>
-                                                                    </td>
-                                                                    <td><?= $option['description'] ?? 'Sem descrição' ?></td>
-                                                                    <td>
-                                                                        <div class="btn-group">
-                                                                            <a href="<?= BASE_URL ?>admin/customizacao/editar/<?= $option['id'] ?>" class="btn btn-sm btn-info">
-                                                                                <i class="fas fa-edit"></i>
-                                                                            </a>
-                                                                            <button type="button" class="btn btn-sm btn-danger" data-toggle="modal" data-target="#deleteModal" data-id="<?= $option['id'] ?>" data-name="<?= $option['name'] ?>">
-                                                                                <i class="fas fa-trash"></i>
-                                                                            </button>
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            <?php endforeach; ?>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </section>
-</div>
-
-<!-- Modal de Confirmação de Exclusão -->
-<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <p>Tem certeza que deseja excluir a opção de personalização <strong id="optionName"></strong>?</p>
-                <p class="text-danger">Esta ação não pode ser desfeita.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <a href="#" id="confirmDelete" class="btn btn-danger">Excluir</a>
-            </div>
-        </div>
+    <?php if (isset($_SESSION['success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <?= $_SESSION['success'] ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
     </div>
-</div>
+    <?php unset($_SESSION['success']); ?>
+    <?php endif; ?>
 
-<script>
-    $(function () {
-        // Inicializar sortable para reordenação de opções
-        $('.options-sortable').sortable({
-            handle: '.handle',
-            update: function(event, ui) {
-                const productId = $(this).attr('id').split('-')[1];
-                const optionIds = $(this).find('tr').map(function() {
-                    return $(this).data('option-id');
-                }).get();
-                
-                // Enviar nova ordem para o servidor
-                $.ajax({
-                    url: '<?= BASE_URL ?>admin/customizacao/reordenar',
-                    type: 'POST',
-                    dataType: 'json',
-                    data: {
-                        options: JSON.stringify(optionIds)
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            // Exibir mensagem de sucesso
-                            toastr.success('Ordem das opções atualizada com sucesso.');
-                        } else {
-                            // Exibir mensagem de erro
-                            toastr.error(response.error || 'Erro ao atualizar ordem das opções.');
-                        }
-                    },
-                    error: function() {
-                        toastr.error('Erro de comunicação com o servidor.');
-                    }
-                });
-            }
-        });
-        
-        // Configurar modal de exclusão
-        $('#deleteModal').on('show.bs.modal', function (event) {
-            const button = $(event.relatedTarget);
-            const id = button.data('id');
-            const name = button.data('name');
+    <?php if (isset($_SESSION['error'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <?= $_SESSION['error'] ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+    </div>
+    <?php unset($_SESSION['error']); ?>
+    <?php endif; ?>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <?php if (isset($product)): ?>
+                    Opções de Personalização para: <?= $product['name'] ?>
+                <?php else: ?>
+                    Todas as Opções de Personalização
+                <?php endif; ?>
+            </h6>
             
-            const modal = $(this);
-            modal.find('#optionName').text(name);
-            modal.find('#confirmDelete').attr('href', '<?= BASE_URL ?>admin/customizacao/excluir/' + id);
-        });
-    });
-</script>
+            <div>
+                <!-- Filtro por Produto -->
+                <div class="dropdown d-inline-block">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-funnel me-1"></i> Filtrar por Produto
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton">
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>admin/customization">Todos os Produtos</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <?php foreach ($customizableProducts as $prod): ?>
+                        <li>
+                            <a class="dropdown-item <?= isset($productId) && $productId == $prod['id'] ? 'active' : '' ?>" 
+                               href="<?= BASE_URL ?>admin/customization?product_id=<?= $prod['id'] ?>">
+                                <?= $prod['name'] ?>
+                            </a>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <?php if (empty($options['items'])): ?>
+            <div class="text-center py-4">
+                <p class="text-muted mb-0">
+                    <?php if (isset($productId)): ?>
+                        Nenhuma opção de personalização encontrada para este produto.
+                    <?php else: ?>
+                        Nenhuma opção de personalização cadastrada.
+                    <?php endif; ?>
+                </p>
+                
+                <?php if (isset($productId)): ?>
+                <div class="mt-3">
+                    <a href="<?= BASE_URL ?>admin/customization/create?product_id=<?= $productId ?>" class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-lg me-1"></i> Adicionar Opção para este Produto
+                    </a>
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php else: ?>
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th width="5%">ID</th>
+                            <th width="15%">Produto</th>
+                            <th width="20%">Nome</th>
+                            <th width="10%">Tipo</th>
+                            <th width="10%">Obrigatório</th>
+                            <th width="25%">Descrição</th>
+                            <th width="15%">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($options['items'] as $option): ?>
+                        <tr>
+                            <td><?= $option['id'] ?></td>
+                            <td>
+                                <a href="<?= BASE_URL ?>admin/produtos/edit/<?= $option['product_id'] ?>" class="text-decoration-none">
+                                    <?= $option['product_name'] ?>
+                                </a>
+                            </td>
+                            <td><?= $option['name'] ?></td>
+                            <td>
+                                <?php if ($option['type'] === 'upload'): ?>
+                                    <span class="badge bg-info">Upload</span>
+                                <?php elseif ($option['type'] === 'text'): ?>
+                                    <span class="badge bg-secondary">Texto</span>
+                                <?php elseif ($option['type'] === 'select'): ?>
+                                    <span class="badge bg-primary">Seleção</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($option['required']): ?>
+                                    <span class="text-success"><i class="bi bi-check-circle-fill"></i> Sim</span>
+                                <?php else: ?>
+                                    <span class="text-secondary"><i class="bi bi-x-circle"></i> Não</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($option['description']): ?>
+                                    <?= mb_strimwidth($option['description'], 0, 100, '...') ?>
+                                <?php else: ?>
+                                    <span class="text-muted">Sem descrição</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="<?= BASE_URL ?>admin/customization/show/<?= $option['id'] ?>" class="btn btn-sm btn-info" title="Visualizar">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="<?= BASE_URL ?>admin/customization/edit/<?= $option['id'] ?>" class="btn btn-sm btn-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="<?= BASE_URL ?>admin/customization/confirm-delete/<?= $option['id'] ?>" class="btn btn-sm btn-danger" title="Excluir">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginação -->
+            <?php if ($options['lastPage'] > 1): ?>
+            <div class="d-flex justify-content-center mt-4">
+                <nav aria-label="Navegação de página">
+                    <ul class="pagination">
+                        <?php 
+                        $queryParams = isset($productId) ? "product_id={$productId}&" : "";
+                        
+                        // Link Anterior
+                        if ($options['currentPage'] > 1): 
+                        ?>
+                        <li class="page-item">
+                            <a class="page-link" href="<?= BASE_URL ?>admin/customization?<?= $queryParams ?>page=<?= $options['currentPage'] - 1 ?>" aria-label="Anterior">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        <?php else: ?>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Anterior">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        <?php endif; ?>
+                        
+                        <!-- Números das Páginas -->
+                        <?php
+                        $startPage = max(1, $options['currentPage'] - 2);
+                        $endPage = min($options['lastPage'], $options['currentPage'] + 2);
+                        
+                        // Mostrar primeira página se não estiver no range
+                        if ($startPage > 1): 
+                        ?>
+                        <li class="page-item">
+                            <a class="page-link" href="<?= BASE_URL ?>admin/customization?<?= $queryParams ?>page=1">1</a>
+                        </li>
+                        <?php 
+                        // Mostrar "..." se houver páginas ocultas entre a primeira e o range atual
+                        if ($startPage > 2): 
+                        ?>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#">...</a>
+                        </li>
+                        <?php endif; ?>
+                        <?php endif; ?>
+                        
+                        <!-- Páginas no range atual -->
+                        <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                        <li class="page-item <?= $i == $options['currentPage'] ? 'active' : '' ?>">
+                            <a class="page-link" href="<?= BASE_URL ?>admin/customization?<?= $queryParams ?>page=<?= $i ?>"><?= $i ?></a>
+                        </li>
+                        <?php endfor; ?>
+                        
+                        <!-- Mostrar última página se não estiver no range -->
+                        <?php if ($endPage < $options['lastPage']): ?>
+                        <!-- Mostrar "..." se houver páginas ocultas entre o range atual e a última página -->
+                        <?php if ($endPage < $options['lastPage'] - 1): ?>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#">...</a>
+                        </li>
+                        <?php endif; ?>
+                        <li class="page-item">
+                            <a class="page-link" href="<?= BASE_URL ?>admin/customization?<?= $queryParams ?>page=<?= $options['lastPage'] ?>"><?= $options['lastPage'] ?></a>
+                        </li>
+                        <?php endif; ?>
+                        
+                        <!-- Link Próximo -->
+                        <?php if ($options['currentPage'] < $options['lastPage']): ?>
+                        <li class="page-item">
+                            <a class="page-link" href="<?= BASE_URL ?>admin/customization?<?= $queryParams ?>page=<?= $options['currentPage'] + 1 ?>" aria-label="Próximo">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <?php else: ?>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" aria-label="Próximo">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <?php endif; ?>
+                    </ul>
+                </nav>
+            </div>
+            <?php endif; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
 
 <?php require_once VIEWS_PATH . '/admin/partials/footer.php'; ?>
