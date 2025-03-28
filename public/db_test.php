@@ -12,8 +12,8 @@ echo "<p>Este arquivo deve ser removido após o diagnóstico!</p>";
 // Informações de conexão - usando IP e porta explícitos
 $db_host = '127.0.0.1:3306';  // Conexão TCP/IP explícita
 $db_name = 'u135851624_taverna';
-$db_user = 'u135851624_taverna';
-$db_pass = '#Taverna';
+$db_user = 'u135851624_teverna'; // Corrigido para teverna com "v"
+$db_pass = '#Taverna1'; // Senha completa correta
 
 echo "<h2>Configurações Atuais</h2>";
 echo "<ul>";
