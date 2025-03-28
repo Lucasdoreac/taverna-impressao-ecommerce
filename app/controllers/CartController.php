@@ -4,15 +4,23 @@
  */
 class CartController {
     private $productModel;
+    private $cartModel;
     
     public function __construct() {
         try {
             $this->productModel = new ProductModel();
+            $this->cartModel = new CartModel();
             
-            // Inicializar sessão do carrinho se não existir
+            // Inicializar sessão do carrinho se não existir (compatibilidade)
             if (!isset($_SESSION['cart'])) {
                 $_SESSION['cart'] = [];
                 $_SESSION['cart_count'] = 0;
+            }
+            
+            // Verificar se o usuário se logou recentemente e migrar o carrinho
+            if (isset($_SESSION['migrate_cart']) && $_SESSION['migrate_cart'] === true) {
+                $this->migrateCartAfterLogin();
+                unset($_SESSION['migrate_cart']);
             }
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao inicializar CartController");
@@ -27,8 +35,53 @@ class CartController {
             $cart_items = [];
             $subtotal = 0;
             
-            // Obter detalhes de cada item no carrinho
-            if (!empty($_SESSION['cart'])) {
+            // Obter carrinho do banco de dados se o usuário estiver logado
+            $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+            $sessionId = session_id();
+            
+            // Obter ou criar carrinho no banco de dados
+            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            
+            if ($cart) {
+                // Obter itens do carrinho do banco de dados
+                $db_items = $this->cartModel->getItems($cart['id']);
+                
+                foreach ($db_items as $item) {
+                    // Calcular preço considerando promoções
+                    $price = $item['sale_price'] && $item['sale_price'] < $item['price'] 
+                            ? $item['sale_price'] 
+                            : $item['price'];
+                    
+                    // Calcular total do item
+                    $itemTotal = $price * $item['quantity'];
+                    $subtotal += $itemTotal;
+                    
+                    // Preparar dados de personalização
+                    $customization = null;
+                    if (!empty($item['customization_data'])) {
+                        $customization = json_decode($item['customization_data'], true);
+                    }
+                    
+                    // Adicionar ao array de itens formatados
+                    $cart_items[] = [
+                        'cart_item_id' => $item['id'],
+                        'product_id' => $item['product_id'],
+                        'name' => $item['product_name'],
+                        'slug' => $item['product_slug'],
+                        'price' => $price,
+                        'quantity' => $item['quantity'],
+                        'image' => $item['image'],
+                        'customization' => $customization,
+                        'total' => $itemTotal,
+                        'is_db_item' => true // Flag para indicar que é um item do banco
+                    ];
+                }
+                
+                // Atualizar contagem de itens no cabeçalho
+                $_SESSION['cart_count'] = $this->cartModel->countItems($cart['id']);
+            } 
+            // Compatibilidade com sistema antigo (itens na sessão)
+            else if (!empty($_SESSION['cart'])) {
                 foreach ($_SESSION['cart'] as $item) {
                     try {
                         $product = $this->productModel->find($item['product_id']);
@@ -58,7 +111,8 @@ class CartController {
                                 'quantity' => $item['quantity'],
                                 'image' => $image,
                                 'customization' => $item['customization'] ?? null,
-                                'total' => $itemTotal
+                                'total' => $itemTotal,
+                                'is_db_item' => false // Flag para indicar que é um item da sessão
                             ];
                         }
                     } catch (Exception $e) {
@@ -179,20 +233,42 @@ class CartController {
                 }
             }
             
-            // Adicionar ao carrinho
-            $cart_item_id = uniqid();
-            $_SESSION['cart'][] = [
-                'cart_item_id' => $cart_item_id,
-                'product_id' => $product_id,
-                'quantity' => $quantity,
-                'customization' => !empty($customizationData) ? $customizationData : null,
-                'added_at' => date('Y-m-d H:i:s')
-            ];
+            // Adicionar ao carrinho usando o CartModel
+            $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+            $sessionId = session_id();
             
-            // Atualizar contagem de itens no carrinho
-            $this->updateCartCount();
+            // Obter ou criar carrinho
+            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            if ($cart) {
+                // Adicionar item ao carrinho no banco de dados
+                $this->cartModel->addItem(
+                    $cart['id'], 
+                    $product_id, 
+                    $quantity, 
+                    !empty($customizationData) ? $customizationData : null
+                );
+                
+                // Atualizar contagem de itens no cabeçalho
+                $_SESSION['cart_count'] = $this->cartModel->countItems($cart['id']);
+                
+                $_SESSION['success'] = 'Produto adicionado ao carrinho!';
+            } else {
+                // Fallback para sessão se falhar a criação do carrinho
+                $cart_item_id = uniqid();
+                $_SESSION['cart'][] = [
+                    'cart_item_id' => $cart_item_id,
+                    'product_id' => $product_id,
+                    'quantity' => $quantity,
+                    'customization' => !empty($customizationData) ? $customizationData : null,
+                    'added_at' => date('Y-m-d H:i:s')
+                ];
+                
+                // Atualizar contagem de itens no carrinho
+                $this->updateCartCountFromSession();
+                
+                $_SESSION['success'] = 'Produto adicionado ao carrinho! (Modo Sessão)';
+            }
             
-            $_SESSION['success'] = 'Produto adicionado ao carrinho!';
             header('Location: ' . BASE_URL . 'carrinho');
             exit;
         } catch (Exception $e) {
@@ -219,22 +295,43 @@ class CartController {
                 exit;
             }
             
-            // Atualizar quantidade no carrinho
-            foreach ($_SESSION['cart'] as &$item) {
-                if ($item['cart_item_id'] === $cart_item_id) {
+            // Verificar se é um item do banco (ID numérico) ou da sessão (string)
+            if (is_numeric($cart_item_id)) {
+                // Item do banco de dados
+                $item = $this->cartModel->findById($cart_item_id);
+                if ($item) {
                     // Verificar estoque
                     $product = $this->productModel->find($item['product_id']);
                     if ($product && $product['stock'] >= $quantity) {
-                        $item['quantity'] = $quantity;
+                        $this->cartModel->updateItemQuantity($cart_item_id, $quantity);
+                        
+                        // Atualizar contagem no cabeçalho
+                        $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+                        $sessionId = session_id();
+                        $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+                        $_SESSION['cart_count'] = $this->cartModel->countItems($cart['id']);
                     } else {
                         $_SESSION['error'] = 'Quantidade solicitada não disponível em estoque.';
                     }
-                    break;
                 }
+            } else {
+                // Item da sessão - compatibilidade
+                foreach ($_SESSION['cart'] as &$item) {
+                    if ($item['cart_item_id'] === $cart_item_id) {
+                        // Verificar estoque
+                        $product = $this->productModel->find($item['product_id']);
+                        if ($product && $product['stock'] >= $quantity) {
+                            $item['quantity'] = $quantity;
+                        } else {
+                            $_SESSION['error'] = 'Quantidade solicitada não disponível em estoque.';
+                        }
+                        break;
+                    }
+                }
+                
+                // Atualizar contagem de itens no carrinho
+                $this->updateCartCountFromSession();
             }
-            
-            // Atualizar contagem de itens no carrinho
-            $this->updateCartCount();
             
             // Retornar para o carrinho
             header('Location: ' . BASE_URL . 'carrinho');
@@ -256,19 +353,33 @@ class CartController {
                 exit;
             }
             
-            // Remover item do carrinho
-            foreach ($_SESSION['cart'] as $key => $item) {
-                if ($item['cart_item_id'] === $cart_item_id) {
-                    unset($_SESSION['cart'][$key]);
-                    break;
+            // Verificar se é um item do banco (ID numérico) ou da sessão (string)
+            if (is_numeric($cart_item_id)) {
+                // Item do banco de dados
+                $this->cartModel->removeItem($cart_item_id);
+                
+                // Atualizar contagem no cabeçalho
+                $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+                $sessionId = session_id();
+                $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+                if ($cart) {
+                    $_SESSION['cart_count'] = $this->cartModel->countItems($cart['id']);
                 }
+            } else {
+                // Item da sessão - compatibilidade
+                foreach ($_SESSION['cart'] as $key => $item) {
+                    if ($item['cart_item_id'] === $cart_item_id) {
+                        unset($_SESSION['cart'][$key]);
+                        break;
+                    }
+                }
+                
+                // Reindexar array do carrinho
+                $_SESSION['cart'] = array_values($_SESSION['cart']);
+                
+                // Atualizar contagem de itens no carrinho
+                $this->updateCartCountFromSession();
             }
-            
-            // Reindexar array do carrinho
-            $_SESSION['cart'] = array_values($_SESSION['cart']);
-            
-            // Atualizar contagem de itens no carrinho
-            $this->updateCartCount();
             
             $_SESSION['success'] = 'Item removido do carrinho!';
             header('Location: ' . BASE_URL . 'carrinho');
@@ -283,6 +394,16 @@ class CartController {
      */
     public function clear() {
         try {
+            // Limpar carrinho no banco de dados
+            $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+            $sessionId = session_id();
+            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            
+            if ($cart) {
+                $this->cartModel->clearItems($cart['id']);
+            }
+            
+            // Limpar também na sessão (compatibilidade)
             $_SESSION['cart'] = [];
             $_SESSION['cart_count'] = 0;
             
@@ -295,9 +416,39 @@ class CartController {
     }
     
     /**
-     * Atualiza a contagem total de itens no carrinho
+     * Migra o carrinho da sessão para o banco de dados após login
      */
-    private function updateCartCount() {
+    private function migrateCartAfterLogin() {
+        try {
+            if (empty($_SESSION['cart']) || !isset($_SESSION['user'])) {
+                return;
+            }
+            
+            $userId = $_SESSION['user']['id'];
+            $sessionId = session_id();
+            
+            // Obter ou criar carrinho
+            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            
+            if ($cart) {
+                // Migrar itens da sessão para o banco
+                $this->cartModel->migrateFromSession($_SESSION['cart'], $cart['id']);
+                
+                // Limpar carrinho da sessão
+                $_SESSION['cart'] = [];
+                
+                // Atualizar contagem de itens
+                $_SESSION['cart_count'] = $this->cartModel->countItems($cart['id']);
+            }
+        } catch (Exception $e) {
+            error_log("Erro na migração do carrinho: " . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Atualiza a contagem total de itens no carrinho (da sessão)
+     */
+    private function updateCartCountFromSession() {
         $count = 0;
         foreach ($_SESSION['cart'] as $item) {
             $count += $item['quantity'];
