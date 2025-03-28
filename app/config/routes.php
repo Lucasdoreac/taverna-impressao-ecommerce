@@ -39,4 +39,11 @@ $routes = [
     '/admin/categorias' => ['AdminCategoryController', 'index'],
     '/admin/pedidos' => ['AdminOrderController', 'index'],
     '/admin/usuarios' => ['AdminUserController', 'index'],
+    
+    // Relatórios
+    '/admin/relatorios' => ['AdminDashboardController', 'reports'],
+    '/admin/relatorios/vendas' => ['AdminDashboardController', 'salesReport'],
+    '/admin/relatorios/produtos' => ['AdminDashboardController', 'productsReport'],
+    '/admin/relatorios/clientes' => ['AdminDashboardController', 'customersReport'],
+    '/admin/relatorios/categorias' => ['AdminDashboardController', 'categoriesReport'],
 ];
