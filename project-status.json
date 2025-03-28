@@ -4,20 +4,19 @@
     "repository": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce",
     "repoOwner": "Lucasdoreac",
     "repoName": "taverna-impressao-ecommerce",
-    "localPath": "C:\\MCP\\taverna-impressao",
-    "lastUpdated": "2025-03-28T20:16:50.000Z"
+    "lastUpdated": "2025-03-28T20:55:30.000Z"
   },
   "development": {
-    "currentFile": "app/models/CustomizationModel.php",
-    "currentComponent": "Sistema de Personalização",
+    "currentFile": "docs/hostinger_deploy.md",
+    "currentComponent": "Implantação",
     "inProgress": {
-      "type": "refinement",
-      "description": "Refinamento visual e preparação para implantação na Hostinger",
+      "type": "deployment",
+      "description": "Preparação e implantação do sistema na Hostinger",
       "remainingTasks": [
-        "Testar compatibilidade com ambiente Hostinger",
-        "Realizar testes de carga e otimização",
-        "Validar fluxo completo de personalização",
-        "Implementar interface administrativa para gerenciar opções de personalização"
+        "Implantação no servidor Hostinger",
+        "Configuração do domínio e SSL",
+        "Testes finais em ambiente de produção",
+        "Verificação de compatibilidade"
       ]
     }
   },
@@ -38,34 +37,36 @@
       "Relatórios e Exportação (CSV/PDF)",
       "Otimização CSS e JS para Produção",
       "Responsividade em Múltiplos Dispositivos",
-      "Guia de Implantação no Hostinger"
+      "Guia de Implantação no Hostinger",
+      "Sistema de Personalização Avançado",
+      "Configuração de Segurança"
     ],
     "inProgress": [
-      "Catálogo de Produtos",
-      "Sistema de Personalização Avançado",
-      "Refinamento Visual Final"
+      "Implantação na Hostinger"
     ],
     "pending": [
-      "Implantação na Hostinger"
+      "Testes de Produção"
     ]
   },
   "context": {
-    "lastThought": "Implementadas melhorias significativas no sistema de personalização, incluindo a possibilidade de pré-visualização, salvamento de configurações para uso futuro e otimização de imagens. Adicionado CSS minificado, JavaScript minificado e melhorias de responsividade para diferentes dispositivos. Criado guia detalhado de implantação para o servidor Hostinger.",
+    "lastThought": "Configurados os arquivos necessários para implantação na Hostinger: banco de dados com credenciais corretas, .htaccess otimizado e checklist de implantação detalhado.",
     "nextSteps": [
-      "Concluir implementação da interface administrativa para gerenciar opções de personalização",
-      "Implementar visualização detalhada de personalização no painel administrativo",
-      "Realizar testes de compatibilidade com Hostinger",
-      "Preparar documentação final do sistema"
+      "Upload de arquivos via FTP ou gerenciador de arquivos",
+      "Importar esquema e dados iniciais do banco de dados",
+      "Configurar permissões de diretórios de uploads e logs",
+      "Testar funcionalidades em ambiente de produção"
     ],
-    "dependencies": [
-      "mpdf/mpdf": "^8.1"
-    ]
+    "hostingerCredentials": {
+      "db_name": "u135851624_taverna",
+      "db_user": "u135851624_taverna",
+      "db_password": "#Taverna"
+    }
   },
   "git": {
     "remoteUrl": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce.git",
     "mainBranch": "main",
     "currentBranch": "main",
-    "lastCommit": "0b35c84c3b512ec9001f0c703e327d46db998782",
-    "lastCommitMessage": "Adicionar tabela de configurações salvas ao banco de dados"
+    "lastCommit": "89b3e3382afd3caedc7e0f1cfc2ef47910ee287f",
+    "lastCommitMessage": "Adicionar checklist de implantação na Hostinger"
   }
 }
