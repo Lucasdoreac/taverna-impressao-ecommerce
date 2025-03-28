@@ -9,7 +9,8 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
 RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 
-# Redirecionar tudo para o public/index.php
+# IMPORTANTE: Regra de roteamento principal, funcionando com URL amigáveis no Hostinger
+# Redirecionamento para index.php se o arquivo/diretório solicitado não existir
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
@@ -45,3 +46,8 @@ php_value upload_max_filesize 10M
 php_value post_max_size 10M
 php_value max_execution_time 300
 php_value max_input_time 300
+
+# Adicionar cabeçalho de debug para diagnóstico (temporário)
+<IfModule mod_headers.c>
+  Header set X-Routing-Debug true
+</IfModule>
