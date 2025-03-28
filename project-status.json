@@ -5,16 +5,17 @@
     "repoOwner": "Lucasdoreac",
     "repoName": "taverna-impressao-ecommerce",
     "localPath": "C:\\MCP\\taverna-impressao",
-    "lastUpdated": "2025-03-28T19:30:00.000Z"
+    "lastUpdated": "2025-03-28T19:42:30.000Z"
   },
   "development": {
-    "currentFile": "app/views/admin/users/index.php",
+    "currentFile": "app/views/admin/users/view.php",
     "currentComponent": "Painel Administrativo",
     "inProgress": {
       "type": "implementation",
       "description": "Implementação das views do painel administrativo",
       "remainingTasks": [
-        "Implementar views de administração de usuários",
+        "Implementar view de visualização detalhada de usuários",
+        "Implementar view de formulário para criação/edição de usuários",
         "Criar funcionalidade de relatórios e estatísticas"
       ]
     }
@@ -30,7 +31,8 @@
       "Controladores do Painel Administrativo",
       "Views de Administração de Produtos",
       "Views de Administração de Categorias",
-      "Views de Administração de Pedidos"
+      "Views de Administração de Pedidos",
+      "Listagem de Usuários (Admin)"
     ],
     "inProgress": [
       "Catálogo de Produtos",
@@ -44,11 +46,11 @@
     ]
   },
   "context": {
-    "lastThought": "Implementada a visualização detalhada de pedidos no painel administrativo, incluindo informações do cliente, itens, status, histórico e opções de gerenciamento",
+    "lastThought": "Implementado o controlador AdminUserController, os modelos UserModel e AddressModel com as funcionalidades necessárias, e a view de listagem de usuários para o painel administrativo",
     "nextSteps": [
-      "Implementar views de administração de usuários (listagem, edição, permissões)",
+      "Implementar view de visualização detalhada de usuários (view.php)",
+      "Implementar view de formulário para criação/edição de usuários (form.php)",
       "Criar funcionalidade de relatórios e estatísticas de vendas",
-      "Adicionar funcionalidade de importação/exportação de produtos",
       "Refinar a interface com feedback visual para ações do usuário"
     ],
     "dependencies": []
@@ -57,7 +59,7 @@
     "remoteUrl": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce.git",
     "mainBranch": "main",
     "currentBranch": "main",
-    "lastCommit": "9f270c03455ffc17e6b20d4e9f959d3ecdf08155",
-    "lastCommitMessage": "Implementar view de visualização detalhada de pedidos"
+    "lastCommit": "72aef33b4c1b6f6d12df018a10eaa96bd5c9f0da",
+    "lastCommitMessage": "Implementar view de listagem de usuários para o painel administrativo"
   }
 }
