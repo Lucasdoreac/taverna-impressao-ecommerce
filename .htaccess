@@ -1,0 +1,37 @@
+# Configurações de segurança e performance para TAVERNA DA IMPRESSÃO
+
+# Ativar o motor de reescrita
+RewriteEngine On
+
+# Forçar HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Remover www
+RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
+RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
+# Redirecionar todas as requisições para a pasta public
+# exceto arquivos e diretórios existentes
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ public/$1 [L]
+
+# Se acessar diretamente a raiz, redirecionar para public/index.php
+RewriteRule ^$ public/index.php [L]
+
+# Proteger arquivos e diretórios sensíveis
+<FilesMatch "(^\.ht|\.env|\.json|config\.php|composer\.(json|lock)|README\.md)$">
+  Require all denied
+</FilesMatch>
+
+# Desativar listagem de diretórios
+Options -Indexes
+
+# Configurações de PHP para todo o site
+php_value upload_max_filesize 20M
+php_value post_max_size 20M
+php_value memory_limit 128M
+php_value max_execution_time 300
+php_value max_input_time 300
