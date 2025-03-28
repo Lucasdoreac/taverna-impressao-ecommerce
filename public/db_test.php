@@ -9,8 +9,8 @@ error_reporting(E_ALL);
 echo "<h1>Diagnóstico de Conexão ao Banco de Dados</h1>";
 echo "<p>Este arquivo deve ser removido após o diagnóstico!</p>";
 
-// Informações de conexão
-$db_host = 'localhost';  // Pode ser 'localhost' ou o servidor específico da Hostinger
+// Informações de conexão - usando IP e porta explícitos
+$db_host = '127.0.0.1:3306';  // Conexão TCP/IP explícita
 $db_name = 'u135851624_taverna';
 $db_user = 'u135851624_taverna';
 $db_pass = '#Taverna';
@@ -100,6 +100,7 @@ try {
         echo "<li>Verifique a senha no painel de controle da Hostinger</li>";
         echo "<li>Verifique se o usuário tem permissões no banco de dados</li>";
         echo "<li>Tente recriar o usuário e banco de dados no painel da Hostinger</li>";
+        echo "<li>Confirme se o banco de dados permite acesso via endereço IP (127.0.0.1)</li>";
         echo "</ul>";
     } elseif (strpos($e->getMessage(), "Unknown database") !== false) {
         echo "<p>O banco de dados especificado não existe. Possíveis causas:</p>";
@@ -120,11 +121,36 @@ try {
         echo "<ul>";
         echo "<li>Servidor MySQL não está rodando</li>";
         echo "<li>Firewall bloqueando a conexão</li>";
-        echo "<li>Host incorreto</li>";
+        echo "<li>Host incorreto ou porta incorreta</li>";
         echo "</ul>";
     } else {
         echo "<p>Erro não específico. Contate o suporte da Hostinger para mais informações.</p>";
     }
+}
+
+// Teste alternativo com mysqli
+echo "<h3>Teste Alternativo (MySQLi)</h3>";
+try {
+    // Separar host e porta
+    $host_parts = explode(':', $db_host);
+    $mysqli_host = $host_parts[0];
+    $mysqli_port = isset($host_parts[1]) ? (int)$host_parts[1] : 3306;
+    
+    $mysqli = new mysqli($mysqli_host, $db_user, $db_pass, $db_name, $mysqli_port);
+    
+    if ($mysqli->connect_errno) {
+        throw new Exception("Erro MySQLi: " . $mysqli->connect_error);
+    }
+    
+    echo "<div style='color: green; font-weight: bold;'>";
+    echo "✓ Conexão MySQLi estabelecida com sucesso";
+    echo "</div>";
+    
+    $mysqli->close();
+} catch (Exception $e) {
+    echo "<div style='color: red; font-weight: bold;'>";
+    echo "✗ " . $e->getMessage();
+    echo "</div>";
 }
 
 // Remover link para este arquivo após uso
