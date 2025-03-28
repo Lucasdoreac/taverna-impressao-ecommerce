@@ -66,6 +66,11 @@ class AuthController {
                         ]);
                     }
                     
+                    // Definir flag para migrar carrinho após o login
+                    if (!empty($_SESSION['cart'])) {
+                        $_SESSION['migrate_cart'] = true;
+                    }
+                    
                     // Redirecionar após login
                     $redirect = $_SESSION['redirect_after_login'] ?? BASE_URL;
                     unset($_SESSION['redirect_after_login']);
@@ -178,6 +183,11 @@ class AuthController {
                 ]);
                 
                 if ($result['success']) {
+                    // Definir flag para migrar carrinho após o registro se tiver login automático
+                    if (!empty($_SESSION['cart']) && isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in']) {
+                        $_SESSION['migrate_cart'] = true;
+                    }
+                    
                     // Redirecionar após registro
                     $_SESSION['success'] = 'Cadastro realizado com sucesso!';
                     header('Location: ' . BASE_URL);
