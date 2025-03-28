@@ -1,0 +1,50 @@
+# Arquivos específicos de sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arquivos específicos de IDE/Editor
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+*.swp
+*.swo
+
+# Arquivos temporários
+/temp/
+/tmp/
+
+# Dependências e pacotes
+/vendor/
+/node_modules/
+
+# Arquivos de configuração sensíveis
+.env
+.env.local
+config.php
+
+# Arquivos de uploads
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# Arquivos de cache e logs
+/logs/
+/cache/
+*.log
+
+# Arquivos gerados pelo sistema
+/public/assets/generated/
+
+# Backups de banco de dados
+*.sql.gz
+*.bak
+*.backup
+*.dump
+
+# Outros arquivos
+*.zip
+*.tar.gz
+*.rar
