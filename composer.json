@@ -1,0 +1,23 @@
+{
+    "name": "taverna-impressao/ecommerce",
+    "description": "E-commerce especializado em materiais impressos para RPG - TAVERNA DA IMPRESSÃO",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "mpdf/mpdf": "^8.1"
+    },
+    "autoload": {
+        "classmap": [
+            "app/controllers/",
+            "app/models/",
+            "app/helpers/"
+        ]
+    },
+    "authors": [
+        {
+            "name": "TAVERNA DA IMPRESSÃO",
+            "email": "contato@tavernaimpressao.com.br"
+        }
+    ],
+    "minimum-stability": "stable"
+}
