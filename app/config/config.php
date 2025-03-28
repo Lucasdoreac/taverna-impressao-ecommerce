@@ -1,17 +1,25 @@
 <?php
 // Configurações globais da aplicação
-define('BASE_URL', 'https://tavernaimpressao.com.br/');
+define('BASE_URL', 'https://darkblue-cattle-647559.hostingersite.com/');
 define('ROOT_PATH', dirname(dirname(__DIR__)));
 define('APP_PATH', ROOT_PATH . '/app');
 define('VIEWS_PATH', APP_PATH . '/views');
 define('UPLOADS_PATH', ROOT_PATH . '/public/uploads');
 define('LOG_PATH', ROOT_PATH . '/logs');
 
-// Configurações do banco de dados
+// Configurações do banco de dados para Hostinger
+// O hostname correto na Hostinger geralmente é 'localhost' mas com socket específico
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'u135851624_taverna');
 define('DB_USER', 'u135851624_taverna');
 define('DB_PASS', '#Taverna');
+
+// Adicionando opções de PDO específicas para Hostinger
+define('DB_OPTIONS', [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES => false
+]);
 
 // Configurações de e-mail
 define('SMTP_HOST', 'smtp.hostinger.com');
@@ -27,7 +35,7 @@ define('STORE_PHONE', '(21) 98765-4321');
 // Configurações de segurança
 define('CSRF_TOKEN_NAME', 'taverna_token');
 define('SESSION_NAME', 'TAVERNA_SESSION');
-define('COOKIE_DOMAIN', '.tavernaimpressao.com.br');
+define('COOKIE_DOMAIN', '.hostingersite.com');
 define('COOKIE_SECURE', true);
 define('COOKIE_HTTP_ONLY', true);
 
