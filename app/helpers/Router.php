@@ -1,6 +1,6 @@
 <?php
 /**
- * Router - Sistema de roteamento básico
+ * Router - Sistema de roteamento básico otimizado para ambiente Hostinger
  */
 class Router {
     private $routes = [];
@@ -13,33 +13,64 @@ class Router {
     public function dispatch() {
         $uri = $this->getUri();
         
+        // Log para depuração
+        if (ENVIRONMENT === 'development' || isset($_GET['debug'])) {
+            app_log("Roteamento: URI = {$uri}", 'debug');
+            app_log("SERVER_NAME: " . $_SERVER['SERVER_NAME'], 'debug');
+            app_log("REQUEST_URI: " . $_SERVER['REQUEST_URI'], 'debug');
+            app_log("SCRIPT_NAME: " . $_SERVER['SCRIPT_NAME'], 'debug');
+            app_log("PHP_SELF: " . $_SERVER['PHP_SELF'], 'debug');
+            app_log("QUERY_STRING: " . ($_SERVER['QUERY_STRING'] ?? ''), 'debug');
+        }
+        
+        // Verificar rotas registradas
         foreach ($this->routes as $route => $handler) {
             if ($this->matchRoute($route, $uri, $params)) {
                 list($controller, $method) = $handler;
+                
+                if (ENVIRONMENT === 'development' || isset($_GET['debug'])) {
+                    app_log("Rota encontrada: {$route} => {$controller}::{$method}", 'debug');
+                }
+                
                 $this->callAction($controller, $method, $params);
                 return;
             }
         }
         
         // Rota não encontrada
+        app_log("Rota não encontrada: {$uri}", 'warning');
         $this->notFound();
     }
     
     private function getUri() {
-        $uri = $_SERVER['REQUEST_URI'];
-        $baseDir = dirname($_SERVER['SCRIPT_NAME']);
+        // Modificação para melhor compatibilidade com ambiente Hostinger
+        $requestUri = $_SERVER['REQUEST_URI'];
         
-        // Remover diretório base da URI
-        if ($baseDir !== '/') {
-            $uri = substr($uri, strlen($baseDir));
+        // Remover query string se presente
+        if (($pos = strpos($requestUri, '?')) !== false) {
+            $requestUri = substr($requestUri, 0, $pos);
         }
         
-        // Remover query string
-        if (($pos = strpos($uri, '?')) !== false) {
-            $uri = substr($uri, 0, $pos);
+        // Remover diretório base da URI com detecção automática para máxima compatibilidade
+        $scriptName = $_SERVER['SCRIPT_NAME'];
+        $scriptDir = dirname($scriptName);
+        
+        // Se o script não estiver na raiz do servidor, remover o caminho do script
+        if ($scriptDir !== '/' && $scriptDir !== '\\') {
+            if (strpos($requestUri, $scriptDir) === 0) {
+                $requestUri = substr($requestUri, strlen($scriptDir));
+            }
         }
         
-        return '/' . trim($uri, '/');
+        // Garantir que a URI comece com /
+        $uri = '/' . trim($requestUri, '/');
+        
+        // Lidar com "/" como uma rota válida
+        if ($uri === '//') {
+            $uri = '/';
+        }
+        
+        return $uri;
     }
     
     private function matchRoute($route, $uri, &$params) {
@@ -54,7 +85,7 @@ class Router {
             preg_match_all('/:([a-zA-Z0-9]+)/', $route, $paramNames);
             
             for ($i = 0; $i < count($paramNames[1]); $i++) {
-                $params[$paramNames[1][$i]] = $matches[$i + 1];
+                $params[$paramNames[1][$i]] = $matches[$i + 1] ?? null;
             }
             
             return true;
@@ -64,17 +95,34 @@ class Router {
     }
     
     private function callAction($controller, $method, $params) {
-        if (class_exists($controller)) {
-            $controllerObj = new $controller();
-            
-            if (method_exists($controllerObj, $method)) {
-                call_user_func_array([$controllerObj, $method], $params);
-                return;
-            }
+        if (!class_exists($controller)) {
+            app_log("Controlador não encontrado: {$controller}", 'error');
+            $this->notFound();
+            return;
         }
         
-        // Método não encontrado
-        $this->notFound();
+        try {
+            $controllerObj = new $controller();
+            
+            if (!method_exists($controllerObj, $method)) {
+                app_log("Método não encontrado: {$controller}::{$method}", 'error');
+                $this->notFound();
+                return;
+            }
+            
+            call_user_func_array([$controllerObj, $method], $params);
+        } catch (Exception $e) {
+            app_log("Erro ao chamar controller: " . $e->getMessage(), 'error');
+            if (ENVIRONMENT === 'development' || isset($_GET['debug'])) {
+                echo "<h1>Erro no Controller</h1>";
+                echo "<p>" . $e->getMessage() . "</p>";
+                echo "<pre>" . $e->getTraceAsString() . "</pre>";
+            } else {
+                // Em produção, mostra página de erro genérica
+                include VIEWS_PATH . '/errors/500.php';
+            }
+            exit;
+        }
     }
     
     private function notFound() {
