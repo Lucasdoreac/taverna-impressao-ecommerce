@@ -4,7 +4,6 @@
  */
 class OrderModel extends Model {
     protected $table = 'orders';
-    protected $primaryKey = 'id';
     protected $fillable = [
         'user_id', 'order_number', 'status', 'payment_method', 'payment_status',
         'shipping_address_id', 'shipping_method', 'shipping_cost', 'subtotal',
@@ -12,294 +11,250 @@ class OrderModel extends Model {
     ];
     
     /**
-     * Busca um pedido pelo número de pedido
+     * Gera um número único para o pedido
+     */
+    public function generateOrderNumber() {
+        // Prefixo + Timestamp + Random
+        return 'TI' . date('Ymd') . substr(uniqid(), -4);
+    }
+    
+    /**
+     * Busca um pedido pelo número
      */
     public function findByOrderNumber($orderNumber) {
         return $this->findBy('order_number', $orderNumber);
     }
     
     /**
-     * Busca pedidos de um usuário específico
+     * Busca pedidos de um usuário
      */
-    public function getByUser($userId, $page = 1, $limit = 10) {
-        return $this->paginate($page, $limit, 'user_id = :user_id', ['user_id' => $userId]);
+    public function getOrdersByUser($userId) {
+        $sql = "SELECT * FROM {$this->table} WHERE user_id = :user_id ORDER BY created_at DESC";
+        return $this->db()->select($sql, ['user_id' => $userId]);
     }
     
     /**
-     * Busca os pedidos recentes
+     * Busca pedidos recentes
      */
-    public function getRecent($limit = 5) {
-        $sql = "SELECT o.*, u.name as user_name, u.email as user_email 
+    public function getRecentOrders($limit = 5) {
+        $sql = "SELECT o.*, u.name as customer_name 
                 FROM {$this->table} o 
                 LEFT JOIN users u ON o.user_id = u.id 
                 ORDER BY o.created_at DESC 
                 LIMIT {$limit}";
+        return $this->db()->select($sql);
+    }
+    
+    /**
+     * Conta o total de pedidos
+     */
+    public function countAll() {
+        $sql = "SELECT COUNT(*) as total FROM {$this->table}";
+        $result = $this->db()->select($sql);
+        return $result[0]['total'];
+    }
+    
+    /**
+     * Conta pedidos por status
+     */
+    public function countByStatus($status) {
+        $sql = "SELECT COUNT(*) as total FROM {$this->table} WHERE status = :status";
+        $result = $this->db()->select($sql, ['status' => $status]);
+        return $result[0]['total'];
+    }
+    
+    /**
+     * Calcula o total de vendas
+     * @param string $period today|week|month|all
+     */
+    public function getTotalSales($period = 'all') {
+        $whereClause = "WHERE payment_status = 'paid'";
+        $params = [];
+        
+        if ($period === 'today') {
+            $whereClause .= " AND DATE(created_at) = CURDATE()";
+        } else if ($period === 'week') {
+            $whereClause .= " AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+        } else if ($period === 'month') {
+            $whereClause .= " AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
+        }
+        
+        $sql = "SELECT SUM(total) as total FROM {$this->table} {$whereClause}";
+        $result = $this->db()->select($sql, $params);
+        
+        return $result[0]['total'] ?: 0;
+    }
+    
+    /**
+     * Obtém vendas por período
+     * @param string $startDate Data inicial (Y-m-d)
+     * @param string $endDate Data final (Y-m-d)
+     * @param string $groupBy daily|monthly|yearly
+     */
+    public function getSalesByDateRange($startDate, $endDate, $groupBy = 'daily') {
+        $dateFormat = "DATE(created_at)";
+        
+        if ($groupBy === 'monthly') {
+            $dateFormat = "DATE_FORMAT(created_at, '%Y-%m')";
+        } else if ($groupBy === 'yearly') {
+            $dateFormat = "YEAR(created_at)";
+        }
+        
+        $sql = "SELECT 
+                    {$dateFormat} as date,
+                    COUNT(*) as count,
+                    SUM(total) as total
+                FROM {$this->table}
+                WHERE 
+                    created_at BETWEEN :start_date AND :end_date
+                    AND payment_status = 'paid'
+                GROUP BY date
+                ORDER BY date ASC";
+        
+        return $this->db()->select($sql, [
+            'start_date' => $startDate,
+            'end_date' => $endDate . ' 23:59:59'
+        ]);
+    }
+    
+    /**
+     * Obtém vendas por categoria
+     */
+    public function getSalesByCategory() {
+        $sql = "SELECT 
+                    c.name as category,
+                    COUNT(oi.id) as count,
+                    SUM(oi.price * oi.quantity) as total
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                JOIN categories c ON p.category_id = c.id
+                JOIN orders o ON oi.order_id = o.id
+                WHERE o.payment_status = 'paid'
+                GROUP BY c.id
+                ORDER BY total DESC";
         
         return $this->db()->select($sql);
     }
     
     /**
-     * Busca pedidos com filtros
+     * Obtém itens de um pedido
      */
-    public function getWithFilters($filters = [], $page = 1, $limit = 20) {
-        $where = '1=1';
-        $params = [];
-        
-        // Filtro por status
-        if (!empty($filters['status'])) {
-            $where .= ' AND status = :status';
-            $params['status'] = $filters['status'];
-        }
-        
-        // Filtro por método de pagamento
-        if (!empty($filters['payment_method'])) {
-            $where .= ' AND payment_method = :payment_method';
-            $params['payment_method'] = $filters['payment_method'];
-        }
-        
-        // Filtro por status de pagamento
-        if (!empty($filters['payment_status'])) {
-            $where .= ' AND payment_status = :payment_status';
-            $params['payment_status'] = $filters['payment_status'];
-        }
-        
-        // Filtro por data inicial
-        if (!empty($filters['date_from'])) {
-            $where .= ' AND created_at >= :date_from';
-            $params['date_from'] = $filters['date_from'] . ' 00:00:00';
-        }
-        
-        // Filtro por data final
-        if (!empty($filters['date_to'])) {
-            $where .= ' AND created_at <= :date_to';
-            $params['date_to'] = $filters['date_to'] . ' 23:59:59';
-        }
-        
-        // Filtro por número de pedido
-        if (!empty($filters['order_number'])) {
-            $where .= ' AND order_number LIKE :order_number';
-            $params['order_number'] = '%' . $filters['order_number'] . '%';
-        }
-        
-        // Filtro por cliente
-        if (!empty($filters['customer'])) {
-            $where .= ' AND user_id IN (SELECT id FROM users WHERE name LIKE :customer OR email LIKE :customer)';
-            $params['customer'] = '%' . $filters['customer'] . '%';
-        }
-        
-        // Buscar com paginação
-        $offset = ($page - 1) * $limit;
-        
-        // Contar total de registros
-        $countSql = "SELECT COUNT(*) as total FROM {$this->table} WHERE {$where}";
-        $countResult = $this->db()->select($countSql, $params);
-        $total = $countResult[0]['total'];
-        
-        // Buscar pedidos
-        $sql = "SELECT o.*, u.name as user_name, u.email as user_email 
-                FROM {$this->table} o 
-                LEFT JOIN users u ON o.user_id = u.id 
-                WHERE {$where} 
-                ORDER BY o.created_at DESC 
-                LIMIT {$offset}, {$limit}";
-        
-        $items = $this->db()->select($sql, $params);
-        
-        return [
-            'items' => $items,
-            'total' => $total,
-            'currentPage' => $page,
-            'perPage' => $limit,
-            'lastPage' => ceil($total / $limit),
-            'from' => $offset + 1,
-            'to' => min($offset + $limit, $total)
-        ];
-    }
-    
-    /**
-     * Obtém os itens de um pedido
-     */
-    public function getItems($orderId) {
-        $sql = "SELECT oi.*, p.name as product_name, p.slug as product_slug 
-                FROM order_items oi 
-                LEFT JOIN products p ON oi.product_id = p.id 
-                WHERE oi.order_id = :order_id";
-        
+    public function getOrderItems($orderId) {
+        $sql = "SELECT * FROM order_items WHERE order_id = :order_id";
         return $this->db()->select($sql, ['order_id' => $orderId]);
     }
     
     /**
-     * Obtém o endereço de entrega de um pedido
+     * Adiciona itens a um pedido
      */
-    public function getShippingAddress($addressId) {
-        if (!$addressId) {
-            return null;
-        }
+    public function addOrderItem($orderId, $data) {
+        $data['order_id'] = $orderId;
         
-        $sql = "SELECT * FROM addresses WHERE id = :id LIMIT 1";
-        $result = $this->db()->select($sql, ['id' => $addressId]);
+        $sql = "INSERT INTO order_items (order_id, product_id, product_name, quantity, price, customization_data)
+                VALUES (:order_id, :product_id, :product_name, :quantity, :price, :customization_data)";
         
-        return $result ? $result[0] : null;
+        $this->db()->query($sql, [
+            'order_id' => $data['order_id'],
+            'product_id' => $data['product_id'],
+            'product_name' => $data['product_name'],
+            'quantity' => $data['quantity'],
+            'price' => $data['price'],
+            'customization_data' => $data['customization_data'] ?? null
+        ]);
     }
     
     /**
      * Atualiza o status de um pedido
      */
-    public function updateStatus($orderId, $status) {
-        return $this->update($orderId, ['status' => $status]);
+    public function updateStatus($orderId, $status, $note = null) {
+        // Atualizar status
+        $this->update($orderId, ['status' => $status]);
+        
+        // Se houver nota, adicionar ao histórico
+        if ($note) {
+            $this->addNote($orderId, $note);
+        }
+        
+        return true;
     }
     
     /**
      * Atualiza o status de pagamento de um pedido
      */
-    public function updatePaymentStatus($orderId, $paymentStatus) {
-        return $this->update($orderId, ['payment_status' => $paymentStatus]);
+    public function updatePaymentStatus($orderId, $status, $note = null) {
+        // Atualizar status de pagamento
+        $this->update($orderId, ['payment_status' => $status]);
+        
+        // Se houver nota, adicionar ao histórico
+        if ($note) {
+            $this->addNote($orderId, $note);
+        }
+        
+        return true;
     }
     
     /**
-     * Adiciona um código de rastreamento ao pedido
+     * Adiciona código de rastreio ao pedido
      */
-    public function addTrackingCode($orderId, $trackingCode) {
-        return $this->update($orderId, [
+    public function addTrackingCode($orderId, $trackingCode, $note = null) {
+        // Atualizar pedido
+        $this->update($orderId, [
             'tracking_code' => $trackingCode,
             'status' => 'shipped'
+        ]);
+        
+        // Se houver nota, adicionar ao histórico
+        if (!$note) {
+            $note = "Pedido enviado. Código de rastreio: {$trackingCode}";
+        }
+        
+        $this->addNote($orderId, $note);
+        
+        return true;
+    }
+    
+    /**
+     * Adiciona uma nota/histórico ao pedido
+     */
+    public function addNote($orderId, $content) {
+        $sql = "INSERT INTO order_notes (order_id, content, created_by)
+                VALUES (:order_id, :content, :created_by)";
+        
+        $createdBy = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
+        
+        $this->db()->query($sql, [
+            'order_id' => $orderId,
+            'content' => $content,
+            'created_by' => $createdBy
         ]);
     }
     
     /**
-     * Adiciona uma nota ao pedido
-     */
-    public function addNote($orderId, $note) {
-        // Obter notas atuais
-        $order = $this->find($orderId);
-        
-        if (!$order) {
-            return false;
-        }
-        
-        // Formatar a data e hora atual
-        $timestamp = date('Y-m-d H:i:s');
-        
-        // Adicionar nova nota com timestamp
-        $newNote = "[{$timestamp}] {$note}";
-        
-        // Concatenar com notas existentes ou criar nova
-        if (!empty($order['notes'])) {
-            $notes = $order['notes'] . "\n\n" . $newNote;
-        } else {
-            $notes = $newNote;
-        }
-        
-        // Atualizar pedido
-        return $this->update($orderId, ['notes' => $notes]);
-    }
-    
-    /**
-     * Obtém estatísticas de vendas por período
-     */
-    public function getSalesStats($period = 'monthly') {
-        $groupBy = '';
-        $dateFormat = '';
-        
-        switch ($period) {
-            case 'daily':
-                $groupBy = 'DATE(created_at)';
-                $dateFormat = '%Y-%m-%d';
-                break;
-            case 'weekly':
-                $groupBy = 'YEAR(created_at), WEEK(created_at)';
-                $dateFormat = '%x-W%v';
-                break;
-            case 'monthly':
-                $groupBy = 'YEAR(created_at), MONTH(created_at)';
-                $dateFormat = '%Y-%m';
-                break;
-            case 'yearly':
-                $groupBy = 'YEAR(created_at)';
-                $dateFormat = '%Y';
-                break;
-            default:
-                $groupBy = 'YEAR(created_at), MONTH(created_at)';
-                $dateFormat = '%Y-%m';
-        }
-        
-        $sql = "SELECT 
-                DATE_FORMAT(created_at, '{$dateFormat}') as period,
-                COUNT(*) as order_count,
-                SUM(total) as revenue,
-                AVG(total) as average_order
-                FROM {$this->table}
-                WHERE status != 'canceled'
-                GROUP BY {$groupBy}
-                ORDER BY created_at DESC
-                LIMIT 12";
-        
-        return $this->db()->select($sql);
-    }
-    
-    /**
-     * Obtém estatísticas de produtos mais vendidos
-     */
-    public function getTopProducts($limit = 10) {
-        $sql = "SELECT 
-                oi.product_id,
-                p.name as product_name,
-                p.slug as product_slug,
-                SUM(oi.quantity) as total_quantity,
-                COUNT(DISTINCT oi.order_id) as order_count,
-                SUM(oi.price * oi.quantity) as total_revenue
-                FROM order_items oi
-                JOIN products p ON oi.product_id = p.id
-                JOIN orders o ON oi.order_id = o.id
-                WHERE o.status != 'canceled'
-                GROUP BY oi.product_id
-                ORDER BY total_quantity DESC
-                LIMIT {$limit}";
-        
-        return $this->db()->select($sql);
-    }
-    
-    /**
-     * Gera um número de pedido único
-     */
-    public function generateOrderNumber() {
-        $prefix = 'TAV';
-        $timestamp = date('YmdHis');
-        $random = strtoupper(substr(md5(uniqid()), 0, 4));
-        
-        return $prefix . $timestamp . $random;
-    }
-    
-    /**
-     * Obtém histórico de notas de um pedido
+     * Obtém as notas/histórico de um pedido
      */
     public function getNotes($orderId) {
-        $order = $this->find($orderId);
+        $sql = "SELECT n.*, u.name as user_name
+                FROM order_notes n
+                LEFT JOIN users u ON n.created_by = u.id
+                WHERE n.order_id = :order_id
+                ORDER BY n.created_at DESC";
         
-        if (!$order || empty($order['notes'])) {
-            return [];
-        }
+        return $this->db()->select($sql, ['order_id' => $orderId]);
+    }
+    
+    /**
+     * Cancela um pedido
+     */
+    public function cancelOrder($orderId, $reason) {
+        // Atualizar status
+        $this->update($orderId, [
+            'status' => 'canceled',
+            'payment_status' => 'canceled'
+        ]);
         
-        // Dividir as notas em um array
-        $notesArray = explode("\n\n", $order['notes']);
-        $formattedNotes = [];
+        // Adicionar nota com motivo do cancelamento
+        $this->addNote($orderId, "Pedido cancelado. Motivo: {$reason}");
         
-        foreach ($notesArray as $note) {
-            // Extrair timestamp e conteúdo
-            if (preg_match('/\[(.*?)\] (.*)/', $note, $matches)) {
-                $formattedNotes[] = [
-                    'timestamp' => $matches[1],
-                    'content' => $matches[2]
-                ];
-            } else {
-                // Caso não siga o formato esperado
-                $formattedNotes[] = [
-                    'timestamp' => '',
-                    'content' => $note
-                ];
-            }
-        }
-        
-        return $formattedNotes;
+        return true;
     }
 }
