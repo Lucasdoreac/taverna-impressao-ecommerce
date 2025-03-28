@@ -1,231 +1,196 @@
 <?php require_once VIEWS_PATH . '/admin/partials/header.php'; ?>
 
-<div class="content-wrapper">
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0"><?= isset($option) ? 'Editar' : 'Nova' ?> Opção de Personalização</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>admin">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>admin/customizacao">Personalização</a></li>
-                        <li class="breadcrumb-item active"><?= isset($option) ? 'Editar' : 'Nova' ?> Opção</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <?= isset($option) ? 'Editar' : 'Nova' ?> Opção de Personalização
+        </h1>
+        <a href="<?= BASE_URL ?>admin/customization" class="btn btn-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Voltar
+        </a>
     </div>
 
-    <section class="content">
-        <div class="container-fluid">
-            <?php if (isset($_SESSION['error'])): ?>
-                <div class="alert alert-danger alert-dismissible">
-                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                    <h5><i class="icon fas fa-ban"></i> Erro!</h5>
-                    <?= $_SESSION['error'] ?>
-                    <?php unset($_SESSION['error']); ?>
-                </div>
-            <?php endif; ?>
+    <?php if (isset($_SESSION['error'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <?= $_SESSION['error'] ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+    </div>
+    <?php unset($_SESSION['error']); ?>
+    <?php endif; ?>
 
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title"><?= isset($option) ? 'Editar' : 'Nova' ?> Opção de Personalização</h3>
-                </div>
-                <form action="<?= BASE_URL ?>admin/customizacao/<?= isset($option) ? 'atualizar' : 'salvar' ?>" method="post">
-                    <?php if (isset($option)): ?>
-                        <input type="hidden" name="id" value="<?= $option['id'] ?>">
-                    <?php endif; ?>
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <?= isset($option) ? 'Editar' : 'Cadastrar' ?> Opção de Personalização
+            </h6>
+        </div>
+        <div class="card-body">
+            <form method="post" action="<?= isset($option) ? BASE_URL . 'admin/customization/update/' . $option['id'] : BASE_URL . 'admin/customization/store' ?>">
+                <!-- Token CSRF -->
+                <input type="hidden" name="csrf_token" value="<?= Security::generateCSRFToken() ?>">
+                
+                <!-- Recuperar dados do formulário caso haja erro -->
+                <?php
+                $formData = isset($_SESSION['form_data']) ? $_SESSION['form_data'] : [];
+                unset($_SESSION['form_data']);
+                
+                // Definir valores
+                $productIdValue = isset($formData['product_id']) ? $formData['product_id'] : 
+                                  (isset($option) ? $option['product_id'] : 
+                                  (isset($selectedProductId) ? $selectedProductId : ''));
+                                  
+                $nameValue = isset($formData['name']) ? $formData['name'] : 
+                             (isset($option) ? $option['name'] : '');
+                             
+                $descriptionValue = isset($formData['description']) ? $formData['description'] : 
+                                   (isset($option) ? $option['description'] : '');
+                                   
+                $typeValue = isset($formData['type']) ? $formData['type'] : 
+                             (isset($option) ? $option['type'] : 'text');
+                             
+                $requiredValue = isset($formData['required']) ? $formData['required'] : 
+                                (isset($option) ? $option['required'] : false);
+                                
+                $optionsValue = isset($formData['options']) ? $formData['options'] : 
+                               (isset($formattedOptions) ? $formattedOptions : '');
+                ?>
+                
+                <div class="row">
+                    <!-- Produto -->
+                    <div class="col-md-6 mb-4">
+                        <label for="product_id" class="form-label">Produto <span class="text-danger">*</span></label>
+                        <select class="form-select" id="product_id" name="product_id" required>
+                            <option value="">Selecione um produto...</option>
+                            <?php foreach ($products as $product): ?>
+                            <option value="<?= $product['id'] ?>" <?= $productIdValue == $product['id'] ? 'selected' : '' ?>>
+                                <?= $product['name'] ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">
+                            <small>Apenas produtos marcados como "Personalizável" são exibidos.</small>
+                        </div>
+                    </div>
                     
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label for="product_id">Produto</label>
-                            <select name="product_id" id="product_id" class="form-control select2" required>
-                                <option value="">Selecione um produto</option>
-                                <?php foreach ($products as $prod): ?>
-                                    <option value="<?= $prod['id'] ?>" <?= (isset($product) && $product['id'] == $prod['id']) || (isset($option) && $option['product_id'] == $prod['id']) ? 'selected' : '' ?>>
-                                        <?= $prod['name'] ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="name">Nome da Opção</label>
-                            <input type="text" class="form-control" id="name" name="name" value="<?= $option['name'] ?? '' ?>" required>
-                            <small class="form-text text-muted">Nome que será exibido para o cliente, ex: "Cor da borda", "Texto personalizado", etc.</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="description">Descrição</label>
-                            <textarea class="form-control" id="description" name="description" rows="3"><?= $option['description'] ?? '' ?></textarea>
-                            <small class="form-text text-muted">Descrição opcional para explicar a opção ao cliente.</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="type">Tipo de Campo</label>
-                            <select name="type" id="type" class="form-control" required onchange="toggleOptionsField()">
-                                <option value="text" <?= (isset($option) && $option['type'] == 'text') ? 'selected' : '' ?>>Campo de Texto</option>
-                                <option value="select" <?= (isset($option) && $option['type'] == 'select') ? 'selected' : '' ?>>Seleção de Opções</option>
-                                <option value="upload" <?= (isset($option) && $option['type'] == 'upload') ? 'selected' : '' ?>>Upload de Arquivo</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group" id="options-group" style="display: <?= (isset($option) && $option['type'] == 'select') ? 'block' : 'none' ?>;">
-                            <label for="options">Opções de Seleção</label>
-                            <textarea class="form-control" id="options" name="options" rows="5" placeholder="valor:Descrição"><?= $option['options_text'] ?? '' ?></textarea>
-                            <small class="form-text text-muted">
-                                Uma opção por linha, no formato "valor: Descrição". Exemplo:<br>
-                                red: Vermelho<br>
-                                blue: Azul<br>
-                                green: Verde
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <div class="custom-control custom-switch">
-                                <input type="checkbox" class="custom-control-input" id="required" name="required" <?= (isset($option) && $option['required']) ? 'checked' : '' ?>>
-                                <label class="custom-control-label" for="required">Obrigatório</label>
-                            </div>
-                            <small class="form-text text-muted">Se marcado, o cliente deve preencher este campo para adicionar o produto ao carrinho.</small>
-                        </div>
-                    </div>
-
-                    <div class="card-footer">
-                        <button type="submit" class="btn btn-primary">Salvar</button>
-                        <a href="<?= BASE_URL ?>admin/customizacao" class="btn btn-default">Cancelar</a>
-                        
-                        <?php if (isset($option)): ?>
-                            <button type="button" class="btn btn-danger float-right" data-toggle="modal" data-target="#deleteModal">
-                                Excluir
-                            </button>
-                        <?php endif; ?>
-                    </div>
-                </form>
-            </div>
-            
-            <?php if (isset($product)): ?>
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Sobre o Produto</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Nome:</strong> <?= $product['name'] ?></p>
-                                <p><strong>Preço:</strong> R$ <?= number_format($product['price'], 2, ',', '.') ?></p>
-                                <p><strong>SKU:</strong> <?= $product['sku'] ?? 'N/A' ?></p>
-                            </div>
-                            <div class="col-md-6">
-                                <?php if (isset($product['images'][0])): ?>
-                                    <img src="<?= BASE_URL ?>uploads/products/<?= $product['images'][0]['image'] ?>" alt="<?= $product['name'] ?>" class="img-fluid" style="max-height: 150px;">
-                                <?php else: ?>
-                                    <div class="alert alert-info">Sem imagem disponível</div>
-                                <?php endif; ?>
-                            </div>
+                    <!-- Nome da Opção -->
+                    <div class="col-md-6 mb-4">
+                        <label for="name" class="form-label">Nome da Opção <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" 
+                               value="<?= $nameValue ?>" required maxlength="100">
+                        <div class="form-text">
+                            <small>Este nome será exibido para o cliente.</small>
                         </div>
                     </div>
                 </div>
-            <?php endif; ?>
-            
-            <?php if (isset($option)): ?>
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Prévia da Opção de Personalização</h3>
+                
+                <div class="row">
+                    <!-- Tipo -->
+                    <div class="col-md-6 mb-4">
+                        <label for="type" class="form-label">Tipo de Campo <span class="text-danger">*</span></label>
+                        <select class="form-select" id="type" name="type" required>
+                            <option value="text" <?= $typeValue === 'text' ? 'selected' : '' ?>>Campo de Texto</option>
+                            <option value="upload" <?= $typeValue === 'upload' ? 'selected' : '' ?>>Upload de Arquivo</option>
+                            <option value="select" <?= $typeValue === 'select' ? 'selected' : '' ?>>Seleção de Opções</option>
+                        </select>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="preview-field"><?= $option['name'] ?></label>
-                                    <?php if ($option['description']): ?>
-                                        <p class="text-muted mb-2"><?= $option['description'] ?></p>
-                                    <?php endif; ?>
-                                    
-                                    <?php if ($option['type'] === 'text'): ?>
-                                        <textarea class="form-control" id="preview-field" rows="3" placeholder="Este é um campo de exemplo" <?= $option['required'] ? 'required' : '' ?>></textarea>
-                                    <?php elseif ($option['type'] === 'select'): ?>
-                                        <select class="form-control" id="preview-field" <?= $option['required'] ? 'required' : '' ?>>
-                                            <option value="">Selecione uma opção</option>
-                                            <?php 
-                                            $options = json_decode($option['options'], true);
-                                            if (is_array($options)): 
-                                                foreach ($options as $value => $label): 
-                                            ?>
-                                                <option value="<?= $value ?>"><?= $label ?></option>
-                                            <?php 
-                                                endforeach; 
-                                            endif; 
-                                            ?>
-                                        </select>
-                                    <?php elseif ($option['type'] === 'upload'): ?>
-                                        <div class="custom-file">
-                                            <input type="file" class="custom-file-input" id="preview-field" <?= $option['required'] ? 'required' : '' ?>>
-                                            <label class="custom-file-label" for="preview-field">Escolher arquivo</label>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="alert alert-info">
-                                    <h5><i class="icon fas fa-info"></i> Informação</h5>
-                                    Esta é uma prévia de como a opção aparecerá para o cliente. Os campos não são funcionais nesta tela.
-                                </div>
-                            </div>
+                    
+                    <!-- Obrigatório -->
+                    <div class="col-md-6 mb-4">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="required" name="required" 
+                                   <?= $requiredValue ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="required">
+                                Campo Obrigatório
+                            </label>
                         </div>
                     </div>
                 </div>
-            <?php endif; ?>
-        </div>
-    </section>
-</div>
-
-<?php if (isset($option)): ?>
-<!-- Modal de Confirmação de Exclusão -->
-<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <p>Tem certeza que deseja excluir a opção de personalização <strong><?= $option['name'] ?></strong>?</p>
-                <p class="text-danger">Esta ação não pode ser desfeita.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <a href="<?= BASE_URL ?>admin/customizacao/excluir/<?= $option['id'] ?>" class="btn btn-danger">Excluir</a>
-            </div>
+                
+                <!-- Descrição -->
+                <div class="mb-4">
+                    <label for="description" class="form-label">Descrição</label>
+                    <textarea class="form-control" id="description" name="description" rows="3"><?= $descriptionValue ?></textarea>
+                    <div class="form-text">
+                        <small>Esta descrição ajudará o cliente a entender o propósito deste campo.</small>
+                    </div>
+                </div>
+                
+                <!-- Opções (para tipo "select") -->
+                <div id="options-container" class="mb-4 <?= $typeValue !== 'select' ? 'd-none' : '' ?>">
+                    <label for="options" class="form-label">Opções de Seleção <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="options" name="options" rows="5"><?= $optionsValue ?></textarea>
+                    <div class="form-text">
+                        <small>
+                            Digite uma opção por linha no formato "valor: texto de exibição".<br>
+                            Exemplo:<br>
+                            <code>azul: Azul Royal</code><br>
+                            <code>vermelho: Vermelho Escuro</code><br>
+                            <code>preto: Preto Fosco</code>
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Upload Info (para tipo "upload") -->
+                <div id="upload-info" class="mb-4 alert alert-info <?= $typeValue !== 'upload' ? 'd-none' : '' ?>">
+                    <h6 class="alert-heading">Informações sobre Upload</h6>
+                    <p class="mb-0">
+                        <small>
+                            Para campos de upload, o cliente poderá enviar arquivos nos formatos:
+                            <ul class="mb-0">
+                                <li>PDF (recomendado para material impresso)</li>
+                                <li>JPG/JPEG (resolução mínima recomendada: 300 DPI)</li>
+                                <li>PNG (com transparência se necessário)</li>
+                            </ul>
+                            O tamanho máximo permitido é de 10MB por arquivo.
+                        </small>
+                    </p>
+                </div>
+                
+                <hr class="mt-4 mb-4">
+                
+                <div class="d-flex justify-content-between">
+                    <a href="<?= BASE_URL ?>admin/customization" class="btn btn-secondary">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <?= isset($option) ? 'Atualizar' : 'Salvar' ?>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <script>
-    function toggleOptionsField() {
-        const type = document.getElementById('type').value;
-        const optionsGroup = document.getElementById('options-group');
+document.addEventListener('DOMContentLoaded', function() {
+    const typeSelect = document.getElementById('type');
+    const optionsContainer = document.getElementById('options-container');
+    const uploadInfo = document.getElementById('upload-info');
+    const optionsField = document.getElementById('options');
+    
+    // Função para mostrar/esconder campos com base no tipo selecionado
+    function toggleFields() {
+        const type = typeSelect.value;
         
         if (type === 'select') {
-            optionsGroup.style.display = 'block';
+            optionsContainer.classList.remove('d-none');
+            uploadInfo.classList.add('d-none');
+            optionsField.setAttribute('required', 'required');
+        } else if (type === 'upload') {
+            optionsContainer.classList.add('d-none');
+            uploadInfo.classList.remove('d-none');
+            optionsField.removeAttribute('required');
         } else {
-            optionsGroup.style.display = 'none';
+            optionsContainer.classList.add('d-none');
+            uploadInfo.classList.add('d-none');
+            optionsField.removeAttribute('required');
         }
     }
     
-    $(function () {
-        // Inicializar select2
-        $('.select2').select2({
-            theme: 'bootstrap4'
-        });
-        
-        // Inicializar BS custom file
-        bsCustomFileInput.init();
-    });
+    // Inicializar com base no valor atual
+    toggleFields();
+    
+    // Atualizar quando o tipo mudar
+    typeSelect.addEventListener('change', toggleFields);
+});
 </script>
 
 <?php require_once VIEWS_PATH . '/admin/partials/footer.php'; ?>
