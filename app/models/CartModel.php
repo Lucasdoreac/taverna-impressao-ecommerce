@@ -1,7 +1,7 @@
 <?php
 /**
  * CartModel - Modelo para carrinhos de compras
- * 
+ *
  * Este modelo gerencia a persistência de carrinhos de compras no banco de dados para usuários logados,
  * permitindo que eles continuem a compra em diferentes sessões ou dispositivos.
  */
@@ -13,7 +13,7 @@ class CartModel extends Model {
     
     /**
      * Obtém ou cria um carrinho para o usuário/sessão atual
-     * 
+     *
      * @param int|null $userId ID do usuário se estiver logado
      * @param string $sessionId ID da sessão atual
      * @return array Dados do carrinho
@@ -39,6 +39,7 @@ class CartModel extends Model {
                 ]);
                 $cart['user_id'] = $userId;
             }
+            
             return $cart;
         }
         
@@ -55,7 +56,7 @@ class CartModel extends Model {
     
     /**
      * Busca um carrinho pelo ID do usuário
-     * 
+     *
      * @param int $userId ID do usuário
      * @return array|null Dados do carrinho ou null se não encontrado
      */
@@ -65,7 +66,7 @@ class CartModel extends Model {
     
     /**
      * Busca um carrinho pelo ID da sessão
-     * 
+     *
      * @param string $sessionId ID da sessão
      * @return array|null Dados do carrinho ou null se não encontrado
      */
@@ -75,13 +76,13 @@ class CartModel extends Model {
     
     /**
      * Obtém os itens de um carrinho específico
-     * 
+     *
      * @param int $cartId ID do carrinho
      * @return array Itens do carrinho com dados de produto
      */
     public function getItems($cartId) {
         $sql = "SELECT ci.*, p.name as product_name, p.slug as product_slug, p.price, p.sale_price,
-                      (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as image
+                (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as image
                 FROM cart_items ci
                 JOIN products p ON ci.product_id = p.id
                 WHERE ci.cart_id = :cart_id
@@ -91,8 +92,26 @@ class CartModel extends Model {
     }
     
     /**
+     * Busca um item do carrinho pelo ID
+     *
+     * @param int $itemId ID do item
+     * @return array|null Item do carrinho ou null se não encontrado
+     */
+    public function findById($itemId) {
+        $sql = "SELECT ci.*, p.name as product_name, p.slug as product_slug, p.price, p.sale_price,
+                (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as image
+                FROM cart_items ci
+                JOIN products p ON ci.product_id = p.id
+                WHERE ci.id = :id
+                LIMIT 1";
+        
+        $result = $this->db()->select($sql, ['id' => $itemId]);
+        return !empty($result) ? $result[0] : null;
+    }
+    
+    /**
      * Adiciona um item ao carrinho
-     * 
+     *
      * @param int $cartId ID do carrinho
      * @param int $productId ID do produto
      * @param int $quantity Quantidade
@@ -144,7 +163,7 @@ class CartModel extends Model {
     
     /**
      * Atualiza a quantidade de um item no carrinho
-     * 
+     *
      * @param int $itemId ID do item
      * @param int $quantity Nova quantidade
      * @return bool Sucesso da operação
@@ -162,7 +181,7 @@ class CartModel extends Model {
     
     /**
      * Remove um item do carrinho
-     * 
+     *
      * @param int $itemId ID do item
      * @return bool Sucesso da operação
      */
@@ -173,7 +192,7 @@ class CartModel extends Model {
     
     /**
      * Remove todos os itens de um carrinho
-     * 
+     *
      * @param int $cartId ID do carrinho
      * @return bool Sucesso da operação
      */
@@ -184,7 +203,7 @@ class CartModel extends Model {
     
     /**
      * Calcula o subtotal de um carrinho
-     * 
+     *
      * @param int $cartId ID do carrinho
      * @return float Valor subtotal
      */
@@ -194,9 +213,9 @@ class CartModel extends Model {
         
         foreach ($items as $item) {
             // Usar preço de venda se disponível e menor que o preço normal
-            $price = ($item['sale_price'] && $item['sale_price'] < $item['price']) 
-                   ? $item['sale_price'] 
-                   : $item['price'];
+            $price = ($item['sale_price'] && $item['sale_price'] < $item['price'])
+                ? $item['sale_price']
+                : $item['price'];
             
             $subtotal += $price * $item['quantity'];
         }
@@ -206,7 +225,7 @@ class CartModel extends Model {
     
     /**
      * Migrando o carrinho de sessão para o banco de dados
-     * 
+     *
      * @param array $sessionCart Carrinho na sessão
      * @param int $cartId ID do carrinho no banco
      * @return bool Sucesso da operação
@@ -230,7 +249,7 @@ class CartModel extends Model {
     
     /**
      * Obtém o número total de itens em um carrinho
-     * 
+     *
      * @param int $cartId ID do carrinho
      * @return int Número total de itens
      */
