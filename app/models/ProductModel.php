@@ -11,7 +11,7 @@ class ProductModel extends Model {
     ];
     
     /**
-     * Obter produtos em destaque
+     * Busca produtos em destaque
      */
     public function getFeatured($limit = 8) {
         $sql = "SELECT p.*, pi.image 
@@ -25,7 +25,7 @@ class ProductModel extends Model {
     }
     
     /**
-     * Obter produtos por categoria com paginação
+     * Busca produtos por categoria
      */
     public function getByCategory($categoryId, $page = 1, $limit = 12) {
         $offset = ($page - 1) * $limit;
@@ -57,14 +57,7 @@ class ProductModel extends Model {
     }
     
     /**
-     * Buscar um produto pelo slug
-     */
-    public function findBySlug($slug) {
-        return $this->findBy('slug', $slug);
-    }
-    
-    /**
-     * Obter produto por slug com imagens e opções de personalização
+     * Busca produto pelo slug
      */
     public function getBySlug($slug) {
         $sql = "SELECT p.*, c.name as category_name, c.slug as category_slug
@@ -94,7 +87,7 @@ class ProductModel extends Model {
     }
     
     /**
-     * Buscar produtos por termo de pesquisa
+     * Busca por produtos
      */
     public function search($query, $page = 1, $limit = 12) {
         $offset = ($page - 1) * $limit;
@@ -126,198 +119,179 @@ class ProductModel extends Model {
             'query' => $query
         ];
     }
+
+    /**
+     * Conta o total de produtos
+     */
+    public function countAll() {
+        $sql = "SELECT COUNT(*) as total FROM {$this->table}";
+        $result = $this->db()->select($sql);
+        return $result[0]['total'];
+    }
     
     /**
-     * Obter produtos relacionados
+     * Conta produtos por status
      */
-    public function getRelated($productId, $categoryId, $limit = 4) {
-        $sql = "SELECT p.*, pi.image 
-                FROM {$this->table} p
+    public function countByStatus($isActive = true) {
+        $sql = "SELECT COUNT(*) as total FROM {$this->table} WHERE is_active = :is_active";
+        $result = $this->db()->select($sql, ['is_active' => $isActive ? 1 : 0]);
+        return $result[0]['total'];
+    }
+    
+    /**
+     * Conta produtos sem estoque
+     */
+    public function countOutOfStock() {
+        $sql = "SELECT COUNT(*) as total FROM {$this->table} WHERE stock = 0 AND is_active = 1";
+        $result = $this->db()->select($sql);
+        return $result[0]['total'];
+    }
+    
+    /**
+     * Conta produtos com estoque baixo
+     */
+    public function countLowStock($threshold = 5) {
+        $sql = "SELECT COUNT(*) as total FROM {$this->table} WHERE stock > 0 AND stock <= :threshold AND is_active = 1";
+        $result = $this->db()->select($sql, ['threshold' => $threshold]);
+        return $result[0]['total'];
+    }
+    
+    /**
+     * Busca produtos mais vendidos
+     */
+    public function getTopSellingProducts($limit = 5) {
+        $sql = "SELECT 
+                    p.id, 
+                    p.name, 
+                    p.slug,
+                    p.price,
+                    p.sale_price,
+                    p.stock,
+                    c.name as category_name,
+                    SUM(oi.quantity) as total_quantity,
+                    SUM(oi.quantity * oi.price) as total_sales,
+                    pi.image
+                FROM order_items oi
+                JOIN {$this->table} p ON oi.product_id = p.id
+                JOIN categories c ON p.category_id = c.id
+                JOIN orders o ON oi.order_id = o.id
                 LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                WHERE p.id != :product_id AND p.category_id = :category_id AND p.is_active = 1
-                ORDER BY RAND()
+                WHERE o.payment_status = 'paid'
+                GROUP BY p.id
+                ORDER BY total_quantity DESC
                 LIMIT {$limit}";
         
-        return $this->db()->select($sql, [
-            'product_id' => $productId,
-            'category_id' => $categoryId
-        ]);
+        return $this->db()->select($sql);
     }
     
     /**
-     * Atualizar estoque após compra
+     * Gera relatório de vendas de produtos
      */
-    public function updateStock($productId, $quantity) {
-        $sql = "UPDATE {$this->table} SET stock = stock - :quantity WHERE id = :id";
-        $this->db()->query($sql, [
-            'id' => $productId,
-            'quantity' => $quantity
-        ]);
-    }
-    
-    /**
-     * Buscar produtos com filtros para o painel administrativo
-     */
-    public function getWithFilters($filters = [], $page = 1, $limit = 20) {
-        $where = '1=1';
-        $params = [];
-        
-        // Filtro por nome
-        if (!empty($filters['name'])) {
-            $where .= ' AND name LIKE :name';
-            $params['name'] = '%' . $filters['name'] . '%';
-        }
-        
-        // Filtro por categoria
-        if (!empty($filters['category_id'])) {
-            $where .= ' AND category_id = :category_id';
-            $params['category_id'] = $filters['category_id'];
-        }
-        
-        // Filtro por status ativo
-        if (isset($filters['is_active']) && $filters['is_active'] !== '') {
-            $where .= ' AND is_active = :is_active';
-            $params['is_active'] = $filters['is_active'];
-        }
-        
-        // Filtro por status de destaque
-        if (isset($filters['is_featured']) && $filters['is_featured'] !== '') {
-            $where .= ' AND is_featured = :is_featured';
-            $params['is_featured'] = $filters['is_featured'];
-        }
-        
-        // Filtro por status de personalização
-        if (isset($filters['is_customizable']) && $filters['is_customizable'] !== '') {
-            $where .= ' AND is_customizable = :is_customizable';
-            $params['is_customizable'] = $filters['is_customizable'];
-        }
-        
-        // Buscar com paginação
-        $offset = ($page - 1) * $limit;
-        
-        // Contar total de registros
-        $countSql = "SELECT COUNT(*) as total FROM {$this->table} WHERE {$where}";
-        $countResult = $this->db()->select($countSql, $params);
-        $total = $countResult[0]['total'];
-        
-        // Buscar produtos
-        $sql = "SELECT p.*, c.name as category_name, 
-                    (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as main_image 
+    public function getProductsSalesReport($startDate, $endDate) {
+        $sql = "SELECT 
+                    p.id,
+                    p.name,
+                    p.stock,
+                    c.name as category_name,
+                    SUM(oi.quantity) as quantity_sold,
+                    SUM(oi.quantity * oi.price) as total_sales
                 FROM {$this->table} p
                 LEFT JOIN categories c ON p.category_id = c.id
-                WHERE {$where} 
-                ORDER BY p.created_at DESC
-                LIMIT {$offset}, {$limit}";
+                LEFT JOIN order_items oi ON p.id = oi.product_id
+                LEFT JOIN orders o ON oi.order_id = o.id
+                WHERE o.created_at BETWEEN :start_date AND :end_date
+                    AND o.payment_status = 'paid'
+                GROUP BY p.id
+                ORDER BY quantity_sold DESC";
         
-        $items = $this->db()->select($sql, $params);
-        
-        return [
-            'items' => $items,
-            'total' => $total,
-            'currentPage' => $page,
-            'perPage' => $limit,
-            'lastPage' => ceil($total / $limit),
-            'from' => $offset + 1,
-            'to' => min($offset + $limit, $total)
-        ];
+        return $this->db()->select($sql, [
+            'start_date' => $startDate,
+            'end_date' => $endDate . ' 23:59:59'
+        ]);
     }
     
     /**
-     * Obtém as imagens de um produto
+     * Adiciona uma imagem ao produto
      */
-    public function getImages($productId) {
-        $sql = "SELECT * FROM product_images 
-                WHERE product_id = :product_id 
-                ORDER BY is_main DESC, display_order ASC";
+    public function addImage($productId, $image, $isMain = false) {
+        // Se for imagem principal, resetar todas as outras
+        if ($isMain) {
+            $sql = "UPDATE product_images SET is_main = 0 WHERE product_id = :product_id";
+            $this->db()->query($sql, ['product_id' => $productId]);
+        }
         
-        return $this->db()->select($sql, ['product_id' => $productId]);
-    }
-    
-    /**
-     * Adiciona uma imagem a um produto
-     */
-    public function addImage($productId, $image, $isMain = false, $displayOrder = 0) {
-        $sql = "INSERT INTO product_images (product_id, image, is_main, display_order) 
+        // Obter a próxima ordem de exibição
+        $sql = "SELECT MAX(display_order) as max_order FROM product_images WHERE product_id = :product_id";
+        $result = $this->db()->select($sql, ['product_id' => $productId]);
+        $displayOrder = ($result && isset($result[0]['max_order'])) ? ($result[0]['max_order'] + 1) : 1;
+        
+        // Adicionar imagem
+        $sql = "INSERT INTO product_images (product_id, image, is_main, display_order)
                 VALUES (:product_id, :image, :is_main, :display_order)";
         
-        return $this->db()->query($sql, [
+        $this->db()->query($sql, [
             'product_id' => $productId,
             'image' => $image,
             'is_main' => $isMain ? 1 : 0,
             'display_order' => $displayOrder
         ]);
-    }
-    
-    /**
-     * Define a imagem principal de um produto
-     */
-    public function setMainImage($productId, $imageId) {
-        // Primeiro, remover o status de principal de todas as imagens do produto
-        $sql = "UPDATE product_images SET is_main = 0 WHERE product_id = :product_id";
-        $this->db()->query($sql, ['product_id' => $productId]);
         
-        // Depois, definir a nova imagem principal
-        $sql = "UPDATE product_images SET is_main = 1 WHERE id = :id AND product_id = :product_id";
-        return $this->db()->query($sql, [
-            'id' => $imageId,
-            'product_id' => $productId
-        ]);
+        return true;
     }
     
     /**
-     * Exclui uma imagem de um produto
+     * Remove uma imagem do produto
      */
-    public function deleteImage($imageId) {
+    public function removeImage($imageId) {
+        // Obter informações da imagem antes de excluir
+        $sql = "SELECT * FROM product_images WHERE id = :id";
+        $image = $this->db()->select($sql, ['id' => $imageId]);
+        
+        if (!$image) {
+            return false;
+        }
+        
+        // Excluir imagem
         $sql = "DELETE FROM product_images WHERE id = :id";
-        return $this->db()->query($sql, ['id' => $imageId]);
+        $this->db()->query($sql, ['id' => $imageId]);
+        
+        // Se era a imagem principal, definir outra como principal
+        if ($image[0]['is_main']) {
+            $sql = "UPDATE product_images SET is_main = 1 
+                    WHERE product_id = :product_id 
+                    ORDER BY display_order ASC 
+                    LIMIT 1";
+            $this->db()->query($sql, ['product_id' => $image[0]['product_id']]);
+        }
+        
+        return true;
     }
     
     /**
-     * Verifica se um produto já tem uma imagem principal
+     * Adiciona uma opção de personalização ao produto
      */
-    public function hasMainImage($productId) {
-        $sql = "SELECT COUNT(*) as count FROM product_images 
-                WHERE product_id = :product_id AND is_main = 1";
+    public function addCustomizationOption($productId, $data) {
+        $sql = "INSERT INTO customization_options (product_id, name, description, type, required, options)
+                VALUES (:product_id, :name, :description, :type, :required, :options)";
         
-        $result = $this->db()->select($sql, ['product_id' => $productId]);
-        return $result[0]['count'] > 0;
-    }
-    
-    /**
-     * Obtém as opções de personalização de um produto
-     */
-    public function getCustomizationOptions($productId) {
-        $sql = "SELECT * FROM customization_options 
-                WHERE product_id = :product_id 
-                ORDER BY id ASC";
-        
-        return $this->db()->select($sql, ['product_id' => $productId]);
-    }
-    
-    /**
-     * Adiciona uma opção de personalização a um produto
-     */
-    public function addCustomizationOption($productId, $option) {
-        $sql = "INSERT INTO customization_options 
-                (product_id, name, description, type, required, options) 
-                VALUES 
-                (:product_id, :name, :description, :type, :required, :options)";
-        
-        return $this->db()->query($sql, [
+        $this->db()->query($sql, [
             'product_id' => $productId,
-            'name' => $option['name'],
-            'description' => $option['description'],
-            'type' => $option['type'],
-            'required' => $option['required'],
-            'options' => $option['options']
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'type' => $data['type'],
+            'required' => $data['required'] ? 1 : 0,
+            'options' => $data['options'] ?? null
         ]);
+        
+        return $this->db()->getConnection()->lastInsertId();
     }
     
     /**
-     * Exclui todas as opções de personalização de um produto
+     * Remove uma opção de personalização
      */
-    public function deleteCustomizationOptions($productId) {
-        $sql = "DELETE FROM customization_options WHERE product_id = :product_id";
-        return $this->db()->query($sql, ['product_id' => $productId]);
+    public function removeCustomizationOption($optionId) {
+        $sql = "DELETE FROM customization_options WHERE id = :id";
+        $this->db()->query($sql, ['id' => $optionId]);
+        return true;
     }
 }
