@@ -52,6 +52,11 @@
                         <i class="bi bi-people me-2"></i> Usuários
                     </a>
                 </li>
+                <li class="<?= AdminHelper::getActiveMenu() === 'relatorios' ? 'active' : '' ?>">
+                    <a href="<?= BASE_URL ?>admin/relatorios" class="d-flex align-items-center text-decoration-none mb-3">
+                        <i class="bi bi-bar-chart-line me-2"></i> Relatórios
+                    </a>
+                </li>
                 <li class="<?= AdminHelper::getActiveMenu() === 'configuracoes' ? 'active' : '' ?>">
                     <a href="<?= BASE_URL ?>admin/configuracoes" class="d-flex align-items-center text-decoration-none mb-3">
                         <i class="bi bi-gear me-2"></i> Configurações
