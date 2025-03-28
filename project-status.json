@@ -2,18 +2,19 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-28T23:06:00Z"
+    "lastUpdated": "2025-03-28T23:25:00Z"
   },
   "development": {
-    "currentFile": "app/models/CartModel.php",
-    "currentComponent": "Carrinho de Compras",
+    "currentFile": "app/controllers/CheckoutController.php",
+    "currentComponent": "Checkout",
     "inProgress": {
       "type": "feature",
-      "description": "Implementação do sistema de carrinho de compras com persistência",
+      "description": "Iniciar implementação do sistema de checkout",
       "remainingTasks": [
-        "Integrar CartModel ao CartController",
-        "Implementar migração de carrinho da sessão para banco de dados ao fazer login",
-        "Testar sistema de carrinho completo"
+        "Criar CheckoutController",
+        "Implementar view do checkout",
+        "Integrar sistema de cálculo de frete",
+        "Implementar sistema de pagamento"
       ]
     }
   },
@@ -23,28 +24,28 @@
       "Página Inicial",
       "Navegação",
       "Listagem de Produtos",
-      "Depuração e Correção de Erros"
+      "Depuração e Correção de Erros",
+      "Sistema de Banco de Dados",
+      "Carrinho de Compras"
     ],
     "inProgress": [
       "Detalhes de Produto",
       "Categorias",
       "Personalização",
-      "Carrinho de Compras"
+      "Checkout e Pagamento"
     ],
     "pending": [
-      "Checkout e Pagamento",
       "Painel Administrativo",
       "Otimização para Produção"
     ]
   },
   "context": {
-    "lastThought": "Foi melhorado o CartController com tratamento de exceções e adicionado o CartModel para possibilitar persistência do carrinho no banco de dados, além de adicionar métodos para gerenciar os itens do carrinho de forma mais estruturada e seguindo o padrão MVC.",
+    "lastThought": "Implementado o sistema de carrinho de compras com persistência no banco de dados. O carrinho agora é armazenado no banco de dados para usuários logados e migrado automaticamente da sessão para o banco quando o usuário faz login. O sistema mantém compatibilidade com o carrinho baseado em sessão para usuários não logados.",
     "nextSteps": [
-      "Modificar CartController para usar CartModel em vez de apenas sessões",
-      "Implementar funcionalidade de migração de carrinho ao login",
-      "Corrigir a limpeza do carrinho",
-      "Começar a implementação do Checkout",
-      "Testar fluxo completo do carrinho até o checkout"
+      "Iniciar implementação do sistema de checkout",
+      "Criar CheckoutController e views associadas",
+      "Implementar cálculo de frete dinâmico",
+      "Integrar métodos de pagamento"
     ]
   },
   "fixes": {
@@ -58,18 +59,36 @@
         "app/controllers/CartController.php"
       ],
       "timestamp": "2025-03-28T23:04:32Z"
+    },
+    "dbConnection": {
+      "status": "implemented",
+      "description": "Correção na configuração de conexão com o banco de dados para o ambiente da Hostinger",
+      "files": [
+        "app/config/config.php"
+      ],
+      "timestamp": "2025-03-28T23:21:16Z"
     }
   },
   "implementations": {
     "cartSystem": {
-      "status": "inProgress",
+      "status": "completed",
       "description": "Sistema de carrinho de compras com persistência em banco de dados",
       "files": [
         "app/controllers/CartController.php",
         "app/models/CartModel.php",
-        "app/views/cart.php"
+        "app/views/cart.php",
+        "app/controllers/AuthController.php"
       ],
-      "timestamp": "2025-03-28T23:05:08Z"
+      "timestamp": "2025-03-28T23:25:00Z"
+    },
+    "checkoutSystem": {
+      "status": "pending",
+      "description": "Sistema de checkout e finalização de pedido",
+      "files": [
+        "app/controllers/CheckoutController.php",
+        "app/views/checkout.php"
+      ],
+      "timestamp": "2025-03-28T23:25:00Z"
     }
   }
 }
