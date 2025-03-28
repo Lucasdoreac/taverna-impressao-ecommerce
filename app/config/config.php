@@ -11,8 +11,8 @@ define('LOG_PATH', ROOT_PATH . '/logs');
 // Usando conexão TCP/IP explícita com porta 3306
 define('DB_HOST', '127.0.0.1:3306');
 define('DB_NAME', 'u135851624_taverna');
-define('DB_USER', 'u135851624_taverna');
-define('DB_PASS', '#Taverna');
+define('DB_USER', 'u135851624_teverna'); // Corrigido para teverna com "v"
+define('DB_PASS', '#Taverna1'); // Senha completa correta
 
 // Adicionando opções de PDO específicas para Hostinger
 define('DB_OPTIONS', [
