@@ -167,6 +167,34 @@ class OrderModel extends Model {
     }
     
     /**
+     * Adiciona uma nota ao pedido
+     */
+    public function addNote($orderId, $note) {
+        // Obter notas atuais
+        $order = $this->find($orderId);
+        
+        if (!$order) {
+            return false;
+        }
+        
+        // Formatar a data e hora atual
+        $timestamp = date('Y-m-d H:i:s');
+        
+        // Adicionar nova nota com timestamp
+        $newNote = "[{$timestamp}] {$note}";
+        
+        // Concatenar com notas existentes ou criar nova
+        if (!empty($order['notes'])) {
+            $notes = $order['notes'] . "\n\n" . $newNote;
+        } else {
+            $notes = $newNote;
+        }
+        
+        // Atualizar pedido
+        return $this->update($orderId, ['notes' => $notes]);
+    }
+    
+    /**
      * Obtém estatísticas de vendas por período
      */
     public function getSalesStats($period = 'monthly') {
@@ -240,5 +268,38 @@ class OrderModel extends Model {
         $random = strtoupper(substr(md5(uniqid()), 0, 4));
         
         return $prefix . $timestamp . $random;
+    }
+    
+    /**
+     * Obtém histórico de notas de um pedido
+     */
+    public function getNotes($orderId) {
+        $order = $this->find($orderId);
+        
+        if (!$order || empty($order['notes'])) {
+            return [];
+        }
+        
+        // Dividir as notas em um array
+        $notesArray = explode("\n\n", $order['notes']);
+        $formattedNotes = [];
+        
+        foreach ($notesArray as $note) {
+            // Extrair timestamp e conteúdo
+            if (preg_match('/\[(.*?)\] (.*)/', $note, $matches)) {
+                $formattedNotes[] = [
+                    'timestamp' => $matches[1],
+                    'content' => $matches[2]
+                ];
+            } else {
+                // Caso não siga o formato esperado
+                $formattedNotes[] = [
+                    'timestamp' => '',
+                    'content' => $note
+                ];
+            }
+        }
+        
+        return $formattedNotes;
     }
 }
