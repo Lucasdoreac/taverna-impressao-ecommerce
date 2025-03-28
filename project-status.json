@@ -1,0 +1,51 @@
+{
+  "projectInfo": {
+    "name": "TAVERNA DA IMPRESSÃO E-commerce",
+    "repository": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce",
+    "repoOwner": "Lucasdoreac",
+    "repoName": "taverna-impressao-ecommerce",
+    "localPath": "C:\\MCP\\taverna-impressao",
+    "lastUpdated": "2025-03-28T17:38:00.000Z"
+  },
+  "development": {
+    "currentFile": "app/helpers/Database.php",
+    "currentComponent": "Core Framework",
+    "inProgress": {
+      "type": "setup",
+      "description": "Configuração inicial da estrutura MVC",
+      "remainingTasks": [
+        "Implementar models básicos",
+        "Implementar controllers básicos",
+        "Criar views iniciais"
+      ]
+    }
+  },
+  "components": {
+    "completed": [],
+    "inProgress": ["Core Framework"],
+    "pending": [
+      "Sistema de Usuários",
+      "Catálogo de Produtos",
+      "Carrinho de Compras",
+      "Sistema de Personalização",
+      "Checkout e Pagamento",
+      "Painel Administrativo"
+    ]
+  },
+  "context": {
+    "lastThought": "Core Framework básico implementado com Router e Database",
+    "nextSteps": [
+      "Implementar Model base",
+      "Implementar Controller base",
+      "Criar views principais",
+      "Implementar sistema de templates",
+      "Criar controllers específicos"
+    ],
+    "dependencies": []
+  },
+  "git": {
+    "remoteUrl": "https://github.com/Lucasdoreac/taverna-impressao-ecommerce.git",
+    "mainBranch": "main",
+    "currentBranch": "main"
+  }
+}
