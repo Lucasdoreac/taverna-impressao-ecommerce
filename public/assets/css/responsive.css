@@ -1,0 +1,346 @@
+/**
+ * TAVERNA DA IMPRESSÃO - Ajustes de Responsividade
+ * 
+ * Este arquivo contém ajustes específicos para diferentes tamanhos de tela,
+ * complementando o style.css principal.
+ */
+
+/* Tablets e telas médias (768px - 992px) */
+@media (max-width: 992px) {
+    /* Ajustes para o cabeçalho */
+    .main-nav {
+        padding: 0.75rem;
+    }
+    
+    .logo {
+        font-size: 1.3rem;
+    }
+    
+    .search-form {
+        max-width: 300px;
+    }
+    
+    /* Ajustes para banner */
+    .main-banner {
+        height: 350px;
+    }
+    
+    .banner-title {
+        font-size: 2rem;
+    }
+    
+    /* Ajustes para produtos */
+    .product-card .product-title {
+        font-size: 0.95rem;
+    }
+    
+    /* Ajustes para personalização */
+    .customization-options {
+        flex-direction: column;
+    }
+    
+    .customization-preview {
+        margin-top: 1.5rem;
+    }
+    
+    /* Ajustes para checkout */
+    .checkout-steps {
+        flex-direction: column;
+    }
+    
+    .checkout-sidebar {
+        margin-top: 2rem;
+    }
+    
+    /* Ajustes para painel admin */
+    .admin-content {
+        padding: 1rem;
+    }
+    
+    .admin-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Smartphones e telas pequenas (até 768px) */
+@media (max-width: 768px) {
+    /* Ajustes para o cabeçalho */
+    .top-header {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .top-header-contact {
+        margin-bottom: 0.5rem;
+    }
+    
+    .main-nav {
+        flex-direction: column;
+        padding: 0.5rem;
+    }
+    
+    .logo {
+        margin-bottom: 0.5rem;
+    }
+    
+    .search-form {
+        width: 100%;
+        max-width: none;
+        margin-bottom: 0.5rem;
+    }
+    
+    .mobile-menu-toggle {
+        display: block;
+    }
+    
+    .nav-menu {
+        width: 100%;
+    }
+    
+    .nav-menu ul {
+        flex-direction: column;
+        display: none;
+    }
+    
+    .nav-menu ul.active {
+        display: flex;
+    }
+    
+    .nav-menu .dropdown {
+        position: static;
+        width: 100%;
+        box-shadow: none;
+        padding-left: 1rem;
+    }
+    
+    /* Ajustes para banner */
+    .main-banner {
+        height: 300px;
+    }
+    
+    .banner-content {
+        padding: 1rem;
+    }
+    
+    .banner-title {
+        font-size: 1.75rem;
+    }
+    
+    .banner-text {
+        font-size: 1rem;
+    }
+    
+    /* Ajustes para produtos */
+    .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+    
+    .product-card .product-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    /* Ajustes para detalhes do produto */
+    .product-gallery {
+        margin-bottom: 1.5rem;
+    }
+    
+    .product-info {
+        padding-left: 0;
+    }
+    
+    /* Ajustes para carrinho */
+    .cart-items {
+        overflow-x: auto;
+    }
+    
+    .cart-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .cart-item-details {
+        padding-left: 0;
+        margin-top: 0.5rem;
+    }
+    
+    .cart-item-actions {
+        margin-top: 0.5rem;
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    /* Ajustes para login e cadastro */
+    .auth-container {
+        padding: 1rem;
+    }
+    
+    /* Ajustes para painel admin */
+    .admin-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .admin-sidebar {
+        margin-bottom: 1rem;
+    }
+    
+    .admin-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .data-table {
+        font-size: 0.85rem;
+    }
+    
+    .data-table th, .data-table td {
+        padding: 0.5rem;
+    }
+}
+
+/* Smartphones muito pequenos (até 576px) */
+@media (max-width: 576px) {
+    /* Ajustes para o cabeçalho */
+    .logo {
+        font-size: 1.2rem;
+    }
+    
+    /* Ajustes para banner */
+    .main-banner {
+        height: 250px;
+    }
+    
+    .banner-title {
+        font-size: 1.5rem;
+    }
+    
+    .btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+    }
+    
+    /* Ajustes para produtos */
+    .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.75rem;
+    }
+    
+    .product-card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .product-card .product-image {
+        height: 140px;
+    }
+    
+    .product-card .product-content {
+        padding: 0.75rem;
+    }
+    
+    .product-card .product-title {
+        font-size: 0.9rem;
+    }
+    
+    /* Ajustes para categorias */
+    .categories {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+    
+    /* Ajustes para personalização */
+    .file-preview-image {
+        max-width: 80px;
+    }
+    
+    /* Ajustes para o rodapé */
+    .footer {
+        padding: 2rem 1rem;
+    }
+    
+    .footer-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Ajustes para checkout */
+    .payment-methods {
+        flex-direction: column;
+    }
+    
+    .payment-method {
+        margin-bottom: 1rem;
+    }
+    
+    /* Ajustes para formulários */
+    .form-row {
+        flex-direction: column;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Otimização para carregamento em telas de alto DPI */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* Usar imagens de maior resolução para telas retina */
+    .logo-image {
+        background-image: url('../images/logo@2x.png');
+        background-size: contain;
+    }
+}
+
+/* Orientação paisagem para tablets */
+@media (max-width: 992px) and (orientation: landscape) {
+    .main-banner {
+        height: 280px;
+    }
+}
+
+/* Estilos para impressão */
+@media print {
+    header, footer, .nav-menu, .cart-icon, .product-actions, .breadcrumb {
+        display: none !important;
+    }
+    
+    body {
+        font-size: 12pt;
+        color: #000;
+        background: #fff;
+    }
+    
+    .container {
+        width: 100%;
+        max-width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+    
+    a {
+        color: #000;
+        text-decoration: none;
+    }
+    
+    .page-break {
+        page-break-before: always;
+    }
+    
+    .no-print {
+        display: none !important;
+    }
+    
+    .print-only {
+        display: block !important;
+    }
+    
+    /* Ajustes para impressão de pedidos */
+    .order-details {
+        border: 1px solid #ddd;
+        padding: 1cm;
+        margin: 0.5cm 0;
+    }
+    
+    .order-summary {
+        border-top: 1px solid #ddd;
+        margin-top: 1cm;
+        padding-top: 0.5cm;
+    }
+}
