@@ -41,8 +41,8 @@ define('COOKIE_SECURE', true);
 define('COOKIE_HTTP_ONLY', true);
 
 // Configurações de ambiente
-define('ENVIRONMENT', 'development'); // Alterado para 'development' temporariamente
-define('DISPLAY_ERRORS', true);      // Habilitado temporariamente para debug
+define('ENVIRONMENT', 'production'); // Alterado para 'production'
+define('DISPLAY_ERRORS', false);      // Desabilitado para produção
 define('LOG_ERRORS', true);
 
 // Configuração do diretório de logs
