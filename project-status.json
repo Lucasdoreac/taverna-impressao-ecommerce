@@ -2,19 +2,18 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T19:15:00Z"
+    "lastUpdated": "2025-03-29T14:25:00Z"
   },
   "development": {
-    "currentFile": "database/README.md",
-    "currentComponent": "Documentação e Correção de Erros",
+    "currentFile": "app/helpers/Router.php",
+    "currentComponent": "Correção de Erros",
     "inProgress": {
-      "type": "improvement",
-      "description": "Otimização e documentação do sistema",
+      "type": "fix",
+      "description": "Correção de erros 500 e problemas de integração",
       "remainingTasks": [
-        "Executar o arquivo unified_schema_v2.sql no servidor de produção",
-        "Confirmar resolução dos erros 500 em produção",
-        "Implementar as páginas administrativas pendentes",
-        "Otimizar imagens e assets para melhor performance"
+        "Verificar funcionamento em produção após correções",
+        "Implementar recursos pendentes do painel administrativo",
+        "Otimizar performance geral do sistema"
       ]
     }
   },
@@ -42,21 +41,52 @@
     ]
   },
   "context": {
-    "lastThought": "Criada documentação completa para implementação e manutenção do banco de dados, facilitando resolução de problemas futuros. A nova estrutura resolve o erro #1451 de restrições de chave estrangeira e implementa práticas recomendadas para segurança e performance.",
+    "lastThought": "Implementadas correções críticas para resolver os erros 500 nas páginas de produto e categoria. Corrigido o problema no Router.php com parâmetro $slug desconhecido, solucionado o problema das constantes CURRENCY e CURRENCY_SYMBOL, e adicionados scripts de diagnóstico e verificação do banco de dados para facilitar a identificação e correção de problemas.",
     "nextSteps": [
-      "Implementar o banco de dados atualizado no servidor de produção",
-      "Realizar testes de carga para verificar performance com novo esquema e índices",
-      "Iniciar implementação do painel administrativo para gestão de produtos e pedidos",
-      "Otimizar queries do sistema com base nos novos índices adicionados",
-      "Revisar segurança geral do sistema antes de passar para produção"
+      "Verificar o funcionamento das páginas de produto e categoria em produção após correções",
+      "Executar o script database_setup.php para verificar e corrigir o banco de dados",
+      "Testar o sistema completo após as correções implementadas",
+      "Continuar implementação dos recursos pendentes",
+      "Documentar as correções realizadas para referência futura"
     ],
     "lastEditedFiles": [
-      "database/unified_schema_v2.sql",
-      "database/README.md",
+      "app/helpers/Router.php",
+      "app/config/config.php",
+      "public/system_check.php",
+      "public/database_setup.php",
       "project-status.json"
-    ]
+    ],
+    "incompleteOperations": false
   },
   "fixes": {
+    "routerSlugParameter": {
+      "status": "fixed",
+      "description": "Erro com parâmetro $slug desconhecido na linha 113 do Router.php",
+      "files": [
+        "app/helpers/Router.php"
+      ],
+      "solution": "Corrigida a função matchRoute para validar a existência de parâmetros antes de tentar acessá-los",
+      "timestamp": "2025-03-29T14:22:27Z"
+    },
+    "currencyConstants": {
+      "status": "fixed",
+      "description": "Problemas com as constantes CURRENCY e CURRENCY_SYMBOL",
+      "files": [
+        "app/config/config.php"
+      ],
+      "solution": "Simplificada a definição das constantes e adicionado logging para depuração",
+      "timestamp": "2025-03-29T14:22:47Z"
+    },
+    "systemDiagnostics": {
+      "status": "improved",
+      "description": "Adicionados scripts de diagnóstico e verificação para facilitar a identificação e correção de problemas",
+      "files": [
+        "public/system_check.php",
+        "public/database_setup.php"
+      ],
+      "solution": "Implementados scripts detalhados para verificar todos os componentes do sistema e para configurar o banco de dados",
+      "timestamp": "2025-03-29T14:24:06Z"
+    },
     "foreignKeyConstraints": {
       "status": "fixed",
       "description": "Erro #1451 ao tentar remover tabelas devido a restrições de chave estrangeira",
@@ -113,8 +143,8 @@
       "files": [
         "app/config/config.php"
       ],
-      "solution": "Modificado config.php para verificar se a constante já existe antes de tentar defini-la novamente",
-      "timestamp": "2025-03-29T15:30:00Z"
+      "solution": "Modificado config.php para definir claramente as constantes",
+      "timestamp": "2025-03-29T14:22:47Z"
     },
     "databaseClassNotFound": {
       "status": "fixed",
@@ -132,7 +162,7 @@
         "app/config/config.php"
       ],
       "solution": "Corrigida lógica de definição da constante para garantir valor correto",
-      "timestamp": "2025-03-29T15:45:00Z"
+      "timestamp": "2025-03-29T14:22:47Z"
     },
     "dbConnection": {
       "status": "verified",
@@ -141,52 +171,6 @@
         "app/config/config.php"
       ],
       "timestamp": "2025-03-29T14:30:00Z"
-    },
-    "sqlInjectionVulnerability": {
-      "status": "fixed",
-      "description": "Vulnerabilidade de injeção SQL no método getCategoryWithProducts do CategoryModel",
-      "files": [
-        "app/models/CategoryModel.php"
-      ],
-      "solution": "Substituída a concatenação direta de IDs na string SQL por placeholders e parâmetros nomeados preparados",
-      "timestamp": "2025-03-29T16:35:00Z"
-    },
-    "getRelatedBadParams": {
-      "status": "fixed",
-      "description": "Método getRelated no ProductModel usando parâmetros nomeados incorretamente",
-      "files": [
-        "app/models/ProductModel.php"
-      ],
-      "solution": "Corrigidos os parâmetros para corresponder aos utilizados na consulta SQL",
-      "timestamp": "2025-03-29T16:35:00Z"
-    },
-    "insufficientValidation": {
-      "status": "fixed",
-      "description": "Validações insuficientes nos controllers levando a erros ao acessar propriedades inexistentes",
-      "files": [
-        "app/controllers/ProductController.php",
-        "app/controllers/CategoryController.php"
-      ],
-      "solution": "Adicionadas validações robustas para todos os acessos a índices de arrays e estruturas de dados",
-      "timestamp": "2025-03-29T16:35:00Z"
-    },
-    "missingIndices": {
-      "status": "fixed",
-      "description": "Diagnóstico identificou índices ausentes em tabelas, principalmente em cart_items",
-      "files": [
-        "database/unified_schema_v2.sql"
-      ],
-      "solution": "Adicionados índices otimizados para todas as tabelas principais no unified_schema_v2.sql",
-      "timestamp": "2025-03-29T19:15:00Z"
-    },
-    "lackOfDocumentation": {
-      "status": "fixed",
-      "description": "Falta de documentação para implementação e manutenção do banco de dados",
-      "files": [
-        "database/README.md"
-      ],
-      "solution": "Criado guia de implementação detalhado com instruções para resolução de problemas comuns",
-      "timestamp": "2025-03-29T19:15:00Z"
     }
   },
   "implementations": {
@@ -235,9 +219,11 @@
         "public/diagnostico-erros.php",
         "app/helpers/Logger.php",
         "app/views/errors/404.php",
-        "app/views/errors/500.php"
+        "app/views/errors/500.php",
+        "public/system_check.php",
+        "public/database_setup.php"
       ],
-      "timestamp": "2025-03-29T16:35:00Z"
+      "timestamp": "2025-03-29T14:24:06Z"
     },
     "loggingSystem": {
       "status": "improved",
@@ -250,12 +236,14 @@
       "timestamp": "2025-03-29T15:55:00Z"
     },
     "databaseDiagnostics": {
-      "status": "implemented",
-      "description": "Ferramenta de diagnóstico para verificação da estrutura e integridade do banco de dados",
+      "status": "improved",
+      "description": "Ferramentas de diagnóstico para verificação da estrutura e integridade do banco de dados",
       "files": [
-        "public/database_debug.php"
+        "public/database_debug.php",
+        "public/system_check.php",
+        "public/database_setup.php"
       ],
-      "timestamp": "2025-03-29T16:35:00Z"
+      "timestamp": "2025-03-29T14:24:06Z"
     },
     "unifiedDatabaseSchema": {
       "status": "completed",
@@ -263,32 +251,6 @@
       "files": [
         "database/unified_schema_v2.sql",
         "database/README.md"
-      ],
-      "features": [
-        "Remoção de tabelas existentes na ordem correta",
-        "Desativação estratégica de verificação de chaves estrangeiras",
-        "Criação de todas as tabelas necessárias",
-        "Adição de dados iniciais",
-        "Criação de índices otimizados",
-        "Adição de constraints de integridade",
-        "Melhoria na definição de charset e collation",
-        "Comentários detalhados para manutenção futura",
-        "Guia de implementação e troubleshooting"
-      ],
-      "timestamp": "2025-03-29T19:15:00Z"
-    },
-    "databaseDocumentation": {
-      "status": "completed",
-      "description": "Documentação técnica para implementação e manutenção do banco de dados",
-      "files": [
-        "database/README.md"
-      ],
-      "features": [
-        "Instruções de implementação passo a passo",
-        "Guia de resolução de problemas comuns",
-        "Explicação da estrutura de tabelas e relações",
-        "Orientações para manutenção e atualizações futuras",
-        "Explicação detalhada dos dados iniciais"
       ],
       "timestamp": "2025-03-29T19:15:00Z"
     }
@@ -307,46 +269,36 @@
       ],
       "timestamp": "2025-03-29T14:15:00Z"
     },
-    "manualDiagnostics": {
-      "status": "improved",
-      "description": "Diagnóstico manual de erros usando ferramentas de diagnóstico e logs",
-      "findings": [
-        "Classe Database não encontrada",
-        "Constante CURRENCY_SYMBOL com valor numérico incorreto (262145)",
-        "Problema de ordem de carregamento do Logger.php em config.php",
-        "Vulnerabilidade de injeção SQL no CategoryModel",
-        "Validações insuficientes nos controllers",
-        "Parâmetros incorretos no método getRelated do ProductModel"
-      ],
+    "systemCheck": {
+      "status": "implemented",
+      "description": "Implementado script de verificação completa do sistema",
       "files": [
-        "public/diagnostico-erros.php",
-        "public/database_debug.php",
-        "logs/app_*.log"
+        "public/system_check.php"
       ],
-      "timestamp": "2025-03-29T16:35:00Z"
+      "features": [
+        "Verificação de constantes",
+        "Teste de conexão com banco de dados",
+        "Verificação de tabelas",
+        "Teste de rotas",
+        "Verificação de controllers",
+        "Verificação de views",
+        "Verificação de helpers"
+      ],
+      "timestamp": "2025-03-29T14:23:29Z"
     },
-    "databaseCheck": {
-      "status": "completed",
-      "description": "Verificação detalhada da estrutura e integridade do banco de dados",
-      "findings": [
-        "Conexão com o banco de dados funciona corretamente",
-        "Nenhuma das tabelas necessárias existe no banco de dados",
-        "Configurações de conexão com o usuário 'u135851624_teverna' estão corretas",
-        "Erro #1451 ao tentar remover tabelas com restrições de chave estrangeira"
+    "databaseSetup": {
+      "status": "implemented",
+      "description": "Implementado script de setup e verificação do banco de dados",
+      "files": [
+        "public/database_setup.php"
       ],
-      "solution": "Criado arquivo SQL unificado versão 2 (unified_schema_v2.sql) com melhorias para corrigir todos os problemas identificados",
-      "timestamp": "2025-03-29T19:15:00Z"
-    },
-    "performanceAnalysis": {
-      "status": "initiated",
-      "description": "Análise de performance do sistema com foco em consultas de banco de dados",
-      "plannedChecks": [
-        "Análise de queries frequentes",
-        "Verificação de carregamento de páginas",
-        "Otimização de índices",
-        "Revisão de joins complexos"
+      "features": [
+        "Verificação de conexão",
+        "Verificação de tabelas existentes",
+        "Criação automática de tabelas faltantes",
+        "Interface amigável para execução das tarefas"
       ],
-      "timestamp": "2025-03-29T19:15:00Z"
+      "timestamp": "2025-03-29T14:24:06Z"
     }
   },
   "roadmap": {
