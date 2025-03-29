@@ -1,193 +1,186 @@
-<?php require_once VIEWS_PATH . '/admin/partials/header.php'; ?>
-
-<!-- Page Title and Actions -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">Detalhes do Pedido</h1>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <div>
-        <a href="<?= BASE_URL ?>admin/pedidos" class="btn btn-outline-secondary">
+        <h1 class="h2">Pedido #<?= $order['order_number'] ?></h1>
+        <p class="text-muted mb-0">
+            Criado em <?= date('d/m/Y \à\s H:i', strtotime($order['created_at'])) ?>
+        </p>
+    </div>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="<?= BASE_URL ?>admin/pedidos" class="btn btn-sm btn-outline-secondary me-2">
             <i class="bi bi-arrow-left me-1"></i> Voltar
         </a>
-        <a href="#" class="btn btn-primary" onclick="window.print();">
-            <i class="bi bi-printer me-1"></i> Imprimir
-        </a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-gear me-1"></i> Ações
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <?php if ($order['status'] == 'pending'): ?>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#updateStatusModal" data-status="processing">Marcar como Em Processamento</a></li>
+                <?php elseif ($order['status'] == 'processing'): ?>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#updateStatusModal" data-status="shipped">Marcar como Enviado</a></li>
+                <?php elseif ($order['status'] == 'shipped'): ?>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#updateStatusModal" data-status="delivered">Marcar como Entregue</a></li>
+                <?php endif; ?>
+                
+                <?php if (in_array($order['status'], ['pending', 'processing', 'shipped'])): ?>
+                <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#updateStatusModal" data-status="canceled">Cancelar Pedido</a></li>
+                <?php endif; ?>
+                
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#notesModal">Adicionar Notas</a></li>
+                <li><a class="dropdown-item" href="#" onclick="window.print();">Imprimir Pedido</a></li>
+            </ul>
+        </div>
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Main Order Info Column -->
-    <div class="col-lg-8">
-        <!-- Order Header -->
+<div class="row">
+    <!-- Order Details Column -->
+    <div class="col-md-8">
+        <!-- Status Card -->
         <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">Pedido #<?= $order['order_number'] ?></h5>
-                <div>
-                    <?php switch ($order['status']):
-                        case 'pending': ?>
-                            <span class="badge bg-warning">Pendente</span>
-                            <?php break; ?>
-                        <?php case 'processing': ?>
-                            <span class="badge bg-info">Processando</span>
-                            <?php break; ?>
-                        <?php case 'shipped': ?>
-                            <span class="badge bg-primary">Enviado</span>
-                            <?php break; ?>
-                        <?php case 'delivered': ?>
-                            <span class="badge bg-success">Entregue</span>
-                            <?php break; ?>
-                        <?php case 'canceled': ?>
-                            <span class="badge bg-danger">Cancelado</span>
-                            <?php break; ?>
-                        <?php default: ?>
-                            <span class="badge bg-secondary">Desconhecido</span>
-                    <?php endswitch; ?>
-                    
-                    <?php switch ($order['payment_status']):
-                        case 'pending': ?>
-                            <span class="badge bg-warning">Pagamento Pendente</span>
-                            <?php break; ?>
-                        <?php case 'paid': ?>
-                            <span class="badge bg-success">Pagamento Realizado</span>
-                            <?php break; ?>
-                        <?php case 'refunded': ?>
-                            <span class="badge bg-info">Pagamento Estornado</span>
-                            <?php break; ?>
-                        <?php case 'canceled': ?>
-                            <span class="badge bg-danger">Pagamento Cancelado</span>
-                            <?php break; ?>
-                        <?php default: ?>
-                            <span class="badge bg-secondary">Status de Pagamento Desconhecido</span>
-                    <?php endswitch; ?>
-                </div>
+            <div class="card-header bg-transparent">
+                <h5 class="card-title mb-0">Status do Pedido</h5>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <table class="table table-borderless">
-                            <tr>
-                                <th class="ps-0">Data do Pedido:</th>
-                                <td><?= AdminHelper::formatDateTime($order['created_at']) ?></td>
-                            </tr>
-                            <tr>
-                                <th class="ps-0">Última Atualização:</th>
-                                <td><?= AdminHelper::formatDateTime($order['updated_at']) ?></td>
-                            </tr>
-                            <tr>
-                                <th class="ps-0">Método de Pagamento:</th>
-                                <td>
-                                    <?php switch ($order['payment_method']):
-                                        case 'credit_card': ?>
-                                            <i class="bi bi-credit-card me-1"></i> Cartão de Crédito
-                                            <?php break; ?>
-                                        <?php case 'boleto': ?>
-                                            <i class="bi bi-upc me-1"></i> Boleto
-                                            <?php break; ?>
-                                        <?php case 'pix': ?>
-                                            <i class="bi bi-qr-code me-1"></i> PIX
-                                            <?php break; ?>
-                                        <?php default: ?>
-                                            <?= $order['payment_method'] ?>
-                                    <?php endswitch; ?>
-                                </td>
-                            </tr>
-                            <?php if (!empty($order['tracking_code'])): ?>
-                            <tr>
-                                <th class="ps-0">Código de Rastreio:</th>
-                                <td>
-                                    <?= $order['tracking_code'] ?>
-                                    <a href="https://correios.com.br/rastreamento" target="_blank" class="ms-2 text-decoration-none">
-                                        <i class="bi bi-box-arrow-up-right"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            <?php endif; ?>
-                        </table>
+                <div class="row row-cols-1 row-cols-md-4 g-4 text-center">
+                    <div class="col">
+                        <div class="status-step <?= in_array($order['status'], ['pending', 'processing', 'shipped', 'delivered']) ? 'active' : ($order['status'] === 'canceled' ? 'canceled' : '') ?>">
+                            <div class="status-icon">
+                                <i class="bi bi-clipboard-check"></i>
+                            </div>
+                            <div class="status-label">Pendente</div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <table class="table table-borderless">
-                            <tr>
-                                <th class="ps-0">Subtotal:</th>
-                                <td class="text-end"><?= AdminHelper::formatMoney($order['subtotal']) ?></td>
-                            </tr>
-                            <tr>
-                                <th class="ps-0">Frete:</th>
-                                <td class="text-end"><?= AdminHelper::formatMoney($order['shipping_cost']) ?></td>
-                            </tr>
-                            <?php if ($order['discount'] > 0): ?>
-                            <tr>
-                                <th class="ps-0">Desconto:</th>
-                                <td class="text-end text-danger">- <?= AdminHelper::formatMoney($order['discount']) ?></td>
-                            </tr>
-                            <?php endif; ?>
-                            <tr>
-                                <th class="ps-0 fw-bold">Total:</th>
-                                <td class="text-end fw-bold fs-5"><?= AdminHelper::formatMoney($order['total']) ?></td>
-                            </tr>
-                        </table>
+                    <div class="col">
+                        <div class="status-step <?= in_array($order['status'], ['processing', 'shipped', 'delivered']) ? 'active' : ($order['status'] === 'canceled' ? 'canceled' : '') ?>">
+                            <div class="status-icon">
+                                <i class="bi bi-gear"></i>
+                            </div>
+                            <div class="status-label">Em Processamento</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="status-step <?= in_array($order['status'], ['shipped', 'delivered']) ? 'active' : ($order['status'] === 'canceled' ? 'canceled' : '') ?>">
+                            <div class="status-icon">
+                                <i class="bi bi-truck"></i>
+                            </div>
+                            <div class="status-label">Enviado</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="status-step <?= $order['status'] === 'delivered' ? 'active' : ($order['status'] === 'canceled' ? 'canceled' : '') ?>">
+                            <div class="status-icon">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                            <div class="status-label">Entregue</div>
+                        </div>
                     </div>
                 </div>
+                
+                <?php if ($order['status'] === 'canceled'): ?>
+                <div class="alert alert-danger text-center mt-3 mb-0">
+                    <i class="bi bi-x-circle"></i> Este pedido foi cancelado
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($order['tracking_code']) && in_array($order['status'], ['shipped', 'delivered'])): ?>
+                <div class="alert alert-info mt-3 mb-0">
+                    <strong>Código de Rastreamento:</strong> <?= $order['tracking_code'] ?>
+                    <?php if (strpos($order['shipping_method'], 'Correios') !== false): ?>
+                    <a href="https://rastreamento.correios.com.br/app/index.php" target="_blank" class="alert-link ms-2">
+                        Rastrear <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
         
-        <!-- Order Items -->
+        <!-- Order Items Card -->
         <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">Itens do Pedido</h5>
+                <span class="badge bg-primary"><?= count($items) ?> <?= count($items) > 1 ? 'itens' : 'item' ?></span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table align-middle mb-0">
+                    <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th scope="col">Produto</th>
-                                <th scope="col" class="text-center">Preço</th>
-                                <th scope="col" class="text-center">Quantidade</th>
-                                <th scope="col" class="text-end">Total</th>
+                                <th>Produto</th>
+                                <th class="text-center">Quantidade</th>
+                                <th class="text-end">Preço</th>
+                                <th class="text-end">Subtotal</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($items as $item): ?>
-                            <tr>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div>
-                                            <div class="fw-medium"><?= $item['product_name'] ?></div>
-                                            <?php if (!empty($item['customization_data'])): ?>
-                                            <button class="btn btn-sm btn-link p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#customization-<?= $item['id'] ?>">
-                                                <i class="bi bi-magic me-1"></i> Ver personalização
-                                            </button>
-                                            <div class="collapse mt-2" id="customization-<?= $item['id'] ?>">
-                                                <div class="card card-body bg-light">
-                                                    <pre class="mb-0"><?= $item['customization_data'] ?></pre>
-                                                </div>
+                            <?php if (!empty($items)): ?>
+                                <?php $totalQuantity = 0; ?>
+                                <?php foreach ($items as $item): ?>
+                                <?php $totalQuantity += $item['quantity']; ?>
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <?php if (!empty($item['product_slug'])): ?>
+                                            <a href="<?= BASE_URL ?>produto/<?= $item['product_slug'] ?>" target="_blank" class="me-3">
+                                                <i class="bi bi-box fs-2"></i>
+                                            </a>
+                                            <?php else: ?>
+                                            <div class="me-3">
+                                                <i class="bi bi-box fs-2"></i>
                                             </div>
                                             <?php endif; ?>
+                                            
+                                            <div>
+                                                <div class="fw-bold"><?= $item['product_name'] ?></div>
+                                                <?php if (!empty($item['product_sku'])): ?>
+                                                <small class="text-muted">SKU: <?= $item['product_sku'] ?></small>
+                                                <?php endif; ?>
+                                                
+                                                <?php if (!empty($item['customization_data'])): ?>
+                                                <div class="mt-1">
+                                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#customization-<?= $item['id'] ?>">
+                                                        <i class="bi bi-info-circle"></i> Personalização
+                                                    </button>
+                                                    <div class="collapse mt-2" id="customization-<?= $item['id'] ?>">
+                                                        <div class="card card-body bg-light">
+                                                            <?php 
+                                                            $customizationData = json_decode($item['customization_data'], true);
+                                                            if (is_array($customizationData)): 
+                                                            ?>
+                                                                <ul class="list-unstyled mb-0">
+                                                                <?php foreach ($customizationData as $key => $value): ?>
+                                                                    <li><strong><?= ucfirst($key) ?>:</strong> <?= is_array($value) ? implode(", ", $value) : $value ?></li>
+                                                                <?php endforeach; ?>
+                                                                </ul>
+                                                            <?php else: ?>
+                                                                <?= $item['customization_data'] ?>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <?php endif; ?>
+                                            </div>
                                         </div>
-                                    </div>
-                                </td>
-                                <td class="text-center"><?= AdminHelper::formatMoney($item['price']) ?></td>
-                                <td class="text-center"><?= $item['quantity'] ?></td>
-                                <td class="text-end"><?= AdminHelper::formatMoney($item['price'] * $item['quantity']) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
+                                    </td>
+                                    <td class="text-center"><?= $item['quantity'] ?></td>
+                                    <td class="text-end">R$ <?= number_format($item['price'], 2, ',', '.') ?></td>
+                                    <td class="text-end">R$ <?= number_format($item['price'] * $item['quantity'], 2, ',', '.') ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="4" class="text-center py-3">Nenhum item encontrado.</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                         <tfoot class="table-light">
                             <tr>
-                                <th colspan="3" class="text-end">Subtotal:</th>
-                                <th class="text-end"><?= AdminHelper::formatMoney($order['subtotal']) ?></th>
-                            </tr>
-                            <tr>
-                                <th colspan="3" class="text-end">Frete (<?= $order['shipping_method'] ?>):</th>
-                                <th class="text-end"><?= AdminHelper::formatMoney($order['shipping_cost']) ?></th>
-                            </tr>
-                            <?php if ($order['discount'] > 0): ?>
-                            <tr>
-                                <th colspan="3" class="text-end">Desconto:</th>
-                                <th class="text-end text-danger">- <?= AdminHelper::formatMoney($order['discount']) ?></th>
-                            </tr>
-                            <?php endif; ?>
-                            <tr>
-                                <th colspan="3" class="text-end">Total:</th>
-                                <th class="text-end fs-5"><?= AdminHelper::formatMoney($order['total']) ?></th>
+                                <th>Total</th>
+                                <th class="text-center"><?= $totalQuantity ?? 0 ?></th>
+                                <th></th>
+                                <th class="text-end">R$ <?= number_format($order['subtotal'], 2, ',', '.') ?></th>
                             </tr>
                         </tfoot>
                     </table>
@@ -195,309 +188,227 @@
             </div>
         </div>
         
-        <!-- Customer Info -->
+        <!-- Status History Card -->
         <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">Informações do Cliente</h5>
+            <div class="card-header bg-transparent">
+                <h5 class="card-title mb-0">Histórico do Pedido</h5>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6 class="mb-3">Dados do Cliente</h6>
-                        <?php if ($customer): ?>
-                        <table class="table table-borderless">
-                            <tr>
-                                <th class="ps-0">Nome:</th>
-                                <td><?= $customer['name'] ?></td>
-                            </tr>
-                            <tr>
-                                <th class="ps-0">E-mail:</th>
-                                <td><?= $customer['email'] ?></td>
-                            </tr>
-                            <tr>
-                                <th class="ps-0">Telefone:</th>
-                                <td><?= $customer['phone'] ?: 'Não informado' ?></td>
-                            </tr>
-                            <tr>
-                                <th class="ps-0">Cliente desde:</th>
-                                <td><?= AdminHelper::formatDate($customer['created_at']) ?></td>
-                            </tr>
-                        </table>
-                        <a href="<?= BASE_URL ?>admin/usuarios/view/<?= $customer['id'] ?>" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-person me-1"></i> Ver Perfil Completo
-                        </a>
-                        <?php else: ?>
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle me-2"></i> Este pedido foi feito sem cadastro.
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    <div class="col-md-6">
-                        <h6 class="mb-3">Endereço de Entrega</h6>
-                        <?php if ($shippingAddress): ?>
-                        <address>
-                            <?= $shippingAddress['address'] ?>, <?= $shippingAddress['number'] ?><br>
-                            <?= $shippingAddress['complement'] ? $shippingAddress['complement'] . '<br>' : '' ?>
-                            <?= $shippingAddress['neighborhood'] ?><br>
-                            <?= $shippingAddress['city'] ?> - <?= $shippingAddress['state'] ?><br>
-                            CEP: <?= $shippingAddress['zipcode'] ?>
-                        </address>
-                        <?php else: ?>
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle me-2"></i> Endereço de entrega não disponível.
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Order Notes -->
-        <?php
-        $notes = $orderModel->getNotes($order['id']);
-        ?>
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">Histórico e Observações</h5>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addNoteModal">
-                    <i class="bi bi-plus-circle me-1"></i> Adicionar Nota
-                </button>
-            </div>
-            <div class="card-body">
-                <?php if (empty($notes) && empty($order['notes'])): ?>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle me-2"></i> Este pedido não possui notas.
-                </div>
-                <?php else: ?>
                 <div class="timeline">
-                    <?php foreach ($notes as $note): ?>
-                    <div class="timeline-item">
-                        <div class="timeline-date">
-                            <?= !empty($note['timestamp']) ? AdminHelper::formatDateTime($note['timestamp']) : '' ?>
-                        </div>
-                        <div class="timeline-content">
-                            <div class="timeline-body">
-                                <?= nl2br($note['content']) ?>
+                    <?php if (!empty($statusHistory)): ?>
+                        <?php foreach($statusHistory as $history): ?>
+                        <div class="timeline-item">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <h5 class="timeline-title">
+                                    <?php
+                                    $statusLabels = [
+                                        'pending' => 'Pendente',
+                                        'processing' => 'Em Processamento',
+                                        'shipped' => 'Enviado',
+                                        'delivered' => 'Entregue',
+                                        'canceled' => 'Cancelado'
+                                    ];
+                                    echo $statusLabels[$history['status']] ?? $history['status'];
+                                    ?>
+                                </h5>
+                                <p class="timeline-date">
+                                    <?= date('d/m/Y H:i:s', strtotime($history['created_at'])) ?>
+                                    <?php
+                                    $userModel = new UserModel();
+                                    $user = $userModel->find($history['user_id']);
+                                    if ($user) {
+                                        echo ' - Por: ' . $user['name'];
+                                    }
+                                    ?>
+                                </p>
+                                <?php if (!empty($history['notes'])): ?>
+                                <p class="timeline-text"><?= nl2br(htmlspecialchars($history['notes'])) ?></p>
+                                <?php endif; ?>
                             </div>
                         </div>
-                    </div>
-                    <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="timeline-item">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <h5 class="timeline-title">Pedido Criado</h5>
+                                <p class="timeline-date"><?= date('d/m/Y H:i:s', strtotime($order['created_at'])) ?></p>
+                                <p class="timeline-text">Status inicial: Pendente</p>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
     
-    <!-- Sidebar Column -->
-    <div class="col-lg-4">
-        <!-- Order Actions -->
+    <!-- Side Column -->
+    <div class="col-md-4">
+        <!-- Customer Info Card -->
         <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">Ações</h5>
+            <div class="card-header bg-transparent">
+                <h5 class="card-title mb-0">Informações do Cliente</h5>
             </div>
             <div class="card-body">
-                <?php if ($order['status'] != 'canceled'): ?>
-                <div class="d-grid gap-2">
-                    <?php if ($order['status'] == 'pending'): ?>
-                    <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#updateStatusModal" data-status="processing">
-                        <i class="bi bi-arrow-right-circle me-1"></i> Marcar como Processando
-                    </button>
-                    <?php endif; ?>
-                    
-                    <?php if ($order['status'] == 'processing'): ?>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTrackingModal">
-                        <i class="bi bi-truck me-1"></i> Adicionar Rastreio e Enviar
-                    </button>
-                    <?php endif; ?>
-                    
-                    <?php if ($order['status'] == 'shipped'): ?>
-                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#updateStatusModal" data-status="delivered">
-                        <i class="bi bi-check-circle me-1"></i> Marcar como Entregue
-                    </button>
-                    <?php endif; ?>
-                    
-                    <?php if ($order['payment_status'] == 'pending'): ?>
-                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#updatePaymentModal" data-status="paid">
-                        <i class="bi bi-credit-card me-1"></i> Marcar como Pago
-                    </button>
-                    <?php endif; ?>
-                    
-                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cancelOrderModal">
-                        <i class="bi bi-x-circle me-1"></i> Cancelar Pedido
-                    </button>
-                </div>
+                <p class="mb-1"><strong>Nome:</strong> <?= htmlspecialchars($order['customer_name']) ?></p>
+                <p class="mb-1"><strong>Email:</strong> <?= htmlspecialchars($order['customer_email']) ?></p>
+                
+                <?php 
+                $userModel = new UserModel();
+                $customer = $userModel->find($order['user_id']);
+                if ($customer && !empty($customer['phone'])): 
+                ?>
+                <p class="mb-1"><strong>Telefone:</strong> <?= htmlspecialchars($customer['phone']) ?></p>
+                <?php endif; ?>
+                
+                <p class="mb-3"><strong>Cliente desde:</strong> <?= date('d/m/Y', strtotime($customer['created_at'] ?? $order['created_at'])) ?></p>
+                
+                <a href="<?= BASE_URL ?>admin/usuarios/view/<?= $order['user_id'] ?>" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-person me-1"></i> Perfil do Cliente
+                </a>
+            </div>
+        </div>
+        
+        <!-- Shipping Address Card -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title mb-0">Endereço de Entrega</h5>
+            </div>
+            <div class="card-body">
+                <?php if ($address): ?>
+                <p class="mb-1"><?= htmlspecialchars($address['address']) ?>, <?= htmlspecialchars($address['number']) ?></p>
+                <?php if (!empty($address['complement'])): ?>
+                <p class="mb-1"><?= htmlspecialchars($address['complement']) ?></p>
+                <?php endif; ?>
+                <p class="mb-1"><?= htmlspecialchars($address['neighborhood']) ?></p>
+                <p class="mb-1"><?= htmlspecialchars($address['city']) ?> - <?= htmlspecialchars($address['state']) ?></p>
+                <p class="mb-3">CEP: <?= htmlspecialchars($address['zipcode']) ?></p>
                 <?php else: ?>
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i> Este pedido foi cancelado.
-                </div>
+                <p class="text-muted">Endereço não disponível.</p>
                 <?php endif; ?>
             </div>
         </div>
         
-        <!-- Order Timeline -->
+        <!-- Payment and Shipping Card -->
         <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">Status do Pedido</h5>
-            </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
-                    <?php 
-                    $statusOrder = ['pending', 'processing', 'shipped', 'delivered'];
-                    $currentStatusIndex = array_search($order['status'], $statusOrder);
-                    $currentStatusIndex = $currentStatusIndex !== false ? $currentStatusIndex : -1;
-                    
-                    if ($order['status'] === 'canceled') {
-                        $currentStatusIndex = -1;
-                    }
-                    ?>
-                    
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 <?= $currentStatusIndex >= 0 ? 'list-group-item-success' : ($order['status'] === 'canceled' ? 'list-group-item-danger' : '') ?>">
-                        <div>
-                            <i class="bi <?= $currentStatusIndex >= 0 ? 'bi-check-circle-fill text-success' : ($order['status'] === 'canceled' ? 'bi-x-circle-fill text-danger' : 'bi-circle text-muted') ?> me-2"></i>
-                            <strong>Pendente</strong>
-                        </div>
-                        <span class="text-muted small"><?= AdminHelper::formatDateTime($order['created_at']) ?></span>
-                    </li>
-                    
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 <?= $currentStatusIndex >= 1 ? 'list-group-item-success' : ($order['status'] === 'canceled' ? 'list-group-item-danger' : '') ?>">
-                        <div>
-                            <i class="bi <?= $currentStatusIndex >= 1 ? 'bi-check-circle-fill text-success' : ($order['status'] === 'canceled' ? 'bi-x-circle-fill text-danger' : 'bi-circle text-muted') ?> me-2"></i>
-                            <strong>Processando</strong>
-                        </div>
-                        <span class="text-muted small">
-                            <?php 
-                            // Idealmente, teríamos um histórico de status para mostrar as datas exatas
-                            echo $currentStatusIndex >= 1 ? AdminHelper::formatDateTime($order['updated_at']) : '';
-                            ?>
-                        </span>
-                    </li>
-                    
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 <?= $currentStatusIndex >= 2 ? 'list-group-item-success' : ($order['status'] === 'canceled' ? 'list-group-item-danger' : '') ?>">
-                        <div>
-                            <i class="bi <?= $currentStatusIndex >= 2 ? 'bi-check-circle-fill text-success' : ($order['status'] === 'canceled' ? 'bi-x-circle-fill text-danger' : 'bi-circle text-muted') ?> me-2"></i>
-                            <strong>Enviado</strong>
-                        </div>
-                        <span class="text-muted small">
-                            <?php 
-                            echo $currentStatusIndex >= 2 ? AdminHelper::formatDateTime($order['updated_at']) : '';
-                            ?>
-                        </span>
-                    </li>
-                    
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 <?= $currentStatusIndex >= 3 ? 'list-group-item-success' : ($order['status'] === 'canceled' ? 'list-group-item-danger' : '') ?>">
-                        <div>
-                            <i class="bi <?= $currentStatusIndex >= 3 ? 'bi-check-circle-fill text-success' : ($order['status'] === 'canceled' ? 'bi-x-circle-fill text-danger' : 'bi-circle text-muted') ?> me-2"></i>
-                            <strong>Entregue</strong>
-                        </div>
-                        <span class="text-muted small">
-                            <?php 
-                            echo $currentStatusIndex >= 3 ? AdminHelper::formatDateTime($order['updated_at']) : '';
-                            ?>
-                        </span>
-                    </li>
-                    
-                    <?php if ($order['status'] === 'canceled'): ?>
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 list-group-item-danger">
-                        <div>
-                            <i class="bi bi-x-circle-fill text-danger me-2"></i>
-                            <strong>Cancelado</strong>
-                        </div>
-                        <span class="text-muted small"><?= AdminHelper::formatDateTime($order['updated_at']) ?></span>
-                    </li>
-                    <?php endif; ?>
-                </ul>
-            </div>
-        </div>
-        
-        <!-- Payment Status -->
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">Status do Pagamento</h5>
+            <div class="card-header bg-transparent">
+                <h5 class="card-title mb-0">Pagamento e Entrega</h5>
             </div>
             <div class="card-body">
-                <?php switch ($order['payment_status']):
-                    case 'pending': ?>
-                        <div class="alert alert-warning">
-                            <i class="bi bi-clock me-2"></i> Pagamento Pendente
-                        </div>
-                        <?php break; ?>
-                    <?php case 'paid': ?>
-                        <div class="alert alert-success">
-                            <i class="bi bi-check-circle me-2"></i> Pagamento Realizado
-                        </div>
-                        <?php break; ?>
-                    <?php case 'refunded': ?>
-                        <div class="alert alert-info">
-                            <i class="bi bi-arrow-counterclockwise me-2"></i> Pagamento Estornado
-                        </div>
-                        <?php break; ?>
-                    <?php case 'canceled': ?>
-                        <div class="alert alert-danger">
-                            <i class="bi bi-x-circle me-2"></i> Pagamento Cancelado
-                        </div>
-                        <?php break; ?>
-                <?php endswitch; ?>
+                <div class="row mb-2">
+                    <div class="col-5"><strong>Método de Pagamento:</strong></div>
+                    <div class="col-7">
+                        <?php
+                        $paymentMethods = [
+                            'credit_card' => 'Cartão de Crédito',
+                            'boleto' => 'Boleto',
+                            'pix' => 'PIX'
+                        ];
+                        echo $paymentMethods[$order['payment_method']] ?? $order['payment_method'];
+                        ?>
+                    </div>
+                </div>
                 
-                <table class="table table-borderless">
-                    <tr>
-                        <th class="ps-0 w-50">Método de Pagamento:</th>
-                        <td>
-                            <?php switch ($order['payment_method']):
-                                case 'credit_card': ?>
-                                    <i class="bi bi-credit-card me-1"></i> Cartão de Crédito
-                                    <?php break; ?>
-                                <?php case 'boleto': ?>
-                                    <i class="bi bi-upc me-1"></i> Boleto
-                                    <?php break; ?>
-                                <?php case 'pix': ?>
-                                    <i class="bi bi-qr-code me-1"></i> PIX
-                                    <?php break; ?>
-                                <?php default: ?>
-                                    <?= $order['payment_method'] ?>
-                            <?php endswitch; ?>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th class="ps-0">Total do Pedido:</th>
-                        <td><?= AdminHelper::formatMoney($order['total']) ?></td>
-                    </tr>
-                </table>
+                <div class="row mb-2">
+                    <div class="col-5"><strong>Status do Pagamento:</strong></div>
+                    <div class="col-7">
+                        <?php
+                        $paymentStatusLabels = [
+                            'pending' => 'Pendente',
+                            'paid' => 'Pago',
+                            'refunded' => 'Reembolsado',
+                            'canceled' => 'Cancelado'
+                        ];
+                        $paymentStatusClass = [
+                            'pending' => 'text-warning',
+                            'paid' => 'text-success',
+                            'refunded' => 'text-info',
+                            'canceled' => 'text-danger'
+                        ][$order['payment_status']] ?? '';
+                        ?>
+                        <span class="<?= $paymentStatusClass ?>">
+                            <?= $paymentStatusLabels[$order['payment_status']] ?? $order['payment_status'] ?>
+                        </span>
+                    </div>
+                </div>
                 
-                <?php if ($order['payment_status'] == 'pending'): ?>
-                <div class="d-grid">
-                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#updatePaymentModal" data-status="paid">
-                        <i class="bi bi-credit-card me-1"></i> Marcar como Pago
-                    </button>
+                <div class="row mb-2">
+                    <div class="col-5"><strong>Método de Envio:</strong></div>
+                    <div class="col-7"><?= $order['shipping_method'] ?></div>
+                </div>
+                
+                <?php if (!empty($order['tracking_code'])): ?>
+                <div class="row mb-2">
+                    <div class="col-5"><strong>Rastreamento:</strong></div>
+                    <div class="col-7"><?= $order['tracking_code'] ?></div>
                 </div>
                 <?php endif; ?>
+                
+                <hr>
+                
+                <div class="row mb-2">
+                    <div class="col-5"><strong>Subtotal:</strong></div>
+                    <div class="col-7">R$ <?= number_format($order['subtotal'], 2, ',', '.') ?></div>
+                </div>
+                
+                <div class="row mb-2">
+                    <div class="col-5"><strong>Frete:</strong></div>
+                    <div class="col-7">R$ <?= number_format($order['shipping_cost'], 2, ',', '.') ?></div>
+                </div>
+                
+                <?php if ($order['discount'] > 0): ?>
+                <div class="row mb-2">
+                    <div class="col-5"><strong>Desconto:</strong></div>
+                    <div class="col-7">-R$ <?= number_format($order['discount'], 2, ',', '.') ?></div>
+                </div>
+                <?php endif; ?>
+                
+                <div class="row fw-bold">
+                    <div class="col-5"><strong>Total:</strong></div>
+                    <div class="col-7">R$ <?= number_format($order['total'], 2, ',', '.') ?></div>
+                </div>
             </div>
         </div>
+        
+        <!-- Notes Card -->
+        <?php if (!empty($order['notes'])): ?>
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-transparent">
+                <h5 class="card-title mb-0">Observações do Pedido</h5>
+            </div>
+            <div class="card-body">
+                <?= nl2br(htmlspecialchars($order['notes'])) ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
-<!-- Modals -->
-
 <!-- Update Status Modal -->
-<div class="modal fade" id="updateStatusModal" tabindex="-1">
+<div class="modal fade" id="updateStatusModal" tabindex="-1" aria-labelledby="updateStatusModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="<?= BASE_URL ?>admin/pedidos/update-status" method="post">
+            <form action="<?= BASE_URL ?>admin/pedidos/update-status/<?= $order['id'] ?>" method="post">
                 <div class="modal-header">
-                    <h5 class="modal-title">Atualizar Status do Pedido</h5>
+                    <h5 class="modal-title" id="updateStatusModalLabel">Atualizar Status do Pedido</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                    <input type="hidden" name="status" id="status_value">
-                    
-                    <div id="status_description" class="alert alert-info mb-3">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <span id="status_desc_text">Processando pedido...</span>
-                    </div>
+                    <input type="hidden" name="status" id="statusInput" value="">
                     
                     <div class="mb-3">
-                        <label for="notes" class="form-label">Observações (opcional)</label>
-                        <textarea class="form-control" name="notes" id="status_notes" rows="3"></textarea>
+                        <label for="statusNotes" class="form-label">Notas / Observações</label>
+                        <textarea class="form-control" id="statusNotes" name="notes" rows="4" placeholder="Adicione informações sobre esta mudança de status (opcional)"></textarea>
+                    </div>
+                    
+                    <div id="cancelWarning" class="alert alert-danger d-none">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Atenção!</strong> Cancelar um pedido retornará os itens ao estoque e não poderá ser desfeito.
+                    </div>
+                    
+                    <div id="trackingCodeField" class="mb-3 d-none">
+                        <label for="trackingCode" class="form-label">Código de Rastreamento</label>
+                        <input type="text" class="form-control" id="trackingCode" name="tracking_code" placeholder="Informe o código de rastreamento">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -509,286 +420,204 @@
     </div>
 </div>
 
-<!-- Update Payment Status Modal -->
-<div class="modal fade" id="updatePaymentModal" tabindex="-1">
+<!-- Add Notes Modal -->
+<div class="modal fade" id="notesModal" tabindex="-1" aria-labelledby="notesModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="<?= BASE_URL ?>admin/pedidos/update-payment-status" method="post">
+            <form action="<?= BASE_URL ?>admin/pedidos/add-notes/<?= $order['id'] ?>" method="post">
                 <div class="modal-header">
-                    <h5 class="modal-title">Atualizar Status de Pagamento</h5>
+                    <h5 class="modal-title" id="notesModalLabel">Adicionar Observações ao Pedido</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                    <input type="hidden" name="payment_status" id="payment_status_value" value="paid">
-                    
-                    <div class="alert alert-success mb-3">
-                        <i class="bi bi-info-circle me-2"></i>
-                        Você está marcando este pedido como pago. Isso atualizará apenas o status de pagamento, não o status do pedido.
-                    </div>
-                    
                     <div class="mb-3">
-                        <label for="notes" class="form-label">Observações (opcional)</label>
-                        <textarea class="form-control" name="notes" rows="3"></textarea>
+                        <label for="orderNotes" class="form-label">Observações</label>
+                        <textarea class="form-control" id="orderNotes" name="notes" rows="5" placeholder="Adicione observações ao pedido"><?= htmlspecialchars($order['notes'] ?? '') ?></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success">Marcar como Pago</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Add Tracking Modal -->
-<div class="modal fade" id="addTrackingModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="<?= BASE_URL ?>admin/pedidos/add-tracking-code" method="post">
-                <div class="modal-header">
-                    <h5 class="modal-title">Adicionar Código de Rastreamento</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                    
-                    <div class="mb-3">
-                        <label for="tracking_code" class="form-label">Código de Rastreamento</label>
-                        <input type="text" class="form-control" name="tracking_code" id="tracking_code" required>
-                    </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i> Ao adicionar o código de rastreamento, o status do pedido será automaticamente alterado para "Enviado".
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Adicionar e Marcar como Enviado</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Cancel Order Modal -->
-<div class="modal fade" id="cancelOrderModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="<?= BASE_URL ?>admin/pedidos/cancel" method="post">
-                <div class="modal-header">
-                    <h5 class="modal-title">Cancelar Pedido</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                    
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle me-2"></i> Tem certeza que deseja cancelar este pedido? Esta ação não pode ser desfeita.
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="reason" class="form-label">Motivo do Cancelamento</label>
-                        <textarea class="form-control" name="reason" rows="3" required></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Voltar</button>
-                    <button type="submit" class="btn btn-danger">Cancelar Pedido</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Add Note Modal -->
-<div class="modal fade" id="addNoteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="<?= BASE_URL ?>admin/pedidos/add-note" method="post">
-                <div class="modal-header">
-                    <h5 class="modal-title">Adicionar Nota ao Pedido</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
-                    
-                    <div class="mb-3">
-                        <label for="note" class="form-label">Nota</label>
-                        <textarea class="form-control" name="note" rows="4" required></textarea>
-                        <div class="form-text">
-                            Adicione informações importantes sobre o pedido. Estas notas são visíveis apenas para administradores.
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Adicionar Nota</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Update Status Modal
-    const updateStatusModal = document.getElementById('updateStatusModal');
-    if (updateStatusModal) {
-        updateStatusModal.addEventListener('show.bs.modal', function(event) {
-            const button = event.relatedTarget;
-            const status = button.getAttribute('data-status');
-            const statusValue = document.getElementById('status_value');
-            const statusDescription = document.getElementById('status_desc_text');
-            
-            statusValue.value = status;
-            
-            // Atualizar descrição do status
-            switch (status) {
-                case 'processing':
-                    statusDescription.textContent = 'Você está marcando este pedido como "Processando". Isso indica que o pedido foi aprovado e está sendo preparado.';
-                    break;
-                case 'shipped':
-                    statusDescription.textContent = 'Você está marcando este pedido como "Enviado". Isso indica que o pedido foi enviado ao cliente.';
-                    break;
-                case 'delivered':
-                    statusDescription.textContent = 'Você está marcando este pedido como "Entregue". Isso indica que o pedido foi recebido pelo cliente.';
-                    break;
-                default:
-                    statusDescription.textContent = 'Atualizando status do pedido...';
-            }
-        });
-    }
-    
-    // Copy to clipboard functionality for tracking code
-    const trackingCode = document.querySelector('.tracking-code');
-    if (trackingCode) {
-        trackingCode.addEventListener('click', function() {
-            const code = this.textContent.trim();
-            navigator.clipboard.writeText(code).then(() => {
-                const tooltip = document.createElement('div');
-                tooltip.classList.add('tooltip', 'show');
-                tooltip.textContent = 'Copiado!';
-                
-                this.appendChild(tooltip);
-                
-                setTimeout(() => {
-                    tooltip.remove();
-                }, 2000);
-            });
-        });
-    }
-});
-</script>
-
-<!-- Print styles -->
-<style media="print">
-    @page {
-        size: A4;
-        margin: 15mm;
-    }
-    body {
-        font-size: 12pt;
-    }
-    #sidebar, nav, .card-header h5 button, .btn, footer {
-        display: none !important;
-    }
-    .container-fluid {
-        width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-    .card {
-        border: 1px solid #ddd !important;
-        margin-bottom: 15px !important;
-        box-shadow: none !important;
-    }
-    .collapse {
-        display: block !important;
-    }
-    .timeline-item {
-        page-break-inside: avoid;
-    }
-</style>
-
-<!-- Timeline styles -->
 <style>
-.timeline {
+/* Status Steps */
+.status-step {
+    text-align: center;
     position: relative;
-    padding: 1rem 0;
 }
 
-.timeline:before {
+.status-step:not(:last-child)::after {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 100%;
-    background: #e9ecef;
-    left: 1rem;
+    top: 25px;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background-color: #dee2e6;
+    z-index: 1;
+}
+
+.status-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #f8f9fa;
+    border: 2px solid #dee2e6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+    position: relative;
+    z-index: 2;
+}
+
+.status-icon i {
+    font-size: 20px;
+    color: #6c757d;
+}
+
+.status-step.active .status-icon {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+}
+
+.status-step.active .status-icon i {
+    color: #0d6efd;
+}
+
+.status-step.active:not(:last-child)::after {
+    background-color: #0d6efd;
+}
+
+.status-step.canceled .status-icon {
+    border-color: #dc3545;
+    background-color: #f8d7da;
+}
+
+.status-step.canceled .status-icon i {
+    color: #dc3545;
+}
+
+.status-step.canceled:not(:last-child)::after {
+    background-color: #dc3545;
+}
+
+/* Timeline */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
     top: 0;
+    bottom: 0;
+    left: 7px;
+    width: 2px;
+    background-color: #dee2e6;
 }
 
 .timeline-item {
     position: relative;
-    padding-left: 2.5rem;
-    padding-bottom: 1.5rem;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -30px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #0d6efd;
+    border: 2px solid #fff;
+}
+
+.timeline-title {
+    font-size: 1rem;
+    margin-bottom: 5px;
 }
 
 .timeline-date {
-    font-size: 0.85rem;
-    color: #6c757d;
-    margin-bottom: 0.25rem;
-}
-
-.timeline-content {
-    background: #f8f9fa;
-    border-radius: 0.25rem;
-    padding: 1rem;
-    position: relative;
-}
-
-.timeline-content:before {
-    content: '';
-    position: absolute;
-    width: 1rem;
-    height: 2px;
-    background: #e9ecef;
-    left: -1rem;
-    top: 1rem;
-}
-
-.timeline-body {
-    font-size: 0.9rem;
-}
-
-.tracking-code {
-    cursor: pointer;
-    font-weight: 500;
-    position: relative;
-}
-
-.tracking-code:hover {
-    text-decoration: underline;
-}
-
-.tooltip {
-    position: absolute;
-    bottom: 120%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.7);
-    color: white;
-    padding: 0.3rem 0.6rem;
-    border-radius: 0.25rem;
     font-size: 0.8rem;
-    white-space: nowrap;
-    opacity: 0;
-    transition: opacity 0.2s;
+    color: #6c757d;
+    margin-bottom: 10px;
 }
 
-.tooltip.show {
-    opacity: 1;
+.timeline-text {
+    margin-bottom: 0;
+}
+
+/* Print Styles */
+@media print {
+    .btn-toolbar, .dropdown-toggle, .btn-group, .timeline-marker, .card-header {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+    }
+    
+    .timeline::before {
+        display: none;
+    }
+    
+    .timeline {
+        padding-left: 0;
+    }
+    
+    .timeline-item {
+        margin-bottom: 10px;
+    }
 }
 </style>
 
-<?php require_once VIEWS_PATH . '/admin/partials/footer.php'; ?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurar modal de atualização de status
+    var updateStatusModal = document.getElementById('updateStatusModal');
+    if (updateStatusModal) {
+        updateStatusModal.addEventListener('show.bs.modal', function(event) {
+            var button = event.relatedTarget;
+            var status = button.getAttribute('data-status');
+            
+            var statusField = document.getElementById('statusInput');
+            var cancelWarning = document.getElementById('cancelWarning');
+            var trackingCodeField = document.getElementById('trackingCodeField');
+            
+            // Preencher campos
+            statusField.value = status;
+            
+            // Mostrar/esconder avisos e campos adicionais
+            if (status === 'canceled') {
+                cancelWarning.classList.remove('d-none');
+            } else {
+                cancelWarning.classList.add('d-none');
+            }
+            
+            if (status === 'shipped') {
+                trackingCodeField.classList.remove('d-none');
+            } else {
+                trackingCodeField.classList.add('d-none');
+            }
+            
+            // Atualizar título da modal
+            var statusLabels = {
+                'processing': 'Em Processamento',
+                'shipped': 'Enviado',
+                'delivered': 'Entregue',
+                'canceled': 'Cancelado'
+            };
+            
+            var modalTitle = document.getElementById('updateStatusModalLabel');
+            modalTitle.textContent = 'Atualizar Status para ' + (statusLabels[status] || status);
+        });
+    }
+});
+</script>
