@@ -15,6 +15,58 @@
         <div class="row">
             <!-- Formulário de Checkout -->
             <div class="col-lg-8">
+                <!-- Informações sobre Prazos para Impressão 3D -->
+                <?php if ($has_custom_order): ?>
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary-subtle">
+                        <h5 class="card-title mb-0 text-primary">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            Informações sobre impressão 3D
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <p class="mb-2">Seu pedido contém itens <strong>sob encomenda</strong> que serão impressos após a confirmação do pagamento.</p>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="bi bi-clock-history fs-4 me-2 text-primary"></i>
+                                        <div>
+                                            <strong>Tempo de impressão:</strong><br>
+                                            <?= number_format($print_time, 1) ?> horas
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="bi bi-calendar-check fs-4 me-2 text-primary"></i>
+                                        <div>
+                                            <strong>Dias de impressão:</strong><br>
+                                            <?= $estimated_printing_days ?> dias úteis
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="bi bi-truck fs-4 me-2 text-primary"></i>
+                                        <div>
+                                            <strong>Entrega estimada:</strong><br>
+                                            <?= $estimated_delivery_date ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <p class="mb-0 mt-3">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                <small>Após a confirmação do pagamento, seu pedido passará pelas etapas de validação, impressão e acabamento antes do envio.</small>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
                 <!-- Endereço de Entrega -->
                 <div class="card mb-4">
                     <div class="card-header bg-light">
@@ -227,7 +279,7 @@
                                 <input class="form-check-input shipping-method" type="radio" name="shipping_method" id="shipping-<?= $method['name'] ?>" value="<?= $method['name'] ?>" data-price="<?= $method['price'] ?>" required>
                                 <label class="form-check-label d-flex justify-content-between align-items-center" for="shipping-<?= $method['name'] ?>">
                                     <span><?= $method['name'] ?></span>
-                                    <span class="fw-semibold">R$ <?= number_format($method['price'], 2, ',', '.') ?></span>
+                                    <span class="fw-semibold"><?= CURRENCY_SYMBOL ?> <?= number_format($method['price'], 2, ',', '.') ?></span>
                                 </label>
                             </div>
                             <?php endforeach; ?>
@@ -282,9 +334,9 @@
                                         <div class="col-12">
                                             <label for="card_installments" class="form-label">Parcelas</label>
                                             <select class="form-select" id="card_installments" name="card_installments">
-                                                <option value="1">1x de R$ <?= number_format($total, 2, ',', '.') ?> sem juros</option>
+                                                <option value="1">1x de <?= CURRENCY_SYMBOL ?> <?= number_format($total, 2, ',', '.') ?> sem juros</option>
                                                 <?php for ($i = 2; $i <= 6; $i++): ?>
-                                                <option value="<?= $i ?>"><?= $i ?>x de R$ <?= number_format($total / $i, 2, ',', '.') ?> sem juros</option>
+                                                <option value="<?= $i ?>"><?= $i ?>x de <?= CURRENCY_SYMBOL ?> <?= number_format($total / $i, 2, ',', '.') ?> sem juros</option>
                                                 <?php endfor; ?>
                                             </select>
                                         </div>
@@ -323,20 +375,38 @@
                     </div>
                     <div class="card-body">
                         <div class="d-flex justify-content-between mb-2">
-                            <span>Subtotal (<?= count($cart_items) ?> <?= count($cart_items) > 1 ? 'itens' : 'item' ?>)</span>
-                            <span>R$ <?= number_format($subtotal, 2, ',', '.') ?></span>
+                            <span>Subtotal (<?= count($cartItems) ?> <?= count($cartItems) > 1 ? 'itens' : 'item' ?>)</span>
+                            <span><?= CURRENCY_SYMBOL ?> <?= number_format($subtotal, 2, ',', '.') ?></span>
                         </div>
                         
                         <div class="d-flex justify-content-between mb-2">
                             <span>Frete</span>
-                            <span id="shipping-display">R$ 0,00</span>
+                            <span id="shipping-display"><?= CURRENCY_SYMBOL ?> 0,00</span>
                         </div>
+                        
+                        <?php if ($has_custom_order && $print_time > 0): ?>
+                        <div class="mt-3 mb-2 pt-2 border-top">
+                            <p class="fw-semibold mb-2">Impressão 3D sob encomenda:</p>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>Tempo estimado:</span>
+                                <span><?= number_format($print_time, 1) ?> horas</span>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>Filamento estimado:</span>
+                                <span><?= number_format($filament_usage, 0) ?> gramas</span>
+                            </div>
+                            <div class="d-flex justify-content-between small">
+                                <span>Entrega estimada:</span>
+                                <span><?= $estimated_delivery_date ?></span>
+                            </div>
+                        </div>
+                        <?php endif; ?>
                         
                         <hr>
                         
                         <div class="d-flex justify-content-between mb-4">
                             <span class="h5">Total</span>
-                            <span class="h5" id="total-display">R$ <?= number_format($subtotal, 2, ',', '.') ?></span>
+                            <span class="h5" id="total-display"><?= CURRENCY_SYMBOL ?> <?= number_format($subtotal, 2, ',', '.') ?></span>
                         </div>
                         
                         <button type="submit" class="btn btn-primary w-100" id="place-order-btn">
@@ -360,7 +430,7 @@
                     </div>
                     <div class="card-body p-0">
                         <ul class="list-group list-group-flush">
-                            <?php foreach ($cart_items as $item): ?>
+                            <?php foreach ($cartItems as $item): ?>
                             <li class="list-group-item py-3">
                                 <div class="d-flex">
                                     <div class="flex-shrink-0">
@@ -373,14 +443,41 @@
                                         <?php endif; ?>
                                     </div>
                                     <div class="ms-3">
-                                        <h6 class="mb-1"><?= $item['name'] ?></h6>
+                                        <h6 class="mb-1"><?= $item['product_name'] ?></h6>
                                         <p class="mb-1 small text-muted">
                                             Quantidade: <?= $item['quantity'] ?>
-                                            <?php if (!empty($item['customization'])): ?>
-                                            <span class="ms-2 badge bg-info">Personalizado</span>
+                                            <span class="badge <?= $item['is_tested'] && $item['stock'] >= $item['quantity'] ? 'bg-success' : 'bg-warning text-dark' ?> ms-1">
+                                                <?= $item['is_tested'] && $item['stock'] >= $item['quantity'] ? 'Pronta Entrega' : 'Sob Encomenda' ?>
+                                            </span>
+                                        </p>
+                                        
+                                        <?php if ($item['selected_scale'] || $item['selected_filament'] || $item['selected_color']): ?>
+                                        <p class="mb-1 small text-muted">
+                                            <?php if ($item['selected_scale']): ?>
+                                            <span class="me-2">Escala: <?= $item['selected_scale'] ?></span>
+                                            <?php endif; ?>
+                                            
+                                            <?php if ($item['selected_filament']): ?>
+                                            <span class="me-2">Filamento: <?= $item['selected_filament'] ?></span>
+                                            <?php endif; ?>
+                                            
+                                            <?php if ($item['selected_color']): ?>
+                                            <span>
+                                                Cor: 
+                                                <span class="color-preview d-inline-block align-middle me-1" style="width: 12px; height: 12px; border-radius: 50%; background-color: <?= $item['color_hex'] ?>"></span>
+                                                <?= $item['color_name'] ?>
+                                            </span>
                                             <?php endif; ?>
                                         </p>
-                                        <span class="fw-semibold">R$ <?= number_format($item['total'], 2, ',', '.') ?></span>
+                                        <?php endif; ?>
+                                        
+                                        <?php if ($item['customization_data']): ?>
+                                        <p class="mb-1 small">
+                                            <span class="badge bg-info">Personalizado</span>
+                                        </p>
+                                        <?php endif; ?>
+                                        
+                                        <span class="fw-semibold"><?= CURRENCY_SYMBOL ?> <?= number_format($item['price'] * $item['quantity'], 2, ',', '.') ?></span>
                                     </div>
                                 </div>
                             </li>
