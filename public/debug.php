@@ -1,157 +1,88 @@
 <?php
-// Script de diagnóstico para TAVERNA DA IMPRESSÃO
-
-// Habilitar exibição de erros
+// Arquivo temporário para diagnóstico de erros
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Cabeçalho para saída em texto plano
-header('Content-Type: text/plain');
+// Carregar configurações do sistema
+require_once __DIR__ . '/../app/config/config.php';
 
-echo "=== DIAGNÓSTICO DA TAVERNA DA IMPRESSÃO ===\n\n";
-
-// Informações do PHP
-echo "-- VERSÃO DO PHP --\n";
-echo "PHP version: " . phpversion() . "\n";
-echo "Loaded extensions: " . implode(", ", get_loaded_extensions()) . "\n\n";
-
-// Verificar conexão com banco de dados
-echo "-- VERIFICAÇÃO DO BANCO DE DADOS --\n";
+// Testar conexão com banco de dados
+echo "<h2>Verificando conexão com banco de dados</h2>";
 try {
-    // Carregar configurações
-    if (file_exists('../app/config/config.php')) {
-        include_once '../app/config/config.php';
-        echo "Arquivo de configuração carregado com sucesso.\n";
-    } else {
-        echo "ERRO: Arquivo de configuração não encontrado.\n";
-    }
+    require_once __DIR__ . '/../app/helpers/Database.php';
+    $db = Database::getInstance();
+    echo "<p style='color:green'>✓ Conexão com banco de dados estabelecida.</p>";
     
-    // Tentar conexão
-    if (defined('DB_HOST') && defined('DB_NAME') && defined('DB_USER') && defined('DB_PASS')) {
-        $db = new PDO(
-            'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
-            DB_USER,
-            DB_PASS,
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
-        echo "Conexão com banco de dados estabelecida com sucesso.\n";
-        
-        // Verificar tabelas
-        $tables = [
-            'users', 'products', 'categories', 'product_images', 
-            'customization_options', 'carts', 'cart_items'
-        ];
-        
-        echo "\nVerificando tabelas:\n";
-        foreach ($tables as $table) {
-            try {
-                $query = $db->query("SELECT COUNT(*) FROM $table");
-                $count = $query->fetchColumn();
-                echo "- $table: $count registros\n";
-            } catch (PDOException $e) {
-                echo "- $table: ERRO (" . $e->getMessage() . ")\n";
-            }
-        }
-    } else {
-        echo "ERRO: Constantes de banco de dados não definidas corretamente.\n";
-    }
-} catch (PDOException $e) {
-    echo "ERRO na conexão com banco de dados: " . $e->getMessage() . "\n";
-}
-
-// Verificar estrutura de diretórios
-echo "\n-- VERIFICAÇÃO DE DIRETÓRIOS --\n";
-$directories = [
-    '../app',
-    '../app/controllers',
-    '../app/models',
-    '../app/views',
-    '../app/helpers',
-    '../app/config',
-    '../public/assets',
-    '../public/uploads'
-];
-
-foreach ($directories as $dir) {
-    if (is_dir($dir)) {
-        echo "$dir: Existe\n";
-    } else {
-        echo "$dir: NÃO EXISTE\n";
-    }
-}
-
-// Verificar arquivos críticos
-echo "\n-- VERIFICAÇÃO DE ARQUIVOS CRÍTICOS --\n";
-$files = [
-    '../app/config/config.php',
-    '../app/config/routes.php',
-    '../app/helpers/Router.php',
-    '../app/helpers/Database.php',
-    '../app/models/ProductModel.php',
-    '../app/models/CategoryModel.php',
-    '../app/controllers/ProductController.php',
-    '../app/controllers/CategoryController.php',
-    '../public/.htaccess',
-    '../.htaccess'
-];
-
-foreach ($files as $file) {
-    if (file_exists($file)) {
-        echo "$file: Existe (" . filesize($file) . " bytes)\n";
-    } else {
-        echo "$file: NÃO EXISTE\n";
-    }
-}
-
-// Verificar configuração .htaccess
-echo "\n-- CONTEÚDO DO .HTACCESS --\n";
-if (file_exists('../public/.htaccess')) {
-    echo "public/.htaccess:\n" . file_get_contents('../public/.htaccess') . "\n\n";
-} else {
-    echo "ERRO: public/.htaccess não encontrado\n\n";
-}
-
-if (file_exists('../.htaccess')) {
-    echo ".htaccess (raiz):\n" . file_get_contents('../.htaccess') . "\n";
-} else {
-    echo "ERRO: .htaccess (raiz) não encontrado\n";
-}
-
-// Registrar caminhos SERVER
-echo "\n-- VARIÁVEIS SERVER --\n";
-echo "DOCUMENT_ROOT: " . $_SERVER['DOCUMENT_ROOT'] . "\n";
-echo "SCRIPT_FILENAME: " . $_SERVER['SCRIPT_FILENAME'] . "\n";
-echo "PHP_SELF: " . $_SERVER['PHP_SELF'] . "\n";
-echo "REQUEST_URI: " . $_SERVER['REQUEST_URI'] . "\n";
-echo "SCRIPT_NAME: " . $_SERVER['SCRIPT_NAME'] . "\n";
-
-// Tentativa de obter log de erros
-echo "\n-- ÚLTIMOS ERROS LOG --\n";
-$errorLog = ini_get('error_log');
-echo "Caminho do log de erros: $errorLog\n";
-if (file_exists($errorLog) && is_readable($errorLog)) {
-    echo "Últimas 20 linhas do log:\n";
-    $logs = file($errorLog);
-    $logs = array_slice($logs, -20);
-    echo implode("", $logs);
-} else {
-    echo "Não foi possível ler o arquivo de log\n";
-    
-    // Tentar logs alternativos
-    $altLogs = [
-        '/var/log/apache2/error.log',
-        '/var/log/httpd/error_log',
-        '/var/log/php-errors.log'
-    ];
-    
-    foreach ($altLogs as $log) {
-        if (file_exists($log) && is_readable($log)) {
-            echo "Encontrado log alternativo: $log\n";
-            break;
+    // Testar tabelas críticas
+    $tables = ['users', 'products', 'categories', 'orders', 'order_items', 'cart_items', 'carts', 'addresses'];
+    echo "<h3>Verificando tabelas:</h3>";
+    foreach ($tables as $table) {
+        try {
+            $query = "SHOW COLUMNS FROM {$table}";
+            $result = $db->select($query);
+            echo "<p style='color:green'>✓ Tabela {$table} existe e possui " . count($result) . " colunas.</p>";
+        } catch (Exception $e) {
+            echo "<p style='color:red'>✗ Erro na tabela {$table}: " . $e->getMessage() . "</p>";
         }
     }
+} catch (Exception $e) {
+    echo "<p style='color:red'>✗ Erro de conexão: " . $e->getMessage() . "</p>";
 }
 
-echo "\n=== FIM DO DIAGNÓSTICO ===\n";
-?>
+// Verificar rotas e controllers
+echo "<h2>Verificando controllers</h2>";
+$controllers = ['ProductController', 'CategoryController', 'CartController', 'CheckoutController', 'OrderController'];
+foreach ($controllers as $controller) {
+    try {
+        $controllerPath = __DIR__ . "/../app/controllers/{$controller}.php";
+        if (file_exists($controllerPath)) {
+            echo "<p style='color:green'>✓ Controller {$controller} existe.</p>";
+            require_once $controllerPath;
+            echo "<p style='color:green'>✓ Controller {$controller} carregado com sucesso.</p>";
+        } else {
+            echo "<p style='color:red'>✗ Controller {$controller} não encontrado em {$controllerPath}.</p>";
+        }
+    } catch (Exception $e) {
+        echo "<p style='color:red'>✗ Erro ao carregar {$controller}: " . $e->getMessage() . "</p>";
+    }
+}
+
+// Verificar views críticas
+echo "<h2>Verificando views críticas</h2>";
+$views = ['product.php', 'category.php', 'checkout.php', 'orders.php', 'order_details.php', 'order_success.php'];
+foreach ($views as $view) {
+    if (file_exists(__DIR__ . "/../app/views/{$view}")) {
+        echo "<p style='color:green'>✓ View {$view} existe.</p>";
+    } else {
+        echo "<p style='color:red'>✗ View {$view} não encontrada.</p>";
+    }
+}
+
+// Verificar variáveis de ambiente e sessão
+echo "<h2>Variáveis de ambiente</h2>";
+echo "<pre>";
+print_r($_SERVER);
+echo "</pre>";
+
+echo "<h2>Variáveis de sessão</h2>";
+echo "<pre>";
+print_r($_SESSION);
+echo "</pre>";
+
+// Verificar constantes definidas
+echo "<h2>Constantes definidas</h2>";
+$constants = [
+    'ENVIRONMENT', 'BASE_URL', 'ROOT_PATH', 'APP_PATH', 'VIEWS_PATH', 'UPLOADS_PATH',
+    'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS',
+    'STORE_NAME', 'STORE_EMAIL', 'STORE_PHONE',
+    'CURRENCY', 'CURRENCY_SYMBOL',
+    'ITEMS_PER_PAGE', 'MAX_UPLOAD_SIZE'
+];
+
+foreach ($constants as $constant) {
+    if (defined($constant)) {
+        echo "<p><strong>{$constant}:</strong> " . (is_string(constant($constant)) ? constant($constant) : var_export(constant($constant), true)) . "</p>";
+    } else {
+        echo "<p style='color:red'>✗ Constante {$constant} não está definida!</p>";
+    }
+}
