@@ -46,6 +46,16 @@
                     </select>
                 </div>
                 
+                <!-- Novo filtro de disponibilidade -->
+                <div class="col">
+                    <label for="disponibilidade" class="form-label">Disponibilidade</label>
+                    <select name="disponibilidade" id="disponibilidade" class="form-select">
+                        <option value="all" <?= (!isset($_GET['disponibilidade']) || $_GET['disponibilidade'] == 'all') ? 'selected' : '' ?>>Todos os produtos</option>
+                        <option value="tested" <?= (isset($_GET['disponibilidade']) && $_GET['disponibilidade'] == 'tested') ? 'selected' : '' ?>>Pronta Entrega</option>
+                        <option value="custom" <?= (isset($_GET['disponibilidade']) && $_GET['disponibilidade'] == 'custom') ? 'selected' : '' ?>>Sob Encomenda</option>
+                    </select>
+                </div>
+                
                 <div class="col d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">Filtrar</button>
                 </div>
@@ -58,6 +68,25 @@
     <div class="alert alert-info mb-4">
         <p class="mb-0">Resultados da busca por: <strong><?= htmlspecialchars($searchQuery) ?></strong></p>
         <p class="mb-0 mt-1">Encontrados <?= $products['total'] ?> produtos</p>
+        <?php if (isset($products['availability']) && $products['availability'] !== 'all'): ?>
+        <p class="mb-0 mt-1">
+            <span class="badge bg-<?= $products['availability'] === 'tested' ? 'success' : 'primary' ?>">
+                <?= $products['availability'] === 'tested' ? 'Pronta Entrega' : 'Sob Encomenda' ?>
+            </span>
+        </p>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+    
+    <!-- Indicador de filtro de disponibilidade quando aplicável -->
+    <?php if (!isset($searchQuery) && isset($products['availability']) && $products['availability'] !== 'all'): ?>
+    <div class="alert alert-info mb-4">
+        <p class="mb-0">
+            Exibindo produtos 
+            <span class="badge bg-<?= $products['availability'] === 'tested' ? 'success' : 'primary' ?>">
+                <?= $products['availability'] === 'tested' ? 'Pronta Entrega' : 'Sob Encomenda' ?>
+            </span>
+        </p>
     </div>
     <?php endif; ?>
     
@@ -72,8 +101,14 @@
                         <span class="position-absolute badge bg-danger top-0 start-0 m-2">OFERTA</span>
                         <?php endif; ?>
                         
-                        <?php if ($product['is_customizable']): ?>
-                        <span class="position-absolute badge bg-primary top-0 end-0 m-2" title="Produto personalizável">
+                        <?php if (isset($product['availability'])): ?>
+                        <span class="position-absolute badge top-0 end-0 m-2 bg-<?= $product['availability'] === 'Pronta Entrega' ? 'success' : 'primary' ?>">
+                            <?= $product['availability'] ?>
+                        </span>
+                        <?php endif; ?>
+                        
+                        <?php if (!isset($product['availability']) && $product['is_customizable']): ?>
+                        <span class="position-absolute badge bg-info top-0 end-0 m-2" title="Produto personalizável">
                             <i class="bi bi-brush"></i>
                         </span>
                         <?php endif; ?>
@@ -102,6 +137,27 @@
                                 <a href="<?= BASE_URL ?>produto/<?= $product['slug'] ?>" class="btn btn-sm btn-outline-primary">Ver</a>
                             </div>
                         </div>
+                        
+                        <!-- Informações técnicas de impressão 3D -->
+                        <?php if (isset($product['filament_type']) || isset($product['print_time_hours'])): ?>
+                        <div class="product-meta mt-2">
+                            <?php if (isset($product['filament_type'])): ?>
+                            <span class="product-meta-item"><i class="bi bi-droplet-fill"></i> <?= $product['filament_type'] ?></span>
+                            <?php endif; ?>
+                            
+                            <?php if (isset($product['print_time_hours'])): ?>
+                            <span class="product-meta-item"><i class="bi bi-clock"></i> 
+                                <?php 
+                                $hours = floor($product['print_time_hours']);
+                                $minutes = round(($product['print_time_hours'] - $hours) * 60);
+                                echo $hours > 0 ? $hours . 'h ' : '';
+                                echo $minutes > 0 ? $minutes . 'min' : '';
+                                if ($hours == 0 && $minutes == 0) echo 'Menos de 1 min';
+                                ?>
+                            </span>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -155,5 +211,23 @@
     </nav>
     <?php endif; ?>
 </div>
+
+<!-- Estilos para indicadores de metadados de impressão 3D -->
+<style>
+.product-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #666;
+    border-top: 1px solid #eee;
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+}
+.product-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+</style>
 
 <?php require_once VIEWS_PATH . '/partials/footer.php'; ?>
