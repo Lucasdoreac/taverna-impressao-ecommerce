@@ -6,15 +6,23 @@ class OrderController {
     private $userModel;
     private $orderModel;
     private $productModel;
+    private $printQueueModel;
     
     public function __construct() {
         $this->userModel = new UserModel();
         $this->orderModel = new OrderModel();
         $this->productModel = new ProductModel();
+        $this->printQueueModel = new PrintQueueModel();
         
         // Verificar se o usuário está logado para todas as ações exceto success
         if ($this->getCurrentAction() !== 'success') {
             $this->checkAuthentication();
+        }
+        
+        // Verificar permissões de admin para ações administrativas
+        $adminActions = ['viewPrintQueue', 'addAllItemsToQueue', 'updateOrderStatusFromQueue'];
+        if (in_array($this->getCurrentAction(), $adminActions)) {
+            $this->checkAdminPermission();
         }
     }
     
@@ -280,6 +288,9 @@ class OrderController {
                 }
             }
             
+            // Cancelar itens na fila de impressão se existirem
+            $this->printQueueModel->cancelQueueItemsByOrderId($order['id'], $reason);
+            
             $_SESSION['success'] = 'Pedido cancelado com sucesso.';
             header('Location: ' . BASE_URL . 'minha-conta/pedido/' . $orderNumber);
             exit;
@@ -296,6 +307,309 @@ class OrderController {
     }
     
     /**
+     * Visualiza itens na fila de impressão relacionados a um pedido específico (para administradores)
+     * 
+     * @param array $params Parâmetros da rota (id do pedido)
+     */
+    public function viewPrintQueue($params) {
+        try {
+            $orderId = $params['id'] ?? 0;
+            
+            if (empty($orderId)) {
+                $_SESSION['error'] = 'Pedido não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            // Obter dados do pedido
+            $order = $this->orderModel->getOrderById($orderId);
+            
+            if (empty($order)) {
+                $_SESSION['error'] = 'Pedido não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            // Obter itens do pedido
+            $items = $this->orderModel->getOrderItems($orderId);
+            
+            // Obter itens na fila de impressão relacionados ao pedido
+            $queueItems = $this->printQueueModel->getQueueItemsByOrderId($orderId);
+            
+            // Obter impressoras disponíveis
+            $printers = $this->printQueueModel->getAllPrinters();
+            
+            // Renderizar view
+            require_once VIEWS_PATH . '/admin/orders/print_queue.php';
+        } catch (Exception $e) {
+            // Registrar erro no log
+            error_log("Erro ao visualizar fila de impressão do pedido: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // Redirecionar para a lista de pedidos
+            $_SESSION['error'] = 'Ocorreu um erro ao carregar a fila de impressão do pedido. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'admin/pedidos');
+            exit;
+        }
+    }
+    
+    /**
+     * Adiciona todos os itens de um pedido à fila de impressão (para administradores)
+     * 
+     * @param array $params Parâmetros da rota (id do pedido)
+     */
+    public function addAllItemsToQueue($params) {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            $orderId = $params['id'] ?? 0;
+            
+            if (empty($orderId)) {
+                $_SESSION['error'] = 'Pedido não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            // Obter dados do pedido
+            $order = $this->orderModel->getOrderById($orderId);
+            
+            if (empty($order)) {
+                $_SESSION['error'] = 'Pedido não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            // Obter itens do pedido que precisam ser impressos (não são de estoque)
+            $items = $this->orderModel->getOrderItems($orderId);
+            $itemsToQueue = array_filter($items, function($item) {
+                return !$item['is_stock_item'];
+            });
+            
+            if (empty($itemsToQueue)) {
+                $_SESSION['info'] = 'Este pedido não possui itens que precisam ser impressos sob demanda.';
+                header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+                exit;
+            }
+            
+            // Obter ID do usuário atual (administrador)
+            $adminId = $_SESSION['user']['id'];
+            
+            // Adicionar cada item à fila
+            $addedCount = 0;
+            foreach ($itemsToQueue as $item) {
+                // Verificar se o item já está na fila
+                $existingItems = $this->printQueueModel->getQueueItems([
+                    'order_item_id' => $item['id']
+                ]);
+                
+                if (!empty($existingItems)) {
+                    continue; // Item já está na fila, pular
+                }
+                
+                // Obter detalhes do produto
+                $product = $this->productModel->getProductById($item['product_id']);
+                
+                if (!$product) {
+                    continue; // Produto não encontrado, pular
+                }
+                
+                // Preparar dados para a fila
+                $queueData = [
+                    'order_id' => $orderId,
+                    'order_item_id' => $item['id'],
+                    'product_id' => $item['product_id'],
+                    'estimated_print_time_hours' => $item['print_time_hours'] ?? $product['print_time_hours'],
+                    'filament_type' => $item['selected_filament'] ?? $product['filament_type'],
+                    'filament_usage_grams' => $product['filament_usage_grams'],
+                    'scale' => $item['selected_scale'] ?? $product['scale'],
+                    'customer_model_id' => $item['customer_model_id'],
+                    'priority' => 5, // Prioridade média por padrão
+                    'created_by' => $adminId
+                ];
+                
+                // Verificar se existe uma cor de filamento selecionada
+                if (!empty($item['selected_color'])) {
+                    // Buscar ID da cor de filamento pelo nome
+                    $filamentModel = new FilamentModel();
+                    $filamentColor = $filamentModel->getFilamentColorByName($item['selected_color']);
+                    
+                    if ($filamentColor) {
+                        $queueData['filament_color_id'] = $filamentColor['id'];
+                    }
+                }
+                
+                // Adicionar à fila
+                $result = $this->printQueueModel->addToQueue($queueData);
+                
+                if ($result) {
+                    $addedCount++;
+                }
+            }
+            
+            if ($addedCount > 0) {
+                // Atualizar status do pedido para 'validating' se ainda estiver em 'pending'
+                if ($order['status'] === 'pending') {
+                    $this->orderModel->updateOrderStatus($orderId, 'validating', "Iniciada validação dos modelos para impressão 3D");
+                }
+                
+                $_SESSION['success'] = $addedCount . ' item(s) adicionado(s) à fila de impressão com sucesso.';
+            } else {
+                $_SESSION['info'] = 'Não foi possível adicionar novos itens à fila de impressão. Os itens já estão na fila ou não são válidos.';
+            }
+            
+            header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+            exit;
+        } catch (Exception $e) {
+            // Registrar erro no log
+            error_log("Erro ao adicionar itens à fila de impressão: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // Redirecionar para a página de fila do pedido
+            $_SESSION['error'] = 'Ocorreu um erro ao adicionar itens à fila de impressão. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+            exit;
+        }
+    }
+    
+    /**
+     * Atualiza o status do pedido com base no status dos itens na fila de impressão (para administradores)
+     * 
+     * @param array $params Parâmetros da rota (id do pedido)
+     */
+    public function updateOrderStatusFromQueue($params) {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            $orderId = $params['id'] ?? 0;
+            
+            if (empty($orderId)) {
+                $_SESSION['error'] = 'Pedido não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            // Obter dados do pedido
+            $order = $this->orderModel->getOrderById($orderId);
+            
+            if (empty($order)) {
+                $_SESSION['error'] = 'Pedido não encontrado.';
+                header('Location: ' . BASE_URL . 'admin/pedidos');
+                exit;
+            }
+            
+            // Obter itens do pedido que precisam ser impressos (não são de estoque)
+            $items = $this->orderModel->getOrderItems($orderId);
+            $itemsToCheck = array_filter($items, function($item) {
+                return !$item['is_stock_item'];
+            });
+            
+            if (empty($itemsToCheck)) {
+                // Se todos os itens são de estoque, o pedido está pronto para envio
+                if ($order['status'] !== 'shipped' && $order['status'] !== 'delivered' && $order['status'] !== 'canceled') {
+                    $this->orderModel->updateOrderStatus($orderId, 'pending', "Todos os itens estão disponíveis em estoque, pronto para envio");
+                }
+                
+                $_SESSION['info'] = 'Este pedido não possui itens que precisam ser impressos sob demanda.';
+                header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+                exit;
+            }
+            
+            // Obter itens na fila de impressão relacionados ao pedido
+            $queueItems = $this->printQueueModel->getQueueItemsByOrderId($orderId);
+            
+            if (empty($queueItems)) {
+                $_SESSION['info'] = 'Este pedido não possui itens na fila de impressão.';
+                header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+                exit;
+            }
+            
+            // Verificar status dos itens na fila
+            $allCompleted = true;
+            $anyPrinting = false;
+            $anyValidating = false;
+            $anyFailed = false;
+            $anyCanceled = false;
+            
+            foreach ($queueItems as $item) {
+                if ($item['status'] !== 'completed') {
+                    $allCompleted = false;
+                }
+                
+                if ($item['status'] === 'printing') {
+                    $anyPrinting = true;
+                } else if ($item['status'] === 'pending' || $item['status'] === 'validating') {
+                    $anyValidating = true;
+                } else if ($item['status'] === 'failed') {
+                    $anyFailed = true;
+                } else if ($item['status'] === 'canceled') {
+                    $anyCanceled = true;
+                }
+            }
+            
+            // Determinar o novo status do pedido
+            $newStatus = null;
+            $statusNote = '';
+            
+            if ($allCompleted) {
+                $newStatus = 'finishing';
+                $statusNote = 'Todos os itens impressos com sucesso, em fase de acabamento';
+            } else if ($anyPrinting) {
+                $newStatus = 'printing';
+                $statusNote = 'Itens em processo de impressão 3D';
+            } else if ($anyValidating) {
+                $newStatus = 'validating';
+                $statusNote = 'Validando modelos para impressão 3D';
+            } else if ($anyFailed && !$anyCanceled) {
+                // Se há falhas mas o pedido não foi cancelado, manter o status atual
+                $_SESSION['warning'] = 'Alguns itens na fila de impressão apresentaram falhas. Verifique e tome as providências necessárias.';
+                header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+                exit;
+            } else if ($anyCanceled) {
+                // Se o pedido foi cancelado, não mudar o status
+                $_SESSION['info'] = 'Este pedido foi cancelado.';
+                header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+                exit;
+            }
+            
+            // Atualizar status do pedido se necessário
+            if ($newStatus && $newStatus !== $order['status']) {
+                $this->orderModel->updateOrderStatus($orderId, $newStatus, $statusNote);
+                
+                // Se status for 'printing', atualizar a data de início da impressão
+                if ($newStatus === 'printing' && !$order['print_start_date']) {
+                    $this->orderModel->update($orderId, [
+                        'print_start_date' => date('Y-m-d H:i:s')
+                    ]);
+                }
+                
+                $_SESSION['success'] = 'Status do pedido atualizado para "' . $newStatus . '" com base na fila de impressão.';
+            } else {
+                $_SESSION['info'] = 'O status do pedido não precisou ser atualizado.';
+            }
+            
+            header('Location: ' . BASE_URL . 'admin/pedidos/' . $orderId . '/fila');
+            exit;
+        } catch (Exception $e) {
+            // Registrar erro no log
+            error_log("Erro ao atualizar status do pedido: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // Redirecionar para a página de fila do pedido
+            $_SESSION['error'] = 'Ocorreu um erro ao atualizar o status do pedido. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'admin/pedidos/' . $params['id'] . '/fila');
+            exit;
+        }
+    }
+    
+    /**
      * Obtém a ação atual da requisição
      */
     private function getCurrentAction() {
@@ -305,6 +619,17 @@ class OrderController {
         // Verificar se é a ação 'success'
         if (count($parts) >= 2 && $parts[0] === 'pedido' && $parts[1] === 'sucesso') {
             return 'success';
+        }
+        
+        // Verificar se é uma ação administrativa relacionada à fila de impressão
+        if (count($parts) >= 4 && $parts[0] === 'admin' && $parts[1] === 'pedidos') {
+            if ($parts[3] === 'fila') {
+                return 'viewPrintQueue';
+            } else if ($parts[3] === 'adicionar-a-fila') {
+                return 'addAllItemsToQueue';
+            } else if ($parts[2] === 'atualizar-status-do-pedido') {
+                return 'updateOrderStatusFromQueue';
+            }
         }
         
         return '';
@@ -318,6 +643,17 @@ class OrderController {
             $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
             $_SESSION['error'] = 'É necessário fazer login para acessar seus pedidos.';
             header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+    }
+    
+    /**
+     * Verifica se o usuário tem permissões de administrador
+     */
+    private function checkAdminPermission() {
+        if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
+            $_SESSION['error'] = 'Você não tem permissão para acessar esta página.';
+            header('Location: ' . BASE_URL);
             exit;
         }
     }
