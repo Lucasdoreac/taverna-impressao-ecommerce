@@ -2,20 +2,19 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO 3D E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T16:37:30Z"
+    "lastUpdated": "2025-03-29T16:55:30Z"
   },
   "development": {
-    "currentFile": "app/views/product.php",
+    "currentFile": "app/views/cart.php",
     "currentComponent": "Adaptação para Impressão 3D",
     "inProgress": {
       "type": "improvement",
       "description": "Adaptação do sistema para e-commerce de impressão 3D de miniaturas e acessórios para RPG",
       "remainingTasks": [
-        "Implementar filtros de produtos por disponibilidade (pronta entrega vs sob encomenda)",
-        "Adaptar o sistema de carrinho para incluir opções de filamento e escala",
         "Adaptar o fluxo de pedidos para impressão sob demanda",
         "Implementar sistema de upload e validação de modelos 3D",
-        "Criar interface de gerenciamento de fila de impressão"
+        "Criar interface de gerenciamento de fila de impressão",
+        "Adaptar a página de checkout para refletir opções de impressão 3D"
       ]
     }
   },
@@ -31,7 +30,9 @@
       "Esquema de Banco de Dados",
       "Documentação Técnica",
       "Sistema de Visualização de Imagens",
-      "Esquema de Banco de Dados para Impressão 3D"
+      "Esquema de Banco de Dados para Impressão 3D",
+      "Filtros de Produtos por Disponibilidade",
+      "Adaptação do Carrinho para Opções de Impressão 3D"
     ],
     "inProgress": [
       "Detalhes de Produto de Impressão 3D",
@@ -47,21 +48,21 @@
     ]
   },
   "context": {
-    "lastThought": "Adaptação do sistema para lidar com produtos de impressão 3D, implementando a distinção entre produtos testados disponíveis para pronta entrega e produtos sob encomenda. Adicionados campos específicos como tipo de filamento, cores disponíveis, tempo de impressão, e outras informações técnicas relevantes para impressão 3D.",
+    "lastThought": "Adaptação da página do carrinho para exibir e permitir a edição de opções de impressão 3D, incluindo escala, tipo de filamento e cor. Também foram adicionadas funcionalidades para mostrar a disponibilidade dos produtos (pronta entrega vs sob encomenda) e informações sobre o tempo estimado de impressão e uso de filamento para produtos sob encomenda.",
     "nextSteps": [
-      "Adaptar o ProductController para incluir filtros por disponibilidade",
-      "Atualizar a página de listagem de produtos (products.php) para exibir indicadores de disponibilidade",
-      "Adaptar o sistema de carrinho para incluir opções de filamento e escala",
+      "Adaptar a página de checkout para incluir informações de impressão 3D",
+      "Modificar o OrderController para processar informações de impressão 3D",
       "Implementar o sistema de upload e validação de modelos 3D para impressão personalizada",
-      "Criar tela de gerenciamento de fila de impressão para o admin"
+      "Criar tela de gerenciamento de fila de impressão para o admin",
+      "Adaptar o OrderModel para suportar produtos sob encomenda vs pronta entrega"
     ],
     "lastEditedFiles": [
+      "app/views/cart.php",
+      "app/controllers/CartController.php",
+      "app/models/CartModel.php",
       "app/models/ProductModel.php",
-      "app/views/product.php",
-      "app/controllers/HomeController.php",
-      "app/views/home.php",
-      "database/unified_schema_3d.sql",
-      "app/models/FilamentModel.php"
+      "app/controllers/ProductController.php",
+      "app/views/products.php"
     ],
     "incompleteOperations": false
   },
@@ -336,6 +337,26 @@
         "app/views/home.php"
       ],
       "timestamp": "2025-03-29T16:36:52Z"
+    },
+    "productsFilter3d": {
+      "status": "completed",
+      "description": "Adaptação do sistema de filtros de produtos para incluir disponibilidade (pronta entrega vs sob encomenda)",
+      "files": [
+        "app/controllers/ProductController.php",
+        "app/views/products.php",
+        "app/models/ProductModel.php"
+      ],
+      "timestamp": "2025-03-29T16:44:16Z"
+    },
+    "cart3dSystem": {
+      "status": "completed",
+      "description": "Sistema de carrinho adaptado para impressão 3D com opções de filamento, escala e cor",
+      "files": [
+        "app/models/CartModel.php",
+        "app/controllers/CartController.php",
+        "app/views/cart.php"
+      ],
+      "timestamp": "2025-03-29T16:54:16Z"
     }
   },
   "diagnostics": {
@@ -386,10 +407,10 @@
   },
   "roadmap": {
     "shortTerm": [
-      "Adaptar o ProductController para incluir filtros por disponibilidade",
-      "Atualizar a página de listagem de produtos para exibir indicadores de disponibilidade",
-      "Adaptar o sistema de carrinho para incluir opções de filamento e escala",
-      "Implementar sistema de upload e validação de modelos 3D"
+      "Adaptar a página de checkout para processar impressão 3D",
+      "Adaptar o sistema de pedidos para distinguir entre pronta entrega e sob encomenda",
+      "Implementar sistema de upload e validação de modelos 3D",
+      "Implementar sistema de tracking de status de impressão"
     ],
     "mediumTerm": [
       "Desenvolver dashboard para gerenciamento de fila de impressão",
