@@ -27,7 +27,7 @@ define('UPLOADS_PATH', ROOT_PATH . '/public/uploads');
 // Configurações do banco de dados para Hostinger
 define('DB_HOST', '127.0.0.1:3306');
 define('DB_NAME', 'u135851624_taverna');
-define('DB_USER', 'u135851624_teverna'); // Confirmado como correto
+define('DB_USER', 'u135851624_teverna');
 define('DB_PASS', '#Taverna1');
 
 // Configurações de e-mail
@@ -41,9 +41,9 @@ define('STORE_NAME', 'TAVERNA DA IMPRESSÃO');
 define('STORE_EMAIL', 'contato@tavernaimpressao.com.br');
 define('STORE_PHONE', '(00) 0000-0000');
 
-// Moeda
-define('CURRENCY', 'BRL');
-define('CURRENCY_SYMBOL', 'R$');
+// Moeda - usar defined() para evitar redefinição
+if (!defined('CURRENCY')) define('CURRENCY', 'BRL');
+if (!defined('CURRENCY_SYMBOL')) define('CURRENCY_SYMBOL', 'R$');
 
 // Configurações adicionais
 define('ITEMS_PER_PAGE', 12);
@@ -63,3 +63,6 @@ function debug($var, $die = false) {
         if ($die) die();
     }
 }
+
+// Carregar o Logger para habilitar a função app_log
+require_once APP_PATH . '/helpers/Logger.php';
