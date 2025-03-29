@@ -5,11 +5,13 @@
 class CartController {
     private $productModel;
     private $cartModel;
+    private $filamentModel;
     
     public function __construct() {
         try {
             $this->productModel = new ProductModel();
             $this->cartModel = new CartModel();
+            $this->filamentModel = new FilamentModel();
             
             // Inicializar sessão do carrinho se não existir (compatibilidade)
             if (!isset($_SESSION['cart'])) {
@@ -34,6 +36,8 @@ class CartController {
         try {
             $cart_items = [];
             $subtotal = 0;
+            $printing_time = 0;
+            $filament_usage = 0;
             
             // Obter carrinho do banco de dados se o usuário estiver logado
             $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
@@ -56,6 +60,12 @@ class CartController {
                     $itemTotal = $price * $item['quantity'];
                     $subtotal += $itemTotal;
                     
+                    // Calcular tempo de impressão e uso de filamento para produtos sob encomenda
+                    if (isset($item['availability']) && $item['availability'] === 'Sob Encomenda' && isset($item['print_time_hours'])) {
+                        $printing_time += $item['print_time_hours'] * $item['quantity'];
+                        $filament_usage += $item['filament_usage_grams'] * $item['quantity'];
+                    }
+                    
                     // Preparar dados de personalização
                     $customization = null;
                     if (!empty($item['customization_data'])) {
@@ -73,6 +83,15 @@ class CartController {
                         'image' => $item['image'],
                         'customization' => $customization,
                         'total' => $itemTotal,
+                        'availability' => $item['availability'] ?? null,
+                        'print_time_hours' => $item['print_time_hours'] ?? null,
+                        'filament_type' => $item['filament_type'] ?? null,
+                        'filament_usage_grams' => $item['filament_usage_grams'] ?? null,
+                        'selected_scale' => $item['selected_scale'] ?? null,
+                        'selected_filament' => $item['selected_filament'] ?? null,
+                        'selected_color' => $item['selected_color'] ?? null,
+                        'color_name' => $item['color_name'] ?? null,
+                        'color_hex' => $item['color_hex'] ?? null,
                         'is_db_item' => true // Flag para indicar que é um item do banco
                     ];
                 }
@@ -101,6 +120,18 @@ class CartController {
                             $itemTotal = $price * $item['quantity'];
                             $subtotal += $itemTotal;
                             
+                            // Determinar disponibilidade
+                            $availability = null;
+                            if (isset($product['is_tested'])) {
+                                $availability = ($product['is_tested'] && $product['stock'] > 0) ? 'Pronta Entrega' : 'Sob Encomenda';
+                                
+                                // Calcular tempo de impressão e uso de filamento para produtos sob encomenda
+                                if ($availability === 'Sob Encomenda' && isset($product['print_time_hours'])) {
+                                    $printing_time += $product['print_time_hours'] * $item['quantity'];
+                                    $filament_usage += $product['filament_usage_grams'] * $item['quantity'];
+                                }
+                            }
+                            
                             // Adicionar ao array de itens formatados
                             $cart_items[] = [
                                 'cart_item_id' => $item['cart_item_id'],
@@ -112,6 +143,13 @@ class CartController {
                                 'image' => $image,
                                 'customization' => $item['customization'] ?? null,
                                 'total' => $itemTotal,
+                                'availability' => $availability,
+                                'print_time_hours' => $product['print_time_hours'] ?? null,
+                                'filament_type' => $product['filament_type'] ?? null,
+                                'filament_usage_grams' => $product['filament_usage_grams'] ?? null,
+                                'selected_scale' => $item['selected_scale'] ?? null,
+                                'selected_filament' => $item['selected_filament'] ?? null,
+                                'selected_color' => $item['selected_color'] ?? null,
                                 'is_db_item' => false // Flag para indicar que é um item da sessão
                             ];
                         }
@@ -120,6 +158,34 @@ class CartController {
                         error_log("Erro ao processar item do carrinho: " . $e->getMessage());
                     }
                 }
+            }
+            
+            // Obter informações de filamento e escalas disponíveis para opções de edição
+            $filament_types = [
+                'PLA' => 'PLA (Padrão)',
+                'PETG' => 'PETG (Maior resistência)',
+                'ABS' => 'ABS (Alta resistência)',
+                'TPU' => 'TPU (Flexível)',
+                'OUTROS' => 'Outros materiais'
+            ];
+            
+            $available_scales = [];
+            try {
+                $scalesResult = Database::getInstance()->select("SELECT setting_value FROM settings WHERE setting_key = 'available_scales'");
+                if (!empty($scalesResult)) {
+                    $available_scales = json_decode($scalesResult[0]['setting_value'], true) ?? [];
+                }
+            } catch (Exception $e) {
+                error_log("Erro ao obter escalas disponíveis: " . $e->getMessage());
+            }
+            
+            // Obter cores de filamento disponíveis
+            $filament_colors = [];
+            try {
+                // Obtém todas as cores disponíveis
+                $filament_colors = $this->filamentModel->getAll();
+            } catch (Exception $e) {
+                error_log("Erro ao obter cores de filamento: " . $e->getMessage());
             }
             
             // Calcular informações de frete e total
@@ -166,6 +232,12 @@ class CartController {
             $customization = isset($_POST['customization']) ? $_POST['customization'] : null;
             $customization_files = isset($_POST['customization_file']) ? $_POST['customization_file'] : null;
             
+            // Opções específicas para impressão 3D
+            $selected_scale = isset($_POST['selected_scale']) ? $_POST['selected_scale'] : null;
+            $selected_filament = isset($_POST['selected_filament']) ? $_POST['selected_filament'] : null;
+            $selected_color = isset($_POST['selected_color']) ? intval($_POST['selected_color']) : null;
+            $customer_model_id = isset($_POST['customer_model_id']) ? intval($_POST['customer_model_id']) : null;
+            
             // Validar produto
             $product = $this->productModel->find($product_id);
             if (!$product || !$product['is_active']) {
@@ -174,11 +246,21 @@ class CartController {
                 exit;
             }
             
-            // Verificar estoque
-            if ($product['stock'] < $quantity) {
+            // Verificar estoque para produtos testados
+            if ($product['is_tested'] && $product['stock'] < $quantity) {
                 $_SESSION['error'] = 'Quantidade solicitada não disponível em estoque.';
                 header('Location: ' . BASE_URL . 'produto/' . $product['slug']);
                 exit;
+            }
+            
+            // Se não for selecionada uma escala, usar a escala padrão do produto
+            if (empty($selected_scale) && isset($product['scale'])) {
+                $selected_scale = $product['scale'];
+            }
+            
+            // Se não for selecionado um tipo de filamento, usar o tipo padrão do produto
+            if (empty($selected_filament) && isset($product['filament_type'])) {
+                $selected_filament = $product['filament_type'];
             }
             
             // Combinar dados de personalização e arquivos
@@ -245,7 +327,11 @@ class CartController {
                     $cart['id'], 
                     $product_id, 
                     $quantity, 
-                    !empty($customizationData) ? $customizationData : null
+                    !empty($customizationData) ? $customizationData : null,
+                    $selected_scale,
+                    $selected_filament,
+                    $selected_color,
+                    $customer_model_id
                 );
                 
                 // Atualizar contagem de itens no cabeçalho
@@ -260,6 +346,10 @@ class CartController {
                     'product_id' => $product_id,
                     'quantity' => $quantity,
                     'customization' => !empty($customizationData) ? $customizationData : null,
+                    'selected_scale' => $selected_scale,
+                    'selected_filament' => $selected_filament,
+                    'selected_color' => $selected_color,
+                    'customer_model_id' => $customer_model_id,
                     'added_at' => date('Y-m-d H:i:s')
                 ];
                 
@@ -300,9 +390,9 @@ class CartController {
                 // Item do banco de dados
                 $item = $this->cartModel->findById($cart_item_id);
                 if ($item) {
-                    // Verificar estoque
+                    // Verificar estoque para produtos testados
                     $product = $this->productModel->find($item['product_id']);
-                    if ($product && $product['stock'] >= $quantity) {
+                    if ($product && (!$product['is_tested'] || $product['stock'] >= $quantity)) {
                         $this->cartModel->updateItemQuantity($cart_item_id, $quantity);
                         
                         // Atualizar contagem no cabeçalho
@@ -318,9 +408,9 @@ class CartController {
                 // Item da sessão - compatibilidade
                 foreach ($_SESSION['cart'] as &$item) {
                     if ($item['cart_item_id'] === $cart_item_id) {
-                        // Verificar estoque
+                        // Verificar estoque para produtos testados
                         $product = $this->productModel->find($item['product_id']);
-                        if ($product && $product['stock'] >= $quantity) {
+                        if ($product && (!$product['is_tested'] || $product['stock'] >= $quantity)) {
                             $item['quantity'] = $quantity;
                         } else {
                             $_SESSION['error'] = 'Quantidade solicitada não disponível em estoque.';
@@ -338,6 +428,59 @@ class CartController {
             exit;
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao atualizar item no carrinho");
+        }
+    }
+    
+    /**
+     * Atualiza as opções de impressão 3D de um item
+     */
+    public function updateOptions() {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                header('Location: ' . BASE_URL . 'carrinho');
+                exit;
+            }
+            
+            $cart_item_id = isset($_POST['cart_item_id']) ? $_POST['cart_item_id'] : null;
+            $selected_scale = isset($_POST['selected_scale']) ? $_POST['selected_scale'] : null;
+            $selected_filament = isset($_POST['selected_filament']) ? $_POST['selected_filament'] : null;
+            $selected_color = isset($_POST['selected_color']) ? intval($_POST['selected_color']) : null;
+            
+            if (!$cart_item_id) {
+                header('Location: ' . BASE_URL . 'carrinho');
+                exit;
+            }
+            
+            // Verificar se é um item do banco (ID numérico) ou da sessão (string)
+            if (is_numeric($cart_item_id)) {
+                // Item do banco de dados
+                $this->cartModel->updatePrintingOptions($cart_item_id, $selected_scale, $selected_filament, $selected_color);
+                $_SESSION['success'] = 'Opções de impressão atualizadas com sucesso!';
+            } else {
+                // Item da sessão - compatibilidade
+                foreach ($_SESSION['cart'] as &$item) {
+                    if ($item['cart_item_id'] === $cart_item_id) {
+                        if ($selected_scale !== null) {
+                            $item['selected_scale'] = $selected_scale;
+                        }
+                        if ($selected_filament !== null) {
+                            $item['selected_filament'] = $selected_filament;
+                        }
+                        if ($selected_color !== null) {
+                            $item['selected_color'] = $selected_color;
+                        }
+                        break;
+                    }
+                }
+                $_SESSION['success'] = 'Opções de impressão atualizadas com sucesso! (Modo Sessão)';
+            }
+            
+            // Retornar para o carrinho
+            header('Location: ' . BASE_URL . 'carrinho');
+            exit;
+        } catch (Exception $e) {
+            $this->handleError($e, "Erro ao atualizar opções de impressão 3D");
         }
     }
     
