@@ -44,14 +44,15 @@ define('STORE_NAME', 'TAVERNA DA IMPRESSÃO');
 define('STORE_EMAIL', 'contato@tavernaimpressao.com.br');
 define('STORE_PHONE', '(00) 0000-0000');
 
-// Corrigir problema da constante CURRENCY_SYMBOL - limpar definição anterior se existir
-if (defined('CURRENCY_SYMBOL')) {
-    // Não podemos realmente remover uma constante, então registramos o problema
-    app_log("Aviso: Tentativa de redefinir CURRENCY_SYMBOL. Isso pode indicar um problema de carregamento duplo.", "warning");
-} else {
-    // Moeda
-    define('CURRENCY', 'BRL');
-    define('CURRENCY_SYMBOL', 'R$');
+// Moeda - definição clara e direta
+define('CURRENCY', 'BRL');
+define('CURRENCY_SYMBOL', 'R$');
+
+// Log de configuração para depuração
+if (ENVIRONMENT === 'development') {
+    app_log("Configurações carregadas com sucesso", "info");
+    app_log("CURRENCY_SYMBOL definido como: " . CURRENCY_SYMBOL, "debug");
+    app_log("CURRENCY definido como: " . CURRENCY, "debug");
 }
 
 // Configurações adicionais
