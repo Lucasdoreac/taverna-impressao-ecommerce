@@ -16,7 +16,13 @@ class HomeController {
      */
     public function index() {
         // Obter produtos em destaque
-        $featuredProducts = $this->productModel->getFeatured(8);
+        $featuredProducts = $this->productModel->getFeatured(6);
+        
+        // Obter produtos testados disponíveis para pronta entrega
+        $testedProducts = $this->productModel->getTestedProducts(4);
+        
+        // Obter produtos sob encomenda
+        $customProducts = $this->productModel->getCustomProducts(4);
         
         // Obter categorias principais
         $mainCategories = $this->categoryModel->getMainCategories();
