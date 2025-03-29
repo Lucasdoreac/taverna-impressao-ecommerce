@@ -24,6 +24,9 @@ define('APP_PATH', ROOT_PATH . '/app');
 define('VIEWS_PATH', APP_PATH . '/views');
 define('UPLOADS_PATH', ROOT_PATH . '/public/uploads');
 
+// Carregar o Logger para habilitar a função app_log ANTES de utilizá-la
+require_once APP_PATH . '/helpers/Logger.php';
+
 // Configurações do banco de dados para Hostinger
 define('DB_HOST', '127.0.0.1:3306');
 define('DB_NAME', 'u135851624_taverna');
@@ -69,6 +72,3 @@ function debug($var, $die = false) {
         if ($die) die();
     }
 }
-
-// Carregar o Logger para habilitar a função app_log
-require_once APP_PATH . '/helpers/Logger.php';
