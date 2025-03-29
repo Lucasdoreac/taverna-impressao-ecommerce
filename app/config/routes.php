@@ -29,21 +29,35 @@ $routes = [
     '/minha-conta/pedido/:id' => ['AccountController', 'orderDetails'],
     '/minha-conta/endereco' => ['AccountController', 'address'],
     
+    // Sistema de Modelos 3D
+    '/customer-models/upload' => ['CustomerModelController', 'upload'],
+    '/customer-models/process-upload' => ['CustomerModelController', 'processUpload'],
+    '/customer-models/list' => ['CustomerModelController', 'listUserModels'],
+    '/customer-models/details/:id' => ['CustomerModelController', 'details'],
+    '/customer-models/delete/:id' => ['CustomerModelController', 'delete'],
+    
     // Personalização
     '/personalizar/:id' => ['CustomizationController', 'index'],
     '/personalizar/upload' => ['CustomizationController', 'upload'],
     
-    // Admin
+    // Admin - Área geral
     '/admin' => ['AdminController', 'index'],
     '/admin/produtos' => ['AdminProductController', 'index'],
     '/admin/categorias' => ['AdminCategoryController', 'index'],
     '/admin/pedidos' => ['AdminOrderController', 'index'],
     '/admin/usuarios' => ['AdminUserController', 'index'],
     
-    // Relatórios
+    // Admin - Modelos 3D
+    '/admin/customer-models/pending' => ['CustomerModelController', 'pendingModels'],
+    '/admin/customer-models/update-status/:id' => ['CustomerModelController', 'updateStatus'],
+    
+    // Admin - Relatórios
     '/admin/relatorios' => ['AdminDashboardController', 'reports'],
     '/admin/relatorios/vendas' => ['AdminDashboardController', 'salesReport'],
     '/admin/relatorios/produtos' => ['AdminDashboardController', 'productsReport'],
     '/admin/relatorios/clientes' => ['AdminDashboardController', 'customersReport'],
     '/admin/relatorios/categorias' => ['AdminDashboardController', 'categoriesReport'],
+    
+    // Termos e políticas
+    '/termos-modelos-3d' => ['PageController', 'termsModels3d'],
 ];
