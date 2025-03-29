@@ -170,15 +170,52 @@ class CategoryModel extends Model {
                 return $category;
             }
             
-            // Converter array de IDs para string para usar na query
-            $categoryIdsStr = implode(',', $categoryIds);
+            // CORREÇÃO: Em vez de concatenar os IDs na string SQL, vamos usar uma abordagem mais segura
+            // criando um array de placeholders e usando parâmetros nomeados
+            $placeholders = [];
+            $params = [];
+            
+            foreach ($categoryIds as $index => $id) {
+                $paramName = "category_id_" . $index;
+                $placeholders[] = ":" . $paramName;
+                $params[$paramName] = $id;
+            }
             
             // Obter produtos da categoria e subcategorias
             try {
                 $productModel = new ProductModel();
-                $conditions = "category_id IN ({$categoryIdsStr}) AND is_active = 1";
-                $products = $productModel->paginate($page, $limit, $conditions);
-                $category['products'] = $products;
+                
+                // Construir a cláusula WHERE com placeholders
+                $placeholdersStr = implode(',', $placeholders);
+                $conditions = "category_id IN ({$placeholdersStr}) AND is_active = 1";
+                
+                // Adicionar parâmetros de paginação ao array de parâmetros
+                $params['offset'] = ($page - 1) * $limit;
+                $params['limit'] = $limit;
+                
+                // Contar total
+                $countSql = "SELECT COUNT(*) as total FROM {$productModel->getTable()} WHERE {$conditions}";
+                $countResult = $this->db()->select($countSql, $params);
+                $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
+                
+                // Buscar produtos
+                $sql = "SELECT p.*, pi.image 
+                       FROM {$productModel->getTable()} p
+                       LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                       WHERE {$conditions}
+                       GROUP BY p.id
+                       ORDER BY p.name ASC
+                       LIMIT :offset, :limit";
+                
+                $items = $this->db()->select($sql, $params);
+                
+                $category['products'] = [
+                    'items' => $items,
+                    'total' => $total,
+                    'currentPage' => $page,
+                    'perPage' => $limit,
+                    'lastPage' => ceil($total / $limit)
+                ];
             } catch (Exception $e) {
                 error_log("Erro ao buscar produtos da categoria: " . $e->getMessage());
                 $category['products'] = [
@@ -216,5 +253,14 @@ class CategoryModel extends Model {
             error_log("Erro ao buscar categorias: " . $e->getMessage());
             return [];
         }
+    }
+    
+    /**
+     * Obtém o nome da tabela
+     * 
+     * @return string Nome da tabela
+     */
+    public function getTable() {
+        return $this->table;
     }
 }
