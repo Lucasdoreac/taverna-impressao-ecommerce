@@ -18,11 +18,19 @@ class CustomerModelModel {
      * @param int $fileSize Tamanho do arquivo em bytes
      * @param string $fileType Tipo do arquivo (ex: 'stl', 'obj')
      * @param string $notes Notas adicionais sobre o modelo
+     * @param string $status Status inicial do modelo (padrão: 'pending_validation')
+     * @param array $validationResult Resultado da validação do modelo (opcional)
      * @return int|bool ID do modelo inserido ou false em caso de erro
      */
-    public function saveModel($userId, $fileName, $originalName, $fileSize, $fileType, $notes = '') {
-        $sql = "INSERT INTO customer_models (user_id, file_name, original_name, file_size, file_type, notes) 
-                VALUES (:user_id, :file_name, :original_name, :file_size, :file_type, :notes)";
+    public function saveModel($userId, $fileName, $originalName, $fileSize, $fileType, $notes = '', $status = 'pending_validation', $validationResult = null) {
+        $sql = "INSERT INTO customer_models (user_id, file_name, original_name, file_size, file_type, notes, status, validation_data) 
+                VALUES (:user_id, :file_name, :original_name, :file_size, :file_type, :notes, :status, :validation_data)";
+        
+        // Serializar o resultado da validação para armazenamento
+        $validationData = null;
+        if ($validationResult) {
+            $validationData = json_encode($validationResult);
+        }
         
         $params = [
             ':user_id' => $userId,
@@ -30,7 +38,9 @@ class CustomerModelModel {
             ':original_name' => $originalName,
             ':file_size' => $fileSize,
             ':file_type' => $fileType,
-            ':notes' => $notes
+            ':notes' => $notes,
+            ':status' => $status,
+            ':validation_data' => $validationData
         ];
         
         try {
@@ -75,6 +85,52 @@ class CustomerModelModel {
     }
     
     /**
+     * Atualiza as notas de um modelo 3D
+     *
+     * @param int $modelId ID do modelo
+     * @param string $notes Novas notas
+     * @return bool True se atualizado com sucesso, false caso contrário
+     */
+    public function updateNotes($modelId, $notes) {
+        $sql = "UPDATE customer_models SET notes = :notes WHERE id = :id";
+        
+        $params = [
+            ':notes' => $notes,
+            ':id' => $modelId
+        ];
+        
+        try {
+            return $this->db->execute($sql, $params);
+        } catch (Exception $e) {
+            app_log('Erro ao atualizar notas do modelo 3D: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Atualiza os dados de validação de um modelo 3D
+     *
+     * @param int $modelId ID do modelo
+     * @param array $validationData Dados da validação
+     * @return bool True se atualizado com sucesso, false caso contrário
+     */
+    public function updateValidationData($modelId, $validationData) {
+        $sql = "UPDATE customer_models SET validation_data = :validation_data WHERE id = :id";
+        
+        $params = [
+            ':validation_data' => json_encode($validationData),
+            ':id' => $modelId
+        ];
+        
+        try {
+            return $this->db->execute($sql, $params);
+        } catch (Exception $e) {
+            app_log('Erro ao atualizar dados de validação do modelo 3D: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
      * Obtém um modelo 3D pelo ID
      *
      * @param int $modelId ID do modelo
@@ -84,7 +140,14 @@ class CustomerModelModel {
         $sql = "SELECT * FROM customer_models WHERE id = :id";
         
         try {
-            return $this->db->fetchSingle($sql, [':id' => $modelId]);
+            $model = $this->db->fetchSingle($sql, [':id' => $modelId]);
+            
+            // Deserializar os dados de validação, se houver
+            if ($model && isset($model['validation_data']) && !empty($model['validation_data'])) {
+                $model['validation_data'] = json_decode($model['validation_data'], true);
+            }
+            
+            return $model;
         } catch (Exception $e) {
             app_log('Erro ao obter modelo 3D: ' . $e->getMessage());
             return false;
@@ -110,7 +173,16 @@ class CustomerModelModel {
         $sql .= " ORDER BY created_at DESC";
         
         try {
-            return $this->db->fetchAll($sql, $params);
+            $models = $this->db->fetchAll($sql, $params);
+            
+            // Deserializar os dados de validação para cada modelo, se houver
+            foreach ($models as &$model) {
+                if (isset($model['validation_data']) && !empty($model['validation_data'])) {
+                    $model['validation_data'] = json_decode($model['validation_data'], true);
+                }
+            }
+            
+            return $models;
         } catch (Exception $e) {
             app_log('Erro ao listar modelos 3D do usuário: ' . $e->getMessage());
             return [];
@@ -130,7 +202,16 @@ class CustomerModelModel {
                 ORDER BY cm.created_at ASC";
         
         try {
-            return $this->db->fetchAll($sql);
+            $models = $this->db->fetchAll($sql);
+            
+            // Deserializar os dados de validação para cada modelo, se houver
+            foreach ($models as &$model) {
+                if (isset($model['validation_data']) && !empty($model['validation_data'])) {
+                    $model['validation_data'] = json_decode($model['validation_data'], true);
+                }
+            }
+            
+            return $models;
         } catch (Exception $e) {
             app_log('Erro ao listar modelos 3D pendentes: ' . $e->getMessage());
             return [];
@@ -157,7 +238,7 @@ class CustomerModelModel {
             
             // Se a exclusão no banco foi bem sucedida, excluir o arquivo físico
             if ($result) {
-                $filePath = UPLOAD_PATH . '/3d_models/' . $model['file_name'];
+                $filePath = UPLOADS_PATH . '/3d_models/' . $model['file_name'];
                 if (file_exists($filePath)) {
                     unlink($filePath);
                 }
@@ -192,3 +273,70 @@ class CustomerModelModel {
             app_log('Erro ao verificar proprietário do modelo: ' . $e->getMessage());
             return false;
         }
+    }
+    
+    /**
+     * Obtém estatísticas de modelos 3D
+     *
+     * @return array Estatísticas dos modelos
+     */
+    public function getModelStatistics() {
+        try {
+            // Total de modelos
+            $sql = "SELECT COUNT(*) as total FROM customer_models";
+            $totalResult = $this->db->fetchSingle($sql);
+            $total = $totalResult ? $totalResult['total'] : 0;
+            
+            // Total por status
+            $sql = "SELECT status, COUNT(*) as count 
+                    FROM customer_models 
+                    GROUP BY status";
+            $statusCounts = $this->db->fetchAll($sql);
+            
+            // Formatar contagens por status
+            $statusStats = [
+                'pending_validation' => 0,
+                'approved' => 0,
+                'rejected' => 0
+            ];
+            
+            if ($statusCounts) {
+                foreach ($statusCounts as $item) {
+                    $statusStats[$item['status']] = intval($item['count']);
+                }
+            }
+            
+            // Total por tipo de arquivo
+            $sql = "SELECT file_type, COUNT(*) as count 
+                    FROM customer_models 
+                    GROUP BY file_type";
+            $typeCounts = $this->db->fetchAll($sql);
+            
+            // Formatar contagens por tipo
+            $typeStats = [];
+            if ($typeCounts) {
+                foreach ($typeCounts as $item) {
+                    $typeStats[$item['file_type']] = intval($item['count']);
+                }
+            }
+            
+            // Retornar estatísticas
+            return [
+                'total' => $total,
+                'by_status' => $statusStats,
+                'by_type' => $typeStats
+            ];
+        } catch (Exception $e) {
+            app_log('Erro ao obter estatísticas de modelos 3D: ' . $e->getMessage());
+            return [
+                'total' => 0,
+                'by_status' => [
+                    'pending_validation' => 0,
+                    'approved' => 0,
+                    'rejected' => 0
+                ],
+                'by_type' => []
+            ];
+        }
+    }
+}
