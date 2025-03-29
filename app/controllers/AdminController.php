@@ -5,100 +5,93 @@
 class AdminController {
     
     /**
-     * Construtor - verifica se o usuário é administrador
+     * Construtor - verifica autenticação e permissões de administrador
      */
     public function __construct() {
-        // Verificar se o usuário está logado e é administrador
-        AdminHelper::checkAdminAccess();
+        // Verificar se o usuário está logado
+        if (!isset($_SESSION['user_logged_in']) || !$_SESSION['user_logged_in']) {
+            $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
+            $_SESSION['error'] = 'É necessário fazer login para acessar o painel administrativo.';
+            header('Location: ' . BASE_URL . 'login');
+            exit;
+        }
+        
+        // Verificar se o usuário tem permissões de administrador
+        if (!isset($_SESSION['user']['role']) || $_SESSION['user']['role'] !== 'admin') {
+            $_SESSION['error'] = 'Você não tem permissão para acessar esta área.';
+            header('Location: ' . BASE_URL);
+            exit;
+        }
     }
     
     /**
-     * Exibe o dashboard administrativo
+     * Exibe o dashboard principal do painel administrativo
      */
     public function index() {
-        // Obter estatísticas gerais
-        $stats = $this->getStatistics();
-        
-        // Obter pedidos recentes
-        $orderModel = new OrderModel();
-        $recentOrders = $orderModel->getRecent(5);
-        
-        // Renderizar view
-        require_once VIEWS_PATH . '/admin/dashboard.php';
+        try {
+            // Obter estatísticas básicas para o dashboard
+            $db = Database::getInstance();
+            
+            // Total de pedidos
+            $sql = "SELECT COUNT(*) as total FROM orders";
+            $result = $db->select($sql);
+            $totalOrders = $result[0]['total'];
+            
+            // Pedidos pendentes
+            $sql = "SELECT COUNT(*) as total FROM orders WHERE status = 'pending'";
+            $result = $db->select($sql);
+            $pendingOrders = $result[0]['total'];
+            
+            // Total de produtos
+            $sql = "SELECT COUNT(*) as total FROM products";
+            $result = $db->select($sql);
+            $totalProducts = $result[0]['total'];
+            
+            // Total de usuários
+            $sql = "SELECT COUNT(*) as total FROM users";
+            $result = $db->select($sql);
+            $totalUsers = $result[0]['total'];
+            
+            // Faturamento total
+            $sql = "SELECT SUM(total) as total FROM orders WHERE status != 'canceled'";
+            $result = $db->select($sql);
+            $totalRevenue = $result[0]['total'] ?: 0;
+            
+            // Pedidos recentes
+            $sql = "SELECT * FROM orders ORDER BY created_at DESC LIMIT 5";
+            $recentOrders = $db->select($sql);
+            
+            // Renderizar a view do dashboard
+            require_once VIEWS_PATH . '/admin/dashboard.php';
+        } catch (Exception $e) {
+            // Registrar erro no log
+            error_log("Erro ao carregar dashboard do admin: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // Exibir mensagem de erro
+            $_SESSION['error'] = 'Ocorreu um erro ao carregar o dashboard. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'admin');
+            exit;
+        }
     }
     
     /**
-     * Obtém estatísticas gerais para o dashboard
+     * Renderiza a view do layout administrativo
+     * 
+     * @param string $content Caminho para o arquivo de conteúdo
+     * @param array $data Dados para passar para a view
      */
-    private function getStatistics() {
-        $db = Database::getInstance();
-        $stats = [];
+    protected function renderAdminView($content, $data = []) {
+        // Extrair dados para uso nas views
+        extract($data);
         
-        // Total de pedidos
-        $ordersResult = $db->select("SELECT 
-            COUNT(*) as total_orders,
-            COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_orders,
-            COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing_orders,
-            COUNT(CASE WHEN status = 'shipped' THEN 1 END) as shipped_orders,
-            COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
-            COUNT(CASE WHEN status = 'canceled' THEN 1 END) as canceled_orders,
-            SUM(total) as total_revenue,
-            AVG(total) as average_order
-            FROM orders");
+        // Incluir cabeçalho do admin
+        require_once VIEWS_PATH . '/admin/partials/header.php';
         
-        if ($ordersResult) {
-            $stats['orders'] = $ordersResult[0];
-        } else {
-            $stats['orders'] = [
-                'total_orders' => 0,
-                'pending_orders' => 0,
-                'processing_orders' => 0,
-                'shipped_orders' => 0,
-                'delivered_orders' => 0,
-                'canceled_orders' => 0,
-                'total_revenue' => 0,
-                'average_order' => 0
-            ];
-        }
+        // Incluir o conteúdo específico
+        require_once $content;
         
-        // Total de produtos
-        $productsResult = $db->select("SELECT 
-            COUNT(*) as total_products,
-            COUNT(CASE WHEN is_active = 1 THEN 1 END) as active_products,
-            COUNT(CASE WHEN is_customizable = 1 THEN 1 END) as customizable_products,
-            AVG(price) as average_price,
-            SUM(stock) as total_stock
-            FROM products");
-        
-        if ($productsResult) {
-            $stats['products'] = $productsResult[0];
-        } else {
-            $stats['products'] = [
-                'total_products' => 0,
-                'active_products' => 0,
-                'customizable_products' => 0,
-                'average_price' => 0,
-                'total_stock' => 0
-            ];
-        }
-        
-        // Total de usuários
-        $usersResult = $db->select("SELECT 
-            COUNT(*) as total_users,
-            COUNT(CASE WHEN role = 'admin' THEN 1 END) as admin_users,
-            COUNT(CASE WHEN role = 'customer' THEN 1 END) as customer_users
-            FROM users");
-        
-        if ($usersResult) {
-            $stats['users'] = $usersResult[0];
-        } else {
-            $stats['users'] = [
-                'total_users' => 0,
-                'admin_users' => 0,
-                'customer_users' => 0
-            ];
-        }
-        
-        return $stats;
+        // Incluir rodapé do admin
+        require_once VIEWS_PATH . '/admin/partials/footer.php';
     }
 }
