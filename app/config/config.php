@@ -41,9 +41,15 @@ define('STORE_NAME', 'TAVERNA DA IMPRESSÃO');
 define('STORE_EMAIL', 'contato@tavernaimpressao.com.br');
 define('STORE_PHONE', '(00) 0000-0000');
 
-// Moeda - usar defined() para evitar redefinição
-if (!defined('CURRENCY')) define('CURRENCY', 'BRL');
-if (!defined('CURRENCY_SYMBOL')) define('CURRENCY_SYMBOL', 'R$');
+// Corrigir problema da constante CURRENCY_SYMBOL - limpar definição anterior se existir
+if (defined('CURRENCY_SYMBOL')) {
+    // Não podemos realmente remover uma constante, então registramos o problema
+    app_log("Aviso: Tentativa de redefinir CURRENCY_SYMBOL. Isso pode indicar um problema de carregamento duplo.", "warning");
+} else {
+    // Moeda
+    define('CURRENCY', 'BRL');
+    define('CURRENCY_SYMBOL', 'R$');
+}
 
 // Configurações adicionais
 define('ITEMS_PER_PAGE', 12);
