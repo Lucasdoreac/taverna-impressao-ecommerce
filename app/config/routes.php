@@ -59,21 +59,36 @@ $routes = [
     '/admin/relatorios/categorias' => ['AdminDashboardController', 'categoriesReport'],
     
     // Sistema de Fila de Impressão 3D - Admin
-    '/print_queue' => ['PrintQueueController', 'index'],
-    '/print_queue/details/:id' => ['PrintQueueController', 'details'],
-    '/print_queue/printers' => ['PrintQueueController', 'printers'],
-    '/print_queue/updateStatus' => ['PrintQueueController', 'updateStatus'],
-    '/print_queue/assignPrinter' => ['PrintQueueController', 'assignPrinter'],
-    '/print_queue/updatePriority' => ['PrintQueueController', 'updatePriority'],
-    '/print_queue/addToQueue' => ['PrintQueueController', 'addToQueue'],
-    '/print_queue/updatePrinterStatus' => ['PrintQueueController', 'updatePrinterStatus'],
-    '/print_queue/addPrinter' => ['PrintQueueController', 'addPrinter'],
-    '/print_queue/deletePrinter/:id' => ['PrintQueueController', 'deletePrinter'],
+    '/admin/print_queue' => ['PrintQueueController', 'index'],
+    '/admin/print_queue/details/:id' => ['PrintQueueController', 'details'],
+    '/admin/print_queue/printers' => ['PrintQueueController', 'printers'],
+    '/admin/print_queue/updateStatus' => ['PrintQueueController', 'updateStatus'],
+    '/admin/print_queue/assignPrinter' => ['PrintQueueController', 'assignPrinter'],
+    '/admin/print_queue/updatePriority' => ['PrintQueueController', 'updatePriority'],
+    '/admin/print_queue/addToQueue' => ['PrintQueueController', 'addToQueue'],
+    '/admin/print_queue/updatePrinterStatus' => ['PrintQueueController', 'updatePrinterStatus'],
+    '/admin/print_queue/addPrinter' => ['PrintQueueController', 'addPrinter'],
+    '/admin/print_queue/deletePrinter/:id' => ['PrintQueueController', 'deletePrinter'],
+    
+    // Integração de Pedidos com Fila de Impressão
+    '/admin/pedidos/:id/fila' => ['OrderController', 'viewPrintQueue'],
+    '/admin/pedidos/:id/adicionar-a-fila' => ['OrderController', 'addAllItemsToQueue'],
+    '/admin/pedidos/atualizar-status-do-pedido/:id' => ['OrderController', 'updateOrderStatusFromQueue'],
+    '/admin/print_queue/por-pedido' => ['PrintQueueController', 'viewByOrder'],
+    '/admin/print_queue/relatorio' => ['PrintQueueController', 'productionReport'],
+    '/admin/print_queue/dashboard' => ['PrintQueueController', 'dashboard'],
+    
+    // Sistema de Notificações para Impressão 3D
+    '/admin/print_queue/notificacoes' => ['NotificationController', 'index'],
+    '/admin/print_queue/notificacoes/config' => ['NotificationController', 'config'],
+    '/admin/print_queue/enviar-notificacao' => ['NotificationController', 'send'],
+    '/notificacoes/marcar-como-lidas' => ['NotificationController', 'markAsRead'],
     
     // Sistema de Fila de Impressão 3D - Cliente
     '/impressoes' => ['PrintQueueController', 'customerJobs'],
     '/print_queue/markNotificationRead' => ['PrintQueueController', 'markNotificationRead'],
     '/rastrear' => ['PrintQueueController', 'customerTrack'],
+    '/rastrear/resultado' => ['PrintQueueController', 'trackResult'],
     
     // Termos e políticas
     '/termos-modelos-3d' => ['PageController', 'termsModels3d'],
