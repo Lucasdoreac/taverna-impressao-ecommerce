@@ -1,12 +1,52 @@
-<?php require_once VIEWS_PATH . '/partials/header.php'; ?>
-
-<div class="container" style="min-height: 70vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 5rem 1rem;">
-    <div>
-        <h1 style="font-size: 4rem; margin-bottom: 1rem; color: var(--primary);">404</h1>
-        <h2 style="font-size: 2rem; margin-bottom: 2rem;">Página Não Encontrada</h2>
-        <p style="margin-bottom: 2rem; max-width: 600px;">Ops! Parece que a página que você está procurando desapareceu em um portal dimensional ou foi devorada por um mimic!</p>
-        <a href="<?= BASE_URL ?>" class="btn">Retornar à Taverna</a>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Página Não Encontrada - TAVERNA DA IMPRESSÃO</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .error-container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .error-code {
+            font-size: 8rem;
+            font-weight: bold;
+            color: #6c757d;
+        }
+        .error-img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="error-container text-center">
+            <div class="mb-4">
+                <span class="error-code">404</span>
+            </div>
+            <div class="mb-4">
+                <img src="<?= BASE_URL ?>assets/images/error-404.png" alt="Página não encontrada" class="error-img">
+            </div>
+            <h1 class="mb-4">Página Não Encontrada</h1>
+            <p class="lead mb-4">A página que você está procurando parece ter sido removida, mudou de nome ou está temporariamente indisponível.</p>
+            <div class="d-grid gap-2 d-md-block">
+                <a href="<?= BASE_URL ?>" class="btn btn-primary">Voltar para Home</a>
+                <a href="<?= BASE_URL ?>produtos" class="btn btn-outline-secondary">Ver Produtos</a>
+            </div>
+        </div>
     </div>
-</div>
-
-<?php require_once VIEWS_PATH . '/partials/footer.php'; ?>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
