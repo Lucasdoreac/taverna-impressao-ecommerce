@@ -16,6 +16,7 @@
     
     <!-- CSS Personalizado -->
     <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/style.css">
+    <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/placeholders.css">
 </head>
 <body>
     <header class="main-header">
