@@ -76,6 +76,48 @@ class CheckoutController {
                 error_log("Erro ao obter métodos de pagamento: " . $e->getMessage());
             }
             
+            // Obter escalas disponíveis
+            $available_scales = [];
+            try {
+                $scalesResult = Database::getInstance()->select("SELECT setting_value FROM settings WHERE setting_key = 'available_scales'");
+                if (!empty($scalesResult)) {
+                    $available_scales = json_decode($scalesResult[0]['setting_value'], true) ?? [];
+                }
+            } catch (Exception $e) {
+                error_log("Erro ao obter escalas disponíveis: " . $e->getMessage());
+            }
+            
+            // Calcular tempo total estimado de impressão para produtos sob encomenda
+            $print_time = $this->cartModel->calculateEstimatedPrintTime($cart['id']);
+            
+            // Calcular uso total estimado de filamento para produtos sob encomenda
+            $filament_usage = $this->cartModel->calculateEstimatedFilamentUsage($cart['id']);
+            
+            // Verificar se há produtos sob encomenda no carrinho
+            $has_custom_order = false;
+            foreach ($cartItems as $item) {
+                if (!$item['is_tested'] || $item['stock'] < $item['quantity']) {
+                    $has_custom_order = true;
+                    break;
+                }
+            }
+
+            // Calcular data estimada de entrega para produtos sob encomenda
+            $estimated_delivery_date = null;
+            $estimated_printing_days = 0;
+            if ($has_custom_order && $print_time > 0) {
+                // Estimar dias de impressão (considerando 8 horas de impressão por dia)
+                $estimated_printing_days = ceil($print_time / 8);
+                
+                // Adicionar 1 dia para preparação (validação do pedido)
+                // Adicionar dias de impressão
+                // Adicionar 1 dia para acabamento e embalagem
+                $total_processing_days = 1 + $estimated_printing_days + 1;
+                
+                // Calcular data estimada (dias úteis)
+                $estimated_delivery_date = $this->calculateBusinessDays(date('Y-m-d'), $total_processing_days);
+            }
+            
             // Inicializar variáveis para a view
             $shipping_cost = 0;
             $total = $subtotal;
@@ -164,13 +206,29 @@ class CheckoutController {
             $total = $subtotal + $shipping_cost;
             
             // Gerar número do pedido
-            $orderNumber = 'ORD' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            $orderNumber = 'TI' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            
+            // Verificar se há produtos sob encomenda
+            $has_custom_order = false;
+            foreach ($cartItems as $item) {
+                if (!$item['is_tested'] || $item['stock'] < $item['quantity']) {
+                    $has_custom_order = true;
+                    break;
+                }
+            }
+            
+            // Definir status inicial do pedido
+            $initialStatus = $has_custom_order ? 'validating' : 'pending';
+            
+            // Calcular tempo total estimado de impressão para produtos sob encomenda
+            $print_time = $this->cartModel->calculateEstimatedPrintTime($cart['id']);
             
             // Criar pedido no banco de dados
             $orderId = Database::getInstance()->insert('orders', [
                 'user_id' => $userId,
                 'order_number' => $orderNumber,
-                'status' => 'pending',
+                'status' => $initialStatus,
+                'estimated_print_time_hours' => $print_time > 0 ? $print_time : null,
                 'payment_method' => $paymentMethod,
                 'payment_status' => 'pending',
                 'shipping_address_id' => $addressId,
@@ -186,21 +244,31 @@ class CheckoutController {
             
             // Adicionar itens ao pedido
             foreach ($cartItems as $item) {
+                $is_stock_item = $item['is_tested'] && $item['stock'] >= $item['quantity'];
+                
                 Database::getInstance()->insert('order_items', [
                     'order_id' => $orderId,
                     'product_id' => $item['product_id'],
                     'product_name' => $item['product_name'],
                     'quantity' => $item['quantity'],
                     'price' => $item['sale_price'] && $item['sale_price'] < $item['price'] ? $item['sale_price'] : $item['price'],
+                    'selected_scale' => $item['selected_scale'],
+                    'selected_filament' => $item['selected_filament'],
+                    'selected_color' => $item['selected_color'],
+                    'customer_model_id' => $item['customer_model_id'],
+                    'print_time_hours' => $is_stock_item ? null : ($item['print_time_hours'] * $item['quantity']),
+                    'is_stock_item' => $is_stock_item ? 1 : 0,
                     'customization_data' => $item['customization_data'],
                     'created_at' => date('Y-m-d H:i:s')
                 ]);
                 
-                // Atualizar estoque do produto
-                $product = $this->productModel->find($item['product_id']);
-                if ($product) {
-                    $newStock = max(0, $product['stock'] - $item['quantity']);
-                    $this->productModel->update($item['product_id'], ['stock' => $newStock]);
+                // Atualizar estoque do produto (apenas para produtos testados)
+                if ($is_stock_item) {
+                    $product = $this->productModel->find($item['product_id']);
+                    if ($product) {
+                        $newStock = max(0, $product['stock'] - $item['quantity']);
+                        $this->productModel->update($item['product_id'], ['stock' => $newStock]);
+                    }
                 }
             }
             
@@ -214,6 +282,30 @@ class CheckoutController {
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao finalizar pedido");
         }
+    }
+    
+    /**
+     * Calcula a data estimada considerando dias úteis
+     * 
+     * @param string $startDate Data inicial no formato Y-m-d
+     * @param int $businessDays Número de dias úteis a adicionar
+     * @return string Data estimada no formato d/m/Y
+     */
+    private function calculateBusinessDays($startDate, $businessDays) {
+        $date = new DateTime($startDate);
+        $daysAdded = 0;
+        
+        while ($daysAdded < $businessDays) {
+            $date->modify('+1 day');
+            
+            // Se não for fim de semana (6 = sábado, 0 = domingo)
+            $weekDay = $date->format('w');
+            if ($weekDay != 0 && $weekDay != 6) {
+                $daysAdded++;
+            }
+        }
+        
+        return $date->format('d/m/Y');
     }
     
     /**
