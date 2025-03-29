@@ -58,6 +58,23 @@ $routes = [
     '/admin/relatorios/clientes' => ['AdminDashboardController', 'customersReport'],
     '/admin/relatorios/categorias' => ['AdminDashboardController', 'categoriesReport'],
     
+    // Sistema de Fila de Impressão 3D - Admin
+    '/print_queue' => ['PrintQueueController', 'index'],
+    '/print_queue/details/:id' => ['PrintQueueController', 'details'],
+    '/print_queue/printers' => ['PrintQueueController', 'printers'],
+    '/print_queue/updateStatus' => ['PrintQueueController', 'updateStatus'],
+    '/print_queue/assignPrinter' => ['PrintQueueController', 'assignPrinter'],
+    '/print_queue/updatePriority' => ['PrintQueueController', 'updatePriority'],
+    '/print_queue/addToQueue' => ['PrintQueueController', 'addToQueue'],
+    '/print_queue/updatePrinterStatus' => ['PrintQueueController', 'updatePrinterStatus'],
+    '/print_queue/addPrinter' => ['PrintQueueController', 'addPrinter'],
+    '/print_queue/deletePrinter/:id' => ['PrintQueueController', 'deletePrinter'],
+    
+    // Sistema de Fila de Impressão 3D - Cliente
+    '/impressoes' => ['PrintQueueController', 'customerJobs'],
+    '/print_queue/markNotificationRead' => ['PrintQueueController', 'markNotificationRead'],
+    '/rastrear' => ['PrintQueueController', 'customerTrack'],
+    
     // Termos e políticas
     '/termos-modelos-3d' => ['PageController', 'termsModels3d'],
 ];
