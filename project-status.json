@@ -1,20 +1,21 @@
 {
   "projectInfo": {
-    "name": "TAVERNA DA IMPRESSÃO E-commerce",
+    "name": "TAVERNA DA IMPRESSÃO 3D E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T15:08:30Z"
+    "lastUpdated": "2025-03-29T16:37:30Z"
   },
   "development": {
     "currentFile": "app/views/product.php",
-    "currentComponent": "Aprimoramento Visual",
+    "currentComponent": "Adaptação para Impressão 3D",
     "inProgress": {
       "type": "improvement",
-      "description": "Melhoria na visualização de produtos e tratamento de imagens",
+      "description": "Adaptação do sistema para e-commerce de impressão 3D de miniaturas e acessórios para RPG",
       "remainingTasks": [
-        "Verificar funcionamento em produção das melhorias visuais",
-        "Continuar implementação do sistema de gerenciamento de pedidos",
-        "Implementar recursos pendentes do painel administrativo",
-        "Otimizar performance geral do sistema"
+        "Implementar filtros de produtos por disponibilidade (pronta entrega vs sob encomenda)",
+        "Adaptar o sistema de carrinho para incluir opções de filamento e escala",
+        "Adaptar o fluxo de pedidos para impressão sob demanda",
+        "Implementar sistema de upload e validação de modelos 3D",
+        "Criar interface de gerenciamento de fila de impressão"
       ]
     }
   },
@@ -29,35 +30,38 @@
       "Checkout e Pagamento",
       "Esquema de Banco de Dados",
       "Documentação Técnica",
-      "Sistema de Visualização de Imagens"
+      "Sistema de Visualização de Imagens",
+      "Esquema de Banco de Dados para Impressão 3D"
     ],
     "inProgress": [
-      "Detalhes de Produto",
+      "Detalhes de Produto de Impressão 3D",
       "Categorias",
-      "Personalização",
-      "Gerenciamento de Pedidos"
+      "Personalização 3D",
+      "Gerenciamento de Pedidos de Impressão 3D"
     ],
     "pending": [
       "Painel Administrativo",
+      "Sistema de Upload de Modelos 3D",
+      "Gerenciamento de Fila de Impressão",
       "Otimização para Produção"
     ]
   },
   "context": {
-    "lastThought": "Implementado sistema robusto de tratamento de imagens com placeholders CSS e helper dedicado para gerenciar imagens em todo o sistema. Isto resolve o problema de imagens ausentes e melhora a experiência visual sem depender de URLs externas.",
+    "lastThought": "Adaptação do sistema para lidar com produtos de impressão 3D, implementando a distinção entre produtos testados disponíveis para pronta entrega e produtos sob encomenda. Adicionados campos específicos como tipo de filamento, cores disponíveis, tempo de impressão, e outras informações técnicas relevantes para impressão 3D.",
     "nextSteps": [
-      "Verificar o funcionamento das imagens em todas as páginas após as melhorias",
-      "Continuar a implementação do sistema de gerenciamento de pedidos",
-      "Começar a implementação do painel administrativo básico",
-      "Aplicar o ImageHelper em outras views que utilizam imagens",
-      "Desenvolver tela de upload e gerenciamento de imagens no admin"
+      "Adaptar o ProductController para incluir filtros por disponibilidade",
+      "Atualizar a página de listagem de produtos (products.php) para exibir indicadores de disponibilidade",
+      "Adaptar o sistema de carrinho para incluir opções de filamento e escala",
+      "Implementar o sistema de upload e validação de modelos 3D para impressão personalizada",
+      "Criar tela de gerenciamento de fila de impressão para o admin"
     ],
     "lastEditedFiles": [
-      "public/assets/css/placeholders.css",
-      "app/helpers/ImageHelper.php",
-      "app/views/partials/header.php",
+      "app/models/ProductModel.php",
       "app/views/product.php",
-      "app/views/products.php",
-      "app/views/home.php"
+      "app/controllers/HomeController.php",
+      "app/views/home.php",
+      "database/unified_schema_3d.sql",
+      "app/models/FilamentModel.php"
     ],
     "incompleteOperations": false
   },
@@ -291,6 +295,47 @@
         "app/views/home.php"
       ],
       "timestamp": "2025-03-29T15:08:02Z"
+    },
+    "impression3dSchema": {
+      "status": "completed",
+      "description": "Esquema de banco de dados adaptado para impressão 3D",
+      "files": [
+        "database/unified_schema_3d.sql"
+      ],
+      "timestamp": "2025-03-29T15:53:20Z"
+    },
+    "filamentSystem": {
+      "status": "completed",
+      "description": "Sistema de gerenciamento de filamentos e cores para impressão 3D",
+      "files": [
+        "app/models/FilamentModel.php"
+      ],
+      "timestamp": "2025-03-29T15:53:35Z"
+    },
+    "productModel3d": {
+      "status": "completed",
+      "description": "ProductModel adaptado para impressão 3D com métodos para produtos testados vs sob encomenda",
+      "files": [
+        "app/models/ProductModel.php"
+      ],
+      "timestamp": "2025-03-29T16:32:51Z"
+    },
+    "productView3d": {
+      "status": "completed",
+      "description": "Página de produto adaptada para exibir informações técnicas de impressão 3D e opções de personalização",
+      "files": [
+        "app/views/product.php"
+      ],
+      "timestamp": "2025-03-29T16:35:17Z"
+    },
+    "homePageView3d": {
+      "status": "completed",
+      "description": "Página inicial adaptada para exibir produtos testados e sob encomenda com indicadores visuais",
+      "files": [
+        "app/controllers/HomeController.php",
+        "app/views/home.php"
+      ],
+      "timestamp": "2025-03-29T16:36:52Z"
     }
   },
   "diagnostics": {
@@ -341,19 +386,22 @@
   },
   "roadmap": {
     "shortTerm": [
-      "Verificar funcionamento do sistema de imagens em produção",
-      "Completar sistema de gerenciamento de pedidos",
-      "Implementar painel administrativo básico"
+      "Adaptar o ProductController para incluir filtros por disponibilidade",
+      "Atualizar a página de listagem de produtos para exibir indicadores de disponibilidade",
+      "Adaptar o sistema de carrinho para incluir opções de filamento e escala",
+      "Implementar sistema de upload e validação de modelos 3D"
     ],
     "mediumTerm": [
-      "Desenvolver dashboard administrativo completo",
-      "Implementar sistema de relatórios de vendas",
-      "Otimizar carregamento de imagens e assets"
+      "Desenvolver dashboard para gerenciamento de fila de impressão",
+      "Implementar sistema de relatórios para uso de filamento e tempo de impressão",
+      "Desenvolver sistema de monitoramento de status da impressão",
+      "Otimizar carregamento de imagens e assets para melhorar a performance"
     ],
     "longTerm": [
-      "Implementar sistema de recomendação de produtos",
-      "Adicionar integração com múltiplos meios de pagamento",
-      "Desenvolver aplicativo móvel complementar"
+      "Implementar sistema de recomendação de produtos baseado em jogos e interesses",
+      "Adicionar recursos de pré-visualização 3D de modelos",
+      "Desenvolver API para integração com softwares de controle de impressoras 3D",
+      "Implementar sistema de reputação para criadores de modelos 3D"
     ]
   }
 }
