@@ -16,13 +16,11 @@
             <div class="product-gallery">
                 <!-- Imagem Principal -->
                 <div class="main-image mb-3">
-                    <?php if (!empty($product['images'])): ?>
+                    <?php if (!empty($product['images']) && file_exists(UPLOADS_PATH . '/products/' . $product['images'][0]['image'])): ?>
                     <img id="main-product-image" src="<?= BASE_URL ?>uploads/products/<?= $product['images'][0]['image'] ?>" 
                          class="img-fluid rounded" alt="<?= $product['name'] ?>">
                     <?php else: ?>
-                    <div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 400px;">
-                        <span class="text-muted">Sem imagem</span>
-                    </div>
+                    <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
                     <?php endif; ?>
                 </div>
                 
@@ -30,12 +28,14 @@
                 <?php if (!empty($product['images']) && count($product['images']) > 1): ?>
                 <div class="thumbnails d-flex flex-wrap">
                     <?php foreach ($product['images'] as $index => $image): ?>
+                    <?php if (file_exists(UPLOADS_PATH . '/products/' . $image['image'])): ?>
                     <div class="thumbnail-item me-2 mb-2">
                         <img src="<?= BASE_URL ?>uploads/products/<?= $image['image'] ?>" 
                              class="img-thumbnail thumbnail-image <?= $index === 0 ? 'active' : '' ?>" 
                              alt="<?= $product['name'] ?> - Imagem <?= $index + 1 ?>"
                              data-image="<?= BASE_URL ?>uploads/products/<?= $image['image'] ?>">
                     </div>
+                    <?php endif; ?>
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
@@ -253,12 +253,10 @@
                         <span class="position-absolute badge bg-danger top-0 start-0 m-2">OFERTA</span>
                         <?php endif; ?>
                         
-                        <?php if (!empty($related['image'])): ?>
+                        <?php if (!empty($related['image']) && file_exists(UPLOADS_PATH . '/products/' . $related['image'])): ?>
                         <img src="<?= BASE_URL ?>uploads/products/<?= $related['image'] ?>" class="card-img-top" alt="<?= $related['name'] ?>">
                         <?php else: ?>
-                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
-                            <span class="text-muted">Sem imagem</span>
-                        </div>
+                        <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($related['name']) ?>"></div>
                         <?php endif; ?>
                     </div>
                     
