@@ -25,12 +25,60 @@ class ProductController {
                 error_log("Executando ProductController::index()");
             }
             
-            // Obter parâmetros de paginação
+            // Obter parâmetros de paginação e filtros
             $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
             $limit = 12;
             
-            // Obter produtos paginados
-            $products = $this->productModel->paginate($page, $limit, 'is_active = 1');
+            // Processar parâmetros de filtragem
+            $conditions = "p.is_active = 1";
+            $params = [];
+            $orderBy = "p.created_at DESC"; // Padrão: mais recentes
+            
+            // Filtro de categoria
+            if (isset($_GET['categoria']) && !empty($_GET['categoria'])) {
+                $categorySlug = trim($_GET['categoria']);
+                $category = $this->categoryModel->getBySlug($categorySlug);
+                if ($category) {
+                    $conditions .= " AND p.category_id = :category_id";
+                    $params['category_id'] = $category['id'];
+                }
+            }
+            
+            // Filtro de personalização
+            if (isset($_GET['personalizavel']) && $_GET['personalizavel'] !== '') {
+                $isCustomizable = (int)$_GET['personalizavel'];
+                $conditions .= " AND p.is_customizable = :is_customizable";
+                $params['is_customizable'] = $isCustomizable;
+            }
+            
+            // Filtro de disponibilidade (novo)
+            $availability = isset($_GET['disponibilidade']) ? trim($_GET['disponibilidade']) : 'all';
+            if (!in_array($availability, ['all', 'tested', 'custom'])) {
+                $availability = 'all';
+            }
+            
+            // Ordenação
+            if (isset($_GET['ordenar'])) {
+                switch ($_GET['ordenar']) {
+                    case 'preco_asc':
+                        $orderBy = "p.price ASC";
+                        break;
+                    case 'preco_desc':
+                        $orderBy = "p.price DESC";
+                        break;
+                    case 'nome_asc':
+                        $orderBy = "p.name ASC";
+                        break;
+                    case 'nome_desc':
+                        $orderBy = "p.name DESC";
+                        break;
+                    default:
+                        $orderBy = "p.created_at DESC";
+                }
+            }
+            
+            // Obter produtos paginados com filtros
+            $products = $this->productModel->paginate($page, $limit, $conditions, $params, $availability, $orderBy);
             
             // Validar produtos
             if (!isset($products['items']) || !is_array($products['items'])) {
@@ -40,7 +88,8 @@ class ProductController {
                     'total' => 0, 
                     'currentPage' => $page,
                     'perPage' => $limit,
-                    'lastPage' => 1
+                    'lastPage' => 1,
+                    'availability' => $availability
                 ];
             }
             
@@ -122,6 +171,12 @@ class ProductController {
             $product['sale_price'] = isset($product['sale_price']) ? $product['sale_price'] : null;
             $product['stock'] = isset($product['stock']) ? $product['stock'] : 0;
             $product['is_customizable'] = isset($product['is_customizable']) ? $product['is_customizable'] : 0;
+            $product['is_tested'] = isset($product['is_tested']) ? $product['is_tested'] : 0;
+            $product['print_time_hours'] = isset($product['print_time_hours']) ? $product['print_time_hours'] : 0;
+            $product['filament_type'] = isset($product['filament_type']) ? $product['filament_type'] : 'PLA';
+            $product['filament_usage_grams'] = isset($product['filament_usage_grams']) ? $product['filament_usage_grams'] : 0;
+            $product['dimensions'] = isset($product['dimensions']) ? $product['dimensions'] : '';
+            $product['scale'] = isset($product['scale']) ? $product['scale'] : '28mm';
             
             // Valores padrão para campos importantes mas não obrigatórios
             if (!isset($product['category_name'])) {
@@ -137,6 +192,11 @@ class ProductController {
             if (!isset($product['images']) || !is_array($product['images'])) {
                 $product['images'] = [];
                 error_log("Aviso: Produto sem imagens");
+            }
+            
+            if (!isset($product['filament_colors']) || !is_array($product['filament_colors'])) {
+                $product['filament_colors'] = [];
+                error_log("Aviso: Produto sem cores de filamento definidas");
             }
             
             // CORREÇÃO: Tratamento mais robusto para produtos relacionados
@@ -187,18 +247,18 @@ class ProductController {
                 error_log("Buscando categoria com slug: " . $slug);
             }
             
-            // Obter parâmetros de paginação
+            // Obter parâmetros de paginação e filtros
             $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
             $limit = 12;
             
-            // Obter categoria com produtos
-            $category = $this->categoryModel->getCategoryWithProducts($slug, $page, $limit);
-            
-            // Debug do resultado para rastreamento
-            if (ENVIRONMENT === 'development') {
-                error_log("Resultado da busca por categoria: " . ($category ? "Categoria encontrada (ID: {$category['id']})" : "Categoria não encontrada"));
+            // Filtro de disponibilidade (novo)
+            $availability = isset($_GET['disponibilidade']) ? trim($_GET['disponibilidade']) : 'all';
+            if (!in_array($availability, ['all', 'tested', 'custom'])) {
+                $availability = 'all';
             }
             
+            // Obter categoria
+            $category = $this->categoryModel->getBySlug($slug);
             if (!$category) {
                 // Log do erro
                 error_log("Categoria não encontrada para o slug: " . $slug);
@@ -207,6 +267,15 @@ class ProductController {
                 header('HTTP/1.0 404 Not Found');
                 require_once VIEWS_PATH . '/errors/404.php';
                 exit;
+            }
+            
+            // Obter produtos da categoria com paginação e filtro de disponibilidade
+            $categoryProducts = $this->productModel->getByCategory($category['id'], $page, $limit, $availability);
+            $category['products'] = $categoryProducts;
+            
+            // Debug do resultado para rastreamento
+            if (ENVIRONMENT === 'development') {
+                error_log("Resultado da busca por categoria: " . ($category ? "Categoria encontrada (ID: {$category['id']})" : "Categoria não encontrada"));
             }
             
             // CORREÇÃO: Verificar se a categoria é um array válido
@@ -223,7 +292,8 @@ class ProductController {
                     'total' => 0,
                     'currentPage' => $page,
                     'perPage' => $limit,
-                    'lastPage' => 1
+                    'lastPage' => 1,
+                    'availability' => $availability
                 ];
             } else {
                 // Validar a estrutura completa de produtos
@@ -241,6 +311,9 @@ class ProductController {
                 }
                 if (!isset($category['products']['lastPage'])) {
                     $category['products']['lastPage'] = 1;
+                }
+                if (!isset($category['products']['availability'])) {
+                    $category['products']['availability'] = $availability;
                 }
             }
             
@@ -277,8 +350,14 @@ class ProductController {
             $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
             $limit = 12;
             
-            // Realizar busca
-            $searchResults = $this->productModel->search($query, $page, $limit);
+            // Filtro de disponibilidade (novo)
+            $availability = isset($_GET['disponibilidade']) ? trim($_GET['disponibilidade']) : 'all';
+            if (!in_array($availability, ['all', 'tested', 'custom'])) {
+                $availability = 'all';
+            }
+            
+            // Realizar busca com filtro de disponibilidade
+            $searchResults = $this->productModel->search($query, $page, $limit, $availability);
             
             // CORREÇÃO: Validar estrutura de resultados da busca
             if (!isset($searchResults['items']) || !is_array($searchResults['items'])) {
@@ -289,7 +368,8 @@ class ProductController {
                     'currentPage' => $page,
                     'perPage' => $limit,
                     'lastPage' => 1,
-                    'query' => $query
+                    'query' => $query,
+                    'availability' => $availability
                 ];
             }
             
@@ -299,6 +379,7 @@ class ProductController {
             }
             
             // Renderizar view
+            $searchQuery = $query; // Disponibilizar para a view
             require_once VIEWS_PATH . '/search.php';
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao buscar produtos");
