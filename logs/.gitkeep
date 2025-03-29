@@ -1,3 +1,2 @@
-# Diretório para armazenamento de logs do sistema
-# Este arquivo .gitkeep garante que o diretório seja versionado, mesmo vazio
-# Os arquivos de log não devem ser versionados (adicionados ao .gitignore)
+# Diretório para armazenar arquivos de log
+# Este arquivo é necessário para manter o diretório no git
