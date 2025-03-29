@@ -7,7 +7,8 @@ class OrderModel extends Model {
     protected $fillable = [
         'user_id', 'order_number', 'status', 'payment_method', 'payment_status',
         'shipping_address_id', 'shipping_method', 'shipping_cost', 'subtotal',
-        'discount', 'total', 'notes', 'tracking_code'
+        'discount', 'total', 'notes', 'tracking_code', 'estimated_print_time_hours',
+        'print_start_date', 'print_finish_date'
     ];
     
     /**
@@ -46,6 +47,141 @@ class OrderModel extends Model {
     }
     
     /**
+     * Busca pedidos que precisam ser impressos
+     */
+    public function getPendingPrintOrders() {
+        $sql = "SELECT o.*, u.name as customer_name 
+                FROM {$this->table} o 
+                LEFT JOIN users u ON o.user_id = u.id 
+                WHERE o.status = 'validating' 
+                ORDER BY o.created_at ASC";
+        return $this->db()->select($sql);
+    }
+    
+    /**
+     * Busca pedidos atualmente em impressão
+     */
+    public function getCurrentlyPrintingOrders() {
+        $sql = "SELECT o.*, u.name as customer_name,
+                TIMEDIFF(NOW(), o.print_start_date) as elapsed_time,
+                o.estimated_print_time_hours * 3600 - TIME_TO_SEC(TIMEDIFF(NOW(), o.print_start_date)) as remaining_seconds
+                FROM {$this->table} o 
+                LEFT JOIN users u ON o.user_id = u.id 
+                WHERE o.status = 'printing' 
+                ORDER BY o.print_start_date ASC";
+        return $this->db()->select($sql);
+    }
+    
+    /**
+     * Verifica se um pedido possui itens sob encomenda
+     * 
+     * @param int $orderId ID do pedido
+     * @return bool
+     */
+    public function hasCustomItems($orderId) {
+        $sql = "SELECT COUNT(*) as count 
+                FROM order_items 
+                WHERE order_id = :order_id 
+                AND is_stock_item = 0";
+        
+        $result = $this->db()->select($sql, ['order_id' => $orderId]);
+        return ($result[0]['count'] > 0);
+    }
+    
+    /**
+     * Verifica se um pedido possui apenas itens de estoque (pronta entrega)
+     * 
+     * @param int $orderId ID do pedido
+     * @return bool
+     */
+    public function hasOnlyStockItems($orderId) {
+        $sql = "SELECT COUNT(*) as count 
+                FROM order_items 
+                WHERE order_id = :order_id 
+                AND is_stock_item = 0";
+        
+        $result = $this->db()->select($sql, ['order_id' => $orderId]);
+        return ($result[0]['count'] == 0);
+    }
+    
+    /**
+     * Inicia a impressão de um pedido
+     * 
+     * @param int $orderId ID do pedido
+     * @return bool Sucesso da operação
+     */
+    public function startPrinting($orderId) {
+        // Verificar se o pedido pode iniciar impressão (deve estar em status 'validating')
+        $order = $this->find($orderId);
+        if (!$order || $order['status'] !== 'validating') {
+            return false;
+        }
+        
+        // Atualizar pedido
+        $this->update($orderId, [
+            'status' => 'printing',
+            'print_start_date' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        // Adicionar nota ao histórico
+        $this->addNote($orderId, "Impressão 3D iniciada.");
+        
+        return true;
+    }
+    
+    /**
+     * Finaliza a impressão de um pedido
+     * 
+     * @param int $orderId ID do pedido
+     * @return bool Sucesso da operação
+     */
+    public function finishPrinting($orderId) {
+        // Verificar se o pedido está em impressão
+        $order = $this->find($orderId);
+        if (!$order || $order['status'] !== 'printing') {
+            return false;
+        }
+        
+        // Atualizar pedido
+        $this->update($orderId, [
+            'status' => 'finishing',
+            'print_finish_date' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        // Adicionar nota ao histórico
+        $this->addNote($orderId, "Impressão 3D concluída. Pedido em acabamento.");
+        
+        return true;
+    }
+    
+    /**
+     * Marca um pedido como finalizado e pronto para envio
+     * 
+     * @param int $orderId ID do pedido
+     * @return bool Sucesso da operação
+     */
+    public function finishProcessing($orderId) {
+        // Verificar se o pedido está em acabamento
+        $order = $this->find($orderId);
+        if (!$order || $order['status'] !== 'finishing') {
+            return false;
+        }
+        
+        // Atualizar pedido
+        $this->update($orderId, [
+            'status' => 'pending',
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        // Adicionar nota ao histórico
+        $this->addNote($orderId, "Acabamento e preparo concluídos. Pedido pronto para envio.");
+        
+        return true;
+    }
+    
+    /**
      * Conta o total de pedidos
      */
     public function countAll() {
@@ -61,6 +197,16 @@ class OrderModel extends Model {
         $sql = "SELECT COUNT(*) as total FROM {$this->table} WHERE status = :status";
         $result = $this->db()->select($sql, ['status' => $status]);
         return $result[0]['total'];
+    }
+    
+    /**
+     * Calcula tempo total de impressão pendente
+     */
+    public function getTotalPendingPrintTime() {
+        $sql = "SELECT SUM(estimated_print_time_hours) as total FROM {$this->table} 
+                WHERE status IN ('validating', 'printing')";
+        $result = $this->db()->select($sql);
+        return floatval($result[0]['total'] ?? 0);
     }
     
     /**
@@ -140,7 +286,16 @@ class OrderModel extends Model {
      * Obtém itens de um pedido
      */
     public function getOrderItems($orderId) {
-        $sql = "SELECT * FROM order_items WHERE order_id = :order_id";
+        $sql = "SELECT oi.*, 
+                p.is_tested, 
+                p.stock,
+                (SELECT image FROM product_images WHERE product_id = oi.product_id AND is_main = 1 LIMIT 1) as image,
+                CASE WHEN oi.is_stock_item = 1 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability,
+                (SELECT name FROM filament_colors WHERE id = oi.selected_color) as color_name,
+                (SELECT hex_code FROM filament_colors WHERE id = oi.selected_color) as color_hex
+                FROM order_items oi
+                LEFT JOIN products p ON oi.product_id = p.id
+                WHERE oi.order_id = :order_id";
         return $this->db()->select($sql, ['order_id' => $orderId]);
     }
     
@@ -150,8 +305,15 @@ class OrderModel extends Model {
     public function addOrderItem($orderId, $data) {
         $data['order_id'] = $orderId;
         
-        $sql = "INSERT INTO order_items (order_id, product_id, product_name, quantity, price, customization_data)
-                VALUES (:order_id, :product_id, :product_name, :quantity, :price, :customization_data)";
+        $sql = "INSERT INTO order_items (
+                    order_id, product_id, product_name, quantity, price, 
+                    selected_scale, selected_filament, selected_color, 
+                    customer_model_id, print_time_hours, is_stock_item, customization_data
+                ) VALUES (
+                    :order_id, :product_id, :product_name, :quantity, :price,
+                    :selected_scale, :selected_filament, :selected_color,
+                    :customer_model_id, :print_time_hours, :is_stock_item, :customization_data
+                )";
         
         $this->db()->query($sql, [
             'order_id' => $data['order_id'],
@@ -159,6 +321,12 @@ class OrderModel extends Model {
             'product_name' => $data['product_name'],
             'quantity' => $data['quantity'],
             'price' => $data['price'],
+            'selected_scale' => $data['selected_scale'] ?? null,
+            'selected_filament' => $data['selected_filament'] ?? null,
+            'selected_color' => $data['selected_color'] ?? null,
+            'customer_model_id' => $data['customer_model_id'] ?? null,
+            'print_time_hours' => $data['print_time_hours'] ?? null,
+            'is_stock_item' => $data['is_stock_item'] ?? 1,
             'customization_data' => $data['customization_data'] ?? null
         ]);
     }
@@ -168,7 +336,10 @@ class OrderModel extends Model {
      */
     public function updateStatus($orderId, $status, $note = null) {
         // Atualizar status
-        $this->update($orderId, ['status' => $status]);
+        $this->update($orderId, [
+            'status' => $status,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
         
         // Se houver nota, adicionar ao histórico
         if ($note) {
@@ -183,7 +354,10 @@ class OrderModel extends Model {
      */
     public function updatePaymentStatus($orderId, $status, $note = null) {
         // Atualizar status de pagamento
-        $this->update($orderId, ['payment_status' => $status]);
+        $this->update($orderId, [
+            'payment_status' => $status,
+            'updated_at' => date('Y-m-d H:i:s')
+        ]);
         
         // Se houver nota, adicionar ao histórico
         if ($note) {
@@ -200,7 +374,8 @@ class OrderModel extends Model {
         // Atualizar pedido
         $this->update($orderId, [
             'tracking_code' => $trackingCode,
-            'status' => 'shipped'
+            'status' => 'shipped',
+            'updated_at' => date('Y-m-d H:i:s')
         ]);
         
         // Se houver nota, adicionar ao histórico
@@ -249,12 +424,88 @@ class OrderModel extends Model {
         // Atualizar status
         $this->update($orderId, [
             'status' => 'canceled',
-            'payment_status' => 'canceled'
+            'payment_status' => 'canceled',
+            'updated_at' => date('Y-m-d H:i:s')
         ]);
         
         // Adicionar nota com motivo do cancelamento
         $this->addNote($orderId, "Pedido cancelado. Motivo: {$reason}");
         
         return true;
+    }
+    
+    /**
+     * Obtém o tempo de impressão total para um pedido
+     */
+    public function getTotalPrintTime($orderId) {
+        $sql = "SELECT SUM(print_time_hours) as total_time 
+                FROM order_items 
+                WHERE order_id = :order_id";
+                
+        $result = $this->db()->select($sql, ['order_id' => $orderId]);
+        return floatval($result[0]['total_time'] ?? 0);
+    }
+    
+    /**
+     * Calcula a data estimada de conclusão de um pedido sob encomenda
+     */
+    public function calculateEstimatedCompletionDate($orderId) {
+        $order = $this->find($orderId);
+        if (!$order) {
+            return null;
+        }
+        
+        $totalPrintTime = $this->getTotalPrintTime($orderId);
+        if ($totalPrintTime <= 0) {
+            return null;
+        }
+        
+        // Estimar dias de impressão (considerando 8 horas de impressão por dia)
+        $estimatedPrintingDays = ceil($totalPrintTime / 8);
+        
+        // Adicionar 1 dia para preparação (validação do pedido)
+        // Adicionar dias de impressão
+        // Adicionar 1 dia para acabamento e embalagem
+        $totalProcessingDays = 1 + $estimatedPrintingDays + 1;
+        
+        // Calcular data estimada (dias úteis)
+        $startDate = new DateTime($order['created_at']);
+        $daysAdded = 0;
+        
+        while ($daysAdded < $totalProcessingDays) {
+            $startDate->modify('+1 day');
+            
+            // Se não for fim de semana (6 = sábado, 0 = domingo)
+            $weekDay = $startDate->format('w');
+            if ($weekDay != 0 && $weekDay != 6) {
+                $daysAdded++;
+            }
+        }
+        
+        return $startDate->format('Y-m-d');
+    }
+    
+    /**
+     * Filtra pedidos com itens de impressão 3D
+     */
+    public function getCustomPrintingOrders($status = null, $limit = null) {
+        $whereClause = "WHERE o.estimated_print_time_hours > 0";
+        $params = [];
+        
+        if ($status) {
+            $whereClause .= " AND o.status = :status";
+            $params['status'] = $status;
+        }
+        
+        $limitClause = $limit ? "LIMIT {$limit}" : "";
+        
+        $sql = "SELECT o.*, u.name as customer_name 
+                FROM {$this->table} o 
+                LEFT JOIN users u ON o.user_id = u.id 
+                {$whereClause}
+                ORDER BY o.created_at DESC
+                {$limitClause}";
+                
+        return $this->db()->select($sql, $params);
     }
 }
