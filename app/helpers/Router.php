@@ -82,10 +82,24 @@ class Router {
             // Extrair parâmetros
             $params = [];
             $paramNames = [];
-            preg_match_all('/:([a-zA-Z0-9]+)/', $route, $paramNames);
             
-            for ($i = 0; $i < count($paramNames[1]); $i++) {
-                $params[$paramNames[1][$i]] = $matches[$i + 1] ?? null;
+            // CORREÇÃO: Verificar se a rota contém parâmetros antes de tentar extraí-los
+            if (preg_match_all('/:([a-zA-Z0-9]+)/', $route, $paramNames)) {
+                // Inicializar o array de parâmetros
+                for ($i = 0; $i < count($paramNames[1]); $i++) {
+                    // Verificar se existe o valor correspondente em $matches
+                    if (isset($matches[$i + 1])) {
+                        $params[$paramNames[1][$i]] = $matches[$i + 1];
+                    } else {
+                        // Se não existir, definir como null ou string vazia
+                        $params[$paramNames[1][$i]] = '';
+                        
+                        // Log para depuração
+                        if (ENVIRONMENT === 'development' || isset($_GET['debug'])) {
+                            app_log("Parâmetro '{$paramNames[1][$i]}' não encontrado na URI", 'warning');
+                        }
+                    }
+                }
             }
             
             return true;
