@@ -4,9 +4,13 @@
  */
 class OrderController {
     private $userModel;
+    private $orderModel;
+    private $productModel;
     
     public function __construct() {
         $this->userModel = new UserModel();
+        $this->orderModel = new OrderModel();
+        $this->productModel = new ProductModel();
         
         // Verificar se o usuário está logado para todas as ações exceto success
         if ($this->getCurrentAction() !== 'success') {
@@ -36,22 +40,34 @@ class OrderController {
             
             // Obter dados do pedido
             $userId = $_SESSION['user']['id'];
-            $sql = "SELECT * FROM orders WHERE order_number = :order_number AND user_id = :user_id LIMIT 1";
-            $order = Database::getInstance()->select($sql, [
-                'order_number' => $orderNumber,
-                'user_id' => $userId
-            ]);
+            $order = $this->orderModel->findByOrderNumber($orderNumber);
             
-            if (empty($order)) {
+            if (empty($order) || $order['user_id'] != $userId) {
                 header('Location: ' . BASE_URL);
                 exit;
             }
             
-            $order = $order[0];
-            
             // Obter itens do pedido
-            $sql = "SELECT * FROM order_items WHERE order_id = :order_id";
-            $items = Database::getInstance()->select($sql, ['order_id' => $order['id']]);
+            $items = $this->orderModel->getOrderItems($order['id']);
+            
+            // Verificar se há itens sob encomenda no pedido
+            $has_custom_order = false;
+            foreach ($items as $item) {
+                if (!$item['is_stock_item']) {
+                    $has_custom_order = true;
+                    break;
+                }
+            }
+            
+            // Calcular data estimada de entrega para produtos sob encomenda
+            $estimated_delivery_date = null;
+            if ($has_custom_order && $order['estimated_print_time_hours'] > 0) {
+                $estimated_delivery_date = $this->orderModel->calculateEstimatedCompletionDate($order['id']);
+                if ($estimated_delivery_date) {
+                    $date = new DateTime($estimated_delivery_date);
+                    $estimated_delivery_date = $date->format('d/m/Y');
+                }
+            }
             
             // Obter endereço de entrega
             $sql = "SELECT * FROM addresses WHERE id = :id";
@@ -80,8 +96,18 @@ class OrderController {
             $userId = $_SESSION['user']['id'];
             
             // Obter todos os pedidos do usuário
-            $sql = "SELECT * FROM orders WHERE user_id = :user_id ORDER BY created_at DESC";
-            $orders = Database::getInstance()->select($sql, ['user_id' => $userId]);
+            $orders = $this->orderModel->getOrdersByUser($userId);
+            
+            // Status traduzidos para exibição
+            $statusLabels = [
+                'pending' => 'Aguardando Envio',
+                'validating' => 'Validando Modelo 3D',
+                'printing' => 'Em Impressão',
+                'finishing' => 'Em Acabamento',
+                'shipped' => 'Enviado',
+                'delivered' => 'Entregue',
+                'canceled' => 'Cancelado'
+            ];
             
             // Renderizar view
             require_once VIEWS_PATH . '/orders.php';
@@ -114,28 +140,72 @@ class OrderController {
             $userId = $_SESSION['user']['id'];
             
             // Obter dados do pedido
-            $sql = "SELECT * FROM orders WHERE order_number = :order_number AND user_id = :user_id LIMIT 1";
-            $order = Database::getInstance()->select($sql, [
-                'order_number' => $orderNumber,
-                'user_id' => $userId
-            ]);
+            $order = $this->orderModel->findByOrderNumber($orderNumber);
             
-            if (empty($order)) {
+            if (empty($order) || $order['user_id'] != $userId) {
                 $_SESSION['error'] = 'Pedido não encontrado.';
                 header('Location: ' . BASE_URL . 'minha-conta/pedidos');
                 exit;
             }
             
-            $order = $order[0];
-            
             // Obter itens do pedido
-            $sql = "SELECT * FROM order_items WHERE order_id = :order_id";
-            $items = Database::getInstance()->select($sql, ['order_id' => $order['id']]);
+            $items = $this->orderModel->getOrderItems($order['id']);
+            
+            // Verificar se há itens sob encomenda no pedido
+            $has_custom_order = false;
+            foreach ($items as $item) {
+                if (!$item['is_stock_item']) {
+                    $has_custom_order = true;
+                    break;
+                }
+            }
+            
+            // Status traduzidos para exibição
+            $statusLabels = [
+                'pending' => 'Aguardando Envio',
+                'validating' => 'Validando Modelo 3D',
+                'printing' => 'Em Impressão',
+                'finishing' => 'Em Acabamento',
+                'shipped' => 'Enviado',
+                'delivered' => 'Entregue',
+                'canceled' => 'Cancelado'
+            ];
+            
+            // Calcular progresso da impressão se o pedido estiver sendo impresso
+            $printing_progress = 0;
+            $remaining_time = null;
+            if ($order['status'] === 'printing' && $order['print_start_date']) {
+                $start_time = new DateTime($order['print_start_date']);
+                $now = new DateTime();
+                $elapsed_seconds = $now->getTimestamp() - $start_time->getTimestamp();
+                $total_seconds = $order['estimated_print_time_hours'] * 3600;
+                
+                if ($total_seconds > 0) {
+                    $printing_progress = min(100, round(($elapsed_seconds / $total_seconds) * 100));
+                    $remaining_seconds = max(0, $total_seconds - $elapsed_seconds);
+                    $remaining_hours = floor($remaining_seconds / 3600);
+                    $remaining_minutes = floor(($remaining_seconds % 3600) / 60);
+                    $remaining_time = sprintf("%02d:%02d", $remaining_hours, $remaining_minutes);
+                }
+            }
+            
+            // Calcular data estimada de entrega para produtos sob encomenda
+            $estimated_delivery_date = null;
+            if ($has_custom_order && $order['estimated_print_time_hours'] > 0) {
+                $estimated_delivery_date = $this->orderModel->calculateEstimatedCompletionDate($order['id']);
+                if ($estimated_delivery_date) {
+                    $date = new DateTime($estimated_delivery_date);
+                    $estimated_delivery_date = $date->format('d/m/Y');
+                }
+            }
             
             // Obter endereço de entrega
             $sql = "SELECT * FROM addresses WHERE id = :id";
             $address = Database::getInstance()->select($sql, ['id' => $order['shipping_address_id']]);
             $address = !empty($address) ? $address[0] : null;
+            
+            // Obter histórico do pedido
+            $notes = $this->orderModel->getNotes($order['id']);
             
             // Renderizar view
             require_once VIEWS_PATH . '/order_details.php';
@@ -172,24 +242,19 @@ class OrderController {
             }
             
             $userId = $_SESSION['user']['id'];
+            $reason = $_POST['reason'] ?? 'Cancelado pelo cliente';
             
             // Obter dados do pedido
-            $sql = "SELECT * FROM orders WHERE order_number = :order_number AND user_id = :user_id LIMIT 1";
-            $order = Database::getInstance()->select($sql, [
-                'order_number' => $orderNumber,
-                'user_id' => $userId
-            ]);
+            $order = $this->orderModel->findByOrderNumber($orderNumber);
             
-            if (empty($order)) {
+            if (empty($order) || $order['user_id'] != $userId) {
                 $_SESSION['error'] = 'Pedido não encontrado.';
                 header('Location: ' . BASE_URL . 'minha-conta/pedidos');
                 exit;
             }
             
-            $order = $order[0];
-            
             // Verificar se o pedido pode ser cancelado
-            $cancelableStatuses = ['pending', 'processing']; // Apenas pedidos pendentes ou em processamento podem ser cancelados
+            $cancelableStatuses = ['pending', 'validating']; // Apenas pedidos pendentes ou em validação podem ser cancelados
             
             if (!in_array($order['status'], $cancelableStatuses)) {
                 $_SESSION['error'] = 'Este pedido não pode ser cancelado devido ao seu status atual.';
@@ -197,29 +262,21 @@ class OrderController {
                 exit;
             }
             
+            // Obter itens do pedido para retornar ao estoque
+            $items = $this->orderModel->getOrderItems($order['id']);
+            
             // Cancelar o pedido
-            Database::getInstance()->update(
-                'orders',
-                [
-                    'status' => 'canceled',
-                    'updated_at' => date('Y-m-d H:i:s')
-                ],
-                'id = :id',
-                ['id' => $order['id']]
-            );
+            $this->orderModel->cancelOrder($order['id'], $reason);
             
-            // Retornar os itens ao estoque
-            $sql = "SELECT * FROM order_items WHERE order_id = :order_id";
-            $items = Database::getInstance()->select($sql, ['order_id' => $order['id']]);
-            
-            $productModel = new ProductModel();
-            
+            // Retornar os itens ao estoque (apenas itens de pronta entrega)
             foreach ($items as $item) {
-                $product = $productModel->find($item['product_id']);
-                
-                if ($product) {
-                    $newStock = $product['stock'] + $item['quantity'];
-                    $productModel->update($item['product_id'], ['stock' => $newStock]);
+                if ($item['is_stock_item']) {
+                    $product = $this->productModel->find($item['product_id']);
+                    
+                    if ($product) {
+                        $newStock = $product['stock'] + $item['quantity'];
+                        $this->productModel->update($item['product_id'], ['stock' => $newStock]);
+                    }
                 }
             }
             
