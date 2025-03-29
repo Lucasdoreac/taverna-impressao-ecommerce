@@ -1,0 +1,72 @@
+/* Placeholders para imagens */
+.placeholder-product {
+  background-color: #f0f0f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #777;
+  font-style: italic;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.placeholder-product::before {
+  content: "Imagem do Produto";
+  position: absolute;
+}
+
+.placeholder-product::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: loading 1.5s infinite;
+}
+
+.placeholder-category {
+  background-color: #e6e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+  color: #777;
+  font-style: italic;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.placeholder-category::before {
+  content: "Imagem da Categoria";
+  position: absolute;
+}
+
+/* Banner placeholder */
+.placeholder-banner {
+  background-color: #e8e8f0;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #777;
+  font-style: italic;
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.placeholder-banner::before {
+  content: "Banner Promocional";
+  position: absolute;
+  font-size: 1.2rem;
+}
+
+@keyframes loading {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
