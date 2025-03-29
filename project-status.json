@@ -2,17 +2,15 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T14:30:00Z"
+    "lastUpdated": "2025-03-29T15:30:00Z"
   },
   "development": {
-    "currentFile": "app/config/config.php",
+    "currentFile": "app/helpers/Logger.php",
     "currentComponent": "Depuração e Correção de Erros",
     "inProgress": {
       "type": "fix",
       "description": "Correção de erros 500 nas páginas de produto e categoria",
       "remainingTasks": [
-        "Alterar temporariamente o ambiente para development",
-        "Adicionar logging detalhado nos Controllers problemáticos",
         "Verificar estrutura do banco de dados",
         "Implementar validações mais robustas nas consultas SQL",
         "Corrigir processamento de categorias e imagens de produtos"
@@ -42,18 +40,18 @@
     ]
   },
   "context": {
-    "lastThought": "Testes com Puppeteer revelaram erros 500 nas páginas de detalhes de produto e categorias. O site está configurado para ambiente de produção, o que dificulta o diagnóstico. É necessário alterar temporariamente para ambiente de desenvolvimento, melhorar o logging e implementar validações mais robustas nos controllers problemáticos.",
+    "lastThought": "Foram encontrados e corrigidos dois problemas críticos: 1) a função app_log() estava sendo chamada no Router.php mas não estava definida, e 2) a constante CURRENCY_SYMBOL estava sendo definida duas vezes. Criamos um arquivo Logger.php com a implementação da função app_log e modificamos config.php para evitar redefinição de constantes. Também foram criados arquivos de diagnóstico e páginas de erro para facilitar a identificação e resolução de problemas futuros.",
     "nextSteps": [
-      "Modificar app/config/config.php para ambiente de desenvolvimento",
+      "Verificar se as correções resolveram os erros 500 usando o arquivo diagnostico-erros.php",
       "Implementar validações adicionais no ProductController",
       "Melhorar tratamento de erros no CategoryController",
-      "Criar scripts de diagnóstico específicos para isolar os problemas",
-      "Verificar estrutura e dados do banco com scripts de diagnóstico"
+      "Verificar estrutura e dados do banco com scripts de diagnóstico",
+      "Após testes, modificar config.php para ambiente de produção novamente"
     ]
   },
   "fixes": {
     "errors500": {
-      "status": "in_progress",
+      "status": "partially_fixed",
       "description": "Problemas de erro 500 identificados nas páginas de produto e categoria via testes Puppeteer",
       "files": [
         "app/controllers/CategoryController.php",
@@ -61,6 +59,25 @@
         "app/config/config.php"
       ],
       "timestamp": "2025-03-29T14:30:00Z"
+    },
+    "appLogFunction": {
+      "status": "fixed",
+      "description": "Erro fatal por chamada à função app_log() inexistente no Router.php",
+      "files": [
+        "app/helpers/Logger.php",
+        "app/config/config.php"
+      ],
+      "solution": "Criado arquivo Logger.php com implementação da função app_log para registrar eventos do sistema",
+      "timestamp": "2025-03-29T15:30:00Z"
+    },
+    "currencySymbolRedefinition": {
+      "status": "fixed",
+      "description": "Erro por redefinição da constante CURRENCY_SYMBOL",
+      "files": [
+        "app/config/config.php"
+      ],
+      "solution": "Modificado config.php para verificar se a constante já existe antes de tentar defini-la novamente",
+      "timestamp": "2025-03-29T15:30:00Z"
     },
     "dbConnection": {
       "status": "verified",
@@ -107,14 +124,27 @@
       "timestamp": "2025-03-29T00:02:00Z"
     },
     "debugTools": {
-      "status": "inProgress",
+      "status": "improved",
       "description": "Ferramentas de diagnóstico para identificação e correção de erros",
       "files": [
         "public/debug.php",
         "public/product_debug.php",
-        "public/category_debug.php"
+        "public/category_debug.php",
+        "public/diagnostico-erros.php",
+        "app/helpers/Logger.php",
+        "app/views/errors/404.php",
+        "app/views/errors/500.php"
       ],
-      "timestamp": "2025-03-29T14:30:00Z"
+      "timestamp": "2025-03-29T15:30:00Z"
+    },
+    "loggingSystem": {
+      "status": "completed",
+      "description": "Sistema de logging para facilitar o diagnóstico e depuração",
+      "files": [
+        "app/helpers/Logger.php",
+        "logs/.gitkeep"
+      ],
+      "timestamp": "2025-03-29T15:30:00Z"
     }
   },
   "diagnostics": {
@@ -130,6 +160,15 @@
         "Erro 500 na página de categorias"
       ],
       "timestamp": "2025-03-29T14:15:00Z"
+    },
+    "manualDiagnostics": {
+      "status": "inProgress",
+      "description": "Diagnóstico manual de erros usando ferramentas de diagnóstico e logs",
+      "files": [
+        "public/diagnostico-erros.php",
+        "logs/app_*.log"
+      ],
+      "timestamp": "2025-03-29T15:30:00Z"
     }
   }
 }
