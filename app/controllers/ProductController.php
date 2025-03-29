@@ -32,6 +32,18 @@ class ProductController {
             // Obter produtos paginados
             $products = $this->productModel->paginate($page, $limit, 'is_active = 1');
             
+            // Validar produtos
+            if (!isset($products['items']) || !is_array($products['items'])) {
+                error_log("Estrutura inválida retornada pelo método paginate");
+                $products = [
+                    'items' => [],
+                    'total' => 0, 
+                    'currentPage' => $page,
+                    'perPage' => $limit,
+                    'lastPage' => 1
+                ];
+            }
+            
             // Obter categorias para filtros
             $categories = $this->categoryModel->getMainCategories();
             
@@ -89,8 +101,14 @@ class ProductController {
                 exit;
             }
             
+            // CORREÇÃO: Verificar se o produto é um array antes de tentar acessá-lo
+            if (!is_array($product)) {
+                error_log("Produto retornado não é um array válido");
+                throw new Exception("Dados de produto inválidos");
+            }
+            
             // Verificar campos obrigatórios do produto
-            $requiredFields = ['id', 'name', 'price', 'description'];
+            $requiredFields = ['id', 'name', 'price'];
             foreach ($requiredFields as $field) {
                 if (!isset($product[$field])) {
                     error_log("Campo obrigatório ausente no produto: " . $field);
@@ -98,10 +116,17 @@ class ProductController {
                 }
             }
             
+            // CORREÇÃO: Garantir que todos os campos opcionais importantes existam com valores padrão
+            $product['description'] = isset($product['description']) ? $product['description'] : '';
+            $product['short_description'] = isset($product['short_description']) ? $product['short_description'] : '';
+            $product['sale_price'] = isset($product['sale_price']) ? $product['sale_price'] : null;
+            $product['stock'] = isset($product['stock']) ? $product['stock'] : 0;
+            $product['is_customizable'] = isset($product['is_customizable']) ? $product['is_customizable'] : 0;
+            
             // Valores padrão para campos importantes mas não obrigatórios
             if (!isset($product['category_name'])) {
                 $product['category_name'] = 'Sem categoria';
-                error_log("Aviso: Produto sem categoria_name definido");
+                error_log("Aviso: Produto sem category_name definido");
             }
             
             if (!isset($product['category_slug'])) {
@@ -114,12 +139,17 @@ class ProductController {
                 error_log("Aviso: Produto sem imagens");
             }
             
-            // Tentar obter produtos relacionados, com tratamento de erro
+            // CORREÇÃO: Tratamento mais robusto para produtos relacionados
+            $related_products = [];
             try {
-                $related_products = $this->productModel->getRelated($product['id'], $product['category_id']);
+                // Verificar se temos category_id antes de tentar buscar produtos relacionados
+                if (isset($product['category_id']) && !empty($product['category_id'])) {
+                    $related_products = $this->productModel->getRelated($product['id'], $product['category_id']);
+                } else {
+                    error_log("Aviso: Produto sem category_id, não é possível buscar produtos relacionados");
+                }
             } catch (Exception $e) {
                 error_log("Erro ao obter produtos relacionados: " . $e->getMessage());
-                $related_products = []; // Valor padrão em caso de erro
             }
             
             // Verificar se a view existe
@@ -179,6 +209,12 @@ class ProductController {
                 exit;
             }
             
+            // CORREÇÃO: Verificar se a categoria é um array válido
+            if (!is_array($category)) {
+                error_log("Categoria retornada não é um array válido");
+                throw new Exception("Dados de categoria inválidos");
+            }
+            
             // Validar estrutura da categoria
             if (!isset($category['products']) || !is_array($category['products'])) {
                 error_log("Dados de produtos ausentes na resposta do getCategoryWithProducts");
@@ -189,6 +225,23 @@ class ProductController {
                     'perPage' => $limit,
                     'lastPage' => 1
                 ];
+            } else {
+                // Validar a estrutura completa de produtos
+                if (!isset($category['products']['items'])) {
+                    $category['products']['items'] = [];
+                }
+                if (!isset($category['products']['total'])) {
+                    $category['products']['total'] = 0;
+                }
+                if (!isset($category['products']['currentPage'])) {
+                    $category['products']['currentPage'] = $page;
+                }
+                if (!isset($category['products']['perPage'])) {
+                    $category['products']['perPage'] = $limit;
+                }
+                if (!isset($category['products']['lastPage'])) {
+                    $category['products']['lastPage'] = 1;
+                }
             }
             
             // Verificar se a view existe
@@ -226,6 +279,19 @@ class ProductController {
             
             // Realizar busca
             $searchResults = $this->productModel->search($query, $page, $limit);
+            
+            // CORREÇÃO: Validar estrutura de resultados da busca
+            if (!isset($searchResults['items']) || !is_array($searchResults['items'])) {
+                error_log("Estrutura inválida retornada pelo método search");
+                $searchResults = [
+                    'items' => [],
+                    'total' => 0,
+                    'currentPage' => $page,
+                    'perPage' => $limit,
+                    'lastPage' => 1,
+                    'query' => $query
+                ];
+            }
             
             // Verificar se a view existe
             if (!file_exists(VIEWS_PATH . '/search.php')) {
