@@ -82,7 +82,11 @@ class CartModel extends Model {
      */
     public function getItems($cartId) {
         $sql = "SELECT ci.*, p.name as product_name, p.slug as product_slug, p.price, p.sale_price,
-                (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as image
+                p.is_tested, p.stock, p.print_time_hours, p.filament_type, p.filament_usage_grams, p.scale,
+                (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as image,
+                CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability,
+                (SELECT name FROM filament_colors WHERE id = ci.selected_color) as color_name,
+                (SELECT hex_code FROM filament_colors WHERE id = ci.selected_color) as color_hex
                 FROM cart_items ci
                 JOIN products p ON ci.product_id = p.id
                 WHERE ci.cart_id = :cart_id
@@ -99,7 +103,11 @@ class CartModel extends Model {
      */
     public function findById($itemId) {
         $sql = "SELECT ci.*, p.name as product_name, p.slug as product_slug, p.price, p.sale_price,
-                (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as image
+                p.is_tested, p.stock, p.print_time_hours, p.filament_type, p.filament_usage_grams, p.scale,
+                (SELECT image FROM product_images WHERE product_id = p.id AND is_main = 1 LIMIT 1) as image,
+                CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability,
+                (SELECT name FROM filament_colors WHERE id = ci.selected_color) as color_name,
+                (SELECT hex_code FROM filament_colors WHERE id = ci.selected_color) as color_hex
                 FROM cart_items ci
                 JOIN products p ON ci.product_id = p.id
                 WHERE ci.id = :id
@@ -116,18 +124,42 @@ class CartModel extends Model {
      * @param int $productId ID do produto
      * @param int $quantity Quantidade
      * @param array|null $customizationData Dados de personalização
+     * @param string|null $selectedScale Escala selecionada
+     * @param string|null $selectedFilament Tipo de filamento selecionado
+     * @param int|null $selectedColor ID da cor de filamento selecionada
+     * @param int|null $customerModelId ID do modelo 3D enviado pelo cliente
      * @return int ID do item adicionado
      */
-    public function addItem($cartId, $productId, $quantity = 1, $customizationData = null) {
-        // Verificar se o item já existe no carrinho
+    public function addItem($cartId, $productId, $quantity = 1, $customizationData = null, $selectedScale = null, $selectedFilament = null, $selectedColor = null, $customerModelId = null) {
+        // Verificar se o item já existe no carrinho com as mesmas opções
         $sql = "SELECT * FROM cart_items 
                 WHERE cart_id = :cart_id AND product_id = :product_id 
+                AND selected_scale " . ($selectedScale ? "= :selected_scale" : "IS NULL") . "
+                AND selected_filament " . ($selectedFilament ? "= :selected_filament" : "IS NULL") . "
+                AND selected_color " . ($selectedColor ? "= :selected_color" : "IS NULL") . "
+                AND customer_model_id " . ($customerModelId ? "= :customer_model_id" : "IS NULL") . "
                 AND customization_data " . ($customizationData ? "= :customization_data" : "IS NULL");
         
         $params = [
             'cart_id' => $cartId,
             'product_id' => $productId
         ];
+        
+        if ($selectedScale) {
+            $params['selected_scale'] = $selectedScale;
+        }
+        
+        if ($selectedFilament) {
+            $params['selected_filament'] = $selectedFilament;
+        }
+        
+        if ($selectedColor) {
+            $params['selected_color'] = $selectedColor;
+        }
+        
+        if ($customerModelId) {
+            $params['customer_model_id'] = $customerModelId;
+        }
         
         if ($customizationData) {
             $params['customization_data'] = json_encode($customizationData);
@@ -150,14 +182,20 @@ class CartModel extends Model {
             return $itemId;
         } else {
             // Se o item não existe, adiciona um novo
-            return $this->db()->insert('cart_items', [
+            $insertData = [
                 'cart_id' => $cartId,
                 'product_id' => $productId,
                 'quantity' => $quantity,
                 'customization_data' => $customizationData ? json_encode($customizationData) : null,
+                'selected_scale' => $selectedScale,
+                'selected_filament' => $selectedFilament,
+                'selected_color' => $selectedColor,
+                'customer_model_id' => $customerModelId,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
-            ]);
+            ];
+            
+            return $this->db()->insert('cart_items', $insertData);
         }
     }
     
@@ -172,6 +210,42 @@ class CartModel extends Model {
         $this->db()->update(
             'cart_items',
             ['quantity' => $quantity, 'updated_at' => date('Y-m-d H:i:s')],
+            'id = :id',
+            ['id' => $itemId]
+        );
+        
+        return true;
+    }
+    
+    /**
+     * Atualiza as opções de impressão 3D de um item
+     *
+     * @param int $itemId ID do item
+     * @param string|null $selectedScale Escala selecionada
+     * @param string|null $selectedFilament Tipo de filamento selecionado
+     * @param int|null $selectedColor ID da cor de filamento selecionada
+     * @return bool Sucesso da operação
+     */
+    public function updatePrintingOptions($itemId, $selectedScale = null, $selectedFilament = null, $selectedColor = null) {
+        $updateData = [
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+        
+        if ($selectedScale !== null) {
+            $updateData['selected_scale'] = $selectedScale;
+        }
+        
+        if ($selectedFilament !== null) {
+            $updateData['selected_filament'] = $selectedFilament;
+        }
+        
+        if ($selectedColor !== null) {
+            $updateData['selected_color'] = $selectedColor;
+        }
+        
+        $this->db()->update(
+            'cart_items',
+            $updateData,
             'id = :id',
             ['id' => $itemId]
         );
@@ -224,6 +298,40 @@ class CartModel extends Model {
     }
     
     /**
+     * Calcula o tempo total estimado de impressão para os itens sob encomenda
+     *
+     * @param int $cartId ID do carrinho
+     * @return float Tempo estimado em horas
+     */
+    public function calculateEstimatedPrintTime($cartId) {
+        $sql = "SELECT SUM(p.print_time_hours * ci.quantity) as total_print_time
+                FROM cart_items ci
+                JOIN products p ON ci.product_id = p.id
+                WHERE ci.cart_id = :cart_id
+                AND (p.is_tested = 0 OR p.stock < ci.quantity)";
+        
+        $result = $this->db()->select($sql, ['cart_id' => $cartId]);
+        return (float)($result[0]['total_print_time'] ?? 0);
+    }
+    
+    /**
+     * Calcula o uso total estimado de filamento para os itens sob encomenda
+     *
+     * @param int $cartId ID do carrinho
+     * @return float Uso estimado em gramas
+     */
+    public function calculateEstimatedFilamentUsage($cartId) {
+        $sql = "SELECT SUM(p.filament_usage_grams * ci.quantity) as total_filament
+                FROM cart_items ci
+                JOIN products p ON ci.product_id = p.id
+                WHERE ci.cart_id = :cart_id
+                AND (p.is_tested = 0 OR p.stock < ci.quantity)";
+        
+        $result = $this->db()->select($sql, ['cart_id' => $cartId]);
+        return (float)($result[0]['total_filament'] ?? 0);
+    }
+    
+    /**
      * Migrando o carrinho de sessão para o banco de dados
      *
      * @param array $sessionCart Carrinho na sessão
@@ -240,7 +348,11 @@ class CartModel extends Model {
                 $cartId,
                 $item['product_id'],
                 $item['quantity'],
-                $item['customization'] ?? null
+                $item['customization'] ?? null,
+                $item['selected_scale'] ?? null,
+                $item['selected_filament'] ?? null,
+                $item['selected_color'] ?? null,
+                $item['customer_model_id'] ?? null
             );
         }
         
