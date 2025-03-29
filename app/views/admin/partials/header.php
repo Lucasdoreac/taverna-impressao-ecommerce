@@ -51,6 +51,46 @@
                                 Categorias
                             </a>
                         </li>
+                        
+                        <!-- Início - Menu de Impressão 3D -->
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/print_queue') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/print_queue">
+                                <i class="bi bi-printer-fill me-2"></i>
+                                Fila de Impressão 3D
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/print_queue/dashboard') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/print_queue/dashboard">
+                                <i class="bi bi-grid-1x2-fill me-2"></i>
+                                Dashboard 3D
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/print_queue/printers') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/print_queue/printers">
+                                <i class="bi bi-tools me-2"></i>
+                                Impressoras
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/print_queue/relatorio') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/print_queue/relatorio">
+                                <i class="bi bi-file-earmark-bar-graph me-2"></i>
+                                Relatório de Produção
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/print_queue/notificacoes') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/print_queue/notificacoes">
+                                <i class="bi bi-bell-fill me-2"></i>
+                                Notificações
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/customer-models/pending') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/customer-models/pending">
+                                <i class="bi bi-file-earmark-check me-2"></i>
+                                Validar Modelos
+                            </a>
+                        </li>
+                        <!-- Fim - Menu de Impressão 3D -->
+                        
                         <li class="nav-item">
                             <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/usuarios') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/usuarios">
                                 <i class="bi bi-people me-2"></i>
