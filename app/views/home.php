@@ -1,6 +1,11 @@
 <?php require_once VIEWS_PATH . '/partials/header.php'; ?>
 
-<div class="main-banner" style="background-image: url('https://images.unsplash.com/photo-1605106702734-205df224ecce?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1470&q=80');">
+<div class="main-banner">
+  <?php if (file_exists(UPLOADS_PATH . '/banners/main-banner.jpg')): ?>
+  <div class="banner-image" style="background-image: url('<?= BASE_URL ?>uploads/banners/main-banner.jpg');"></div>
+  <?php else: ?>
+  <div class="placeholder-banner"></div>
+  <?php endif; ?>
   <div class="banner-content">
     <h1 class="banner-title">TAVERNA DA IMPRESSÃO</h1>
     <p class="banner-text">Materiais impressos para elevar sua experiência de RPG</p>
@@ -13,22 +18,16 @@
   <section class="section">
     <h2 class="section-title">Explore por Categoria</h2>
     <div class="categories">
-      <a href="<?= BASE_URL ?>categoria/fichas-de-personagem" class="category-card">
-        <div class="category-image" style="background-image: url('https://images.unsplash.com/photo-1604343574184-6869125c2b0f?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');"></div>
-        <div class="category-title">Fichas de Personagem</div>
+      <?php foreach ($mainCategories as $category): ?>
+      <a href="<?= BASE_URL ?>categoria/<?= $category['slug'] ?>" class="category-card">
+        <?php if (!empty($category['image']) && file_exists(UPLOADS_PATH . '/categories/' . $category['image'])): ?>
+        <div class="category-image" style="background-image: url('<?= BASE_URL ?>uploads/categories/<?= $category['image'] ?>');"></div>
+        <?php else: ?>
+        <div class="placeholder-category" role="img" aria-label="<?= htmlspecialchars($category['name']) ?>"></div>
+        <?php endif; ?>
+        <div class="category-title"><?= $category['name'] ?></div>
       </a>
-      <a href="<?= BASE_URL ?>categoria/mapas-de-aventura" class="category-card">
-        <div class="category-image" style="background-image: url('https://images.unsplash.com/photo-1613246558842-b41dbf111262?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');"></div>
-        <div class="category-title">Mapas de Aventura</div>
-      </a>
-      <a href="<?= BASE_URL ?>categoria/livros-e-modulos" class="category-card">
-        <div class="category-image" style="background-image: url('https://images.unsplash.com/photo-1490633874781-1c63cc424610?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');"></div>
-        <div class="category-title">Livros e Módulos</div>
-      </a>
-      <a href="<?= BASE_URL ?>categoria/telas-do-mestre" class="category-card">
-        <div class="category-image" style="background-image: url('https://images.unsplash.com/photo-1518791841217-8f162f1e1131?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');"></div>
-        <div class="category-title">Telas do Mestre</div>
-      </a>
+      <?php endforeach; ?>
     </div>
   </section>
 
@@ -36,78 +35,50 @@
   <section class="section">
     <h2 class="section-title">Produtos em Destaque</h2>
     <div class="products-grid">
-      <!-- Produto 1 -->
+      <?php if (!empty($featuredProducts)): ?>
+        <?php foreach ($featuredProducts as $index => $product): ?>
       <div class="product-card">
-        <div class="product-image" style="background-image: url('https://images.unsplash.com/photo-1634898180359-f2e3dfca7d1a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');">
+        <?php if (!empty($product['image']) && file_exists(UPLOADS_PATH . '/products/' . $product['image'])): ?>
+        <div class="product-image" style="background-image: url('<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>');">
+        <?php else: ?>
+        <div class="product-image">
+          <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
+        <?php endif; ?>
+          <?php if ($index === 0): ?>
           <span class="product-badge">DESTAQUE</span>
-        </div>
-        <div class="product-content">
-          <h3 class="product-title">Ficha de Personagem D&D 5e - Premium</h3>
-          <div class="product-price">
-            <span class="original-price">R$ 29,90</span>
-            <span class="current-price discount-price">R$ 24,90</span>
-          </div>
-          <p>Ficha premium personalizada para D&D 5e, com acabamento especial.</p>
-          <div class="product-actions">
-            <a href="<?= BASE_URL ?>produto/ficha-personagem-dd-5e-premium" class="btn btn-sm">Ver Detalhes</a>
-            <button class="btn btn-sm"><i class="fas fa-cart-plus"></i></button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Produto 2 -->
-      <div class="product-card">
-        <div class="product-image" style="background-image: url('https://images.unsplash.com/photo-1519074069444-1ba4fff66d16?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');">
-        </div>
-        <div class="product-content">
-          <h3 class="product-title">Mapa de Dungeon - Cripta Ancestral</h3>
-          <div class="product-price">
-            <span class="current-price">R$ 39,90</span>
-          </div>
-          <p>Mapa detalhado de uma cripta ancestral, perfeito para aventuras.</p>
-          <div class="product-actions">
-            <a href="<?= BASE_URL ?>produto/mapa-dungeon-cripta-ancestral" class="btn btn-sm">Ver Detalhes</a>
-            <button class="btn btn-sm"><i class="fas fa-cart-plus"></i></button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Produto 3 -->
-      <div class="product-card">
-        <div class="product-image" style="background-image: url('https://images.unsplash.com/photo-1577083553270-5efd990c0031?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');">
+          <?php elseif ($index === 2): ?>
           <span class="product-badge">NOVO</span>
-        </div>
-        <div class="product-content">
-          <h3 class="product-title">Tela do Mestre Personalizada</h3>
-          <div class="product-price">
-            <span class="current-price">R$ 79,90</span>
-          </div>
-          <p>Tela do mestre personalizada com informações úteis e arte exclusiva.</p>
-          <div class="product-actions">
-            <a href="<?= BASE_URL ?>produto/tela-mestre-personalizada" class="btn btn-sm">Ver Detalhes</a>
-            <button class="btn btn-sm"><i class="fas fa-cart-plus"></i></button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Produto 4 -->
-      <div class="product-card">
-        <div class="product-image" style="background-image: url('https://images.unsplash.com/photo-1456086272160-b28b0645b729?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80');">
+          <?php elseif ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
           <span class="product-badge">PROMOÇÃO</span>
+          <?php endif; ?>
         </div>
         <div class="product-content">
-          <h3 class="product-title">Kit de Tokens para RPG</h3>
+          <h3 class="product-title"><?= $product['name'] ?></h3>
           <div class="product-price">
-            <span class="original-price">R$ 45,90</span>
-            <span class="current-price discount-price">R$ 35,90</span>
+            <?php if ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
+            <span class="original-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <span class="current-price discount-price">R$ <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
+            <?php else: ?>
+            <span class="current-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <?php endif; ?>
           </div>
-          <p>Kit completo com 50 tokens para representar personagens e inimigos.</p>
+          <p><?= mb_strimwidth($product['short_description'] ?? '', 0, 60, '...') ?></p>
           <div class="product-actions">
-            <a href="<?= BASE_URL ?>produto/kit-tokens-rpg" class="btn btn-sm">Ver Detalhes</a>
-            <button class="btn btn-sm"><i class="fas fa-cart-plus"></i></button>
+            <a href="<?= BASE_URL ?>produto/<?= $product['slug'] ?>" class="btn btn-sm">Ver Detalhes</a>
+            <form action="<?= BASE_URL ?>carrinho/adicionar" method="post" style="display:inline;">
+              <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
+              <input type="hidden" name="quantity" value="1">
+              <button type="submit" class="btn btn-sm"><i class="fas fa-cart-plus"></i></button>
+            </form>
           </div>
         </div>
       </div>
+        <?php endforeach; ?>
+      <?php else: ?>
+      <div class="alert alert-info">
+        Nenhum produto em destaque encontrado.
+      </div>
+      <?php endif; ?>
     </div>
     
     <div class="text-center" style="margin-top: 2rem;">
