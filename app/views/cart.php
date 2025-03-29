@@ -68,6 +68,107 @@
                                                     </a>
                                                 </h6>
                                                 
+                                                <!-- Indicador de Disponibilidade (Pronta Entrega ou Sob Encomenda) -->
+                                                <?php if (isset($item['availability'])): ?>
+                                                <div class="mb-1">
+                                                    <?php if ($item['availability'] === 'Pronta Entrega'): ?>
+                                                    <span class="badge bg-success">Pronta Entrega</span>
+                                                    <?php else: ?>
+                                                    <span class="badge bg-warning text-dark">Sob Encomenda</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <?php endif; ?>
+                                                
+                                                <!-- Detalhes de Impressão 3D -->
+                                                <?php if (isset($item['filament_type']) || isset($item['selected_scale']) || isset($item['selected_color'])): ?>
+                                                <div class="small text-muted mb-2">
+                                                    <?php if (isset($item['selected_scale'])): ?>
+                                                    <span class="me-2"><i class="bi bi-rulers"></i> Escala: <?= $item['selected_scale'] ?></span>
+                                                    <?php endif; ?>
+                                                    
+                                                    <?php if (isset($item['selected_filament'])): ?>
+                                                    <span class="me-2"><i class="bi bi-recycle"></i> Filamento: <?= $item['selected_filament'] ?></span>
+                                                    <?php endif; ?>
+                                                    
+                                                    <?php if (isset($item['selected_color'])): ?>
+                                                    <span>
+                                                        <i class="bi bi-palette"></i> Cor: 
+                                                        <?php if (isset($item['color_name'])): ?>
+                                                            <?= $item['color_name'] ?>
+                                                        <?php else: ?>
+                                                            ID: <?= $item['selected_color'] ?>
+                                                        <?php endif; ?>
+                                                        
+                                                        <?php if (isset($item['color_hex'])): ?>
+                                                        <span class="d-inline-block rounded-circle" style="width: 12px; height: 12px; background-color: <?= $item['color_hex'] ?>; border: 1px solid #ccc;"></span>
+                                                        <?php endif; ?>
+                                                    </span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                
+                                                <!-- Botão para editar opções de impressão -->
+                                                <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#printing-options-<?= $item['cart_item_id'] ?>">
+                                                    <i class="bi bi-sliders"></i> Opções de Impressão
+                                                </button>
+                                                
+                                                <!-- Formulário para editar opções de impressão -->
+                                                <div class="collapse" id="printing-options-<?= $item['cart_item_id'] ?>">
+                                                    <div class="card card-body bg-light mt-2 mb-2">
+                                                        <form action="<?= BASE_URL ?>carrinho/update-options" method="post">
+                                                            <input type="hidden" name="cart_item_id" value="<?= $item['cart_item_id'] ?>">
+                                                            
+                                                            <!-- Seleção de Escala -->
+                                                            <div class="mb-2">
+                                                                <label class="form-label fw-semibold small">Escala</label>
+                                                                <select name="selected_scale" class="form-select form-select-sm">
+                                                                    <?php foreach ($available_scales as $scale): ?>
+                                                                    <option value="<?= $scale['id'] ?>" <?= (isset($item['selected_scale']) && $item['selected_scale'] === $scale['id']) ? 'selected' : '' ?>>
+                                                                        <?= $scale['name'] ?>
+                                                                    </option>
+                                                                    <?php endforeach; ?>
+                                                                </select>
+                                                                <div class="form-text small">A escala afeta o tamanho final da miniatura.</div>
+                                                            </div>
+                                                            
+                                                            <!-- Seleção de Tipo de Filamento -->
+                                                            <div class="mb-2">
+                                                                <label class="form-label fw-semibold small">Tipo de Filamento</label>
+                                                                <select name="selected_filament" class="form-select form-select-sm">
+                                                                    <?php foreach ($filament_types as $type_id => $type_name): ?>
+                                                                    <option value="<?= $type_id ?>" <?= (isset($item['selected_filament']) && $item['selected_filament'] === $type_id) ? 'selected' : '' ?>>
+                                                                        <?= $type_name ?>
+                                                                    </option>
+                                                                    <?php endforeach; ?>
+                                                                </select>
+                                                                <div class="form-text small">Diferentes materiais têm propriedades distintas.</div>
+                                                            </div>
+                                                            
+                                                            <!-- Seleção de Cor -->
+                                                            <div class="mb-3">
+                                                                <label class="form-label fw-semibold small">Cor do Filamento</label>
+                                                                <div class="d-flex flex-wrap">
+                                                                    <?php foreach ($filament_colors as $color): ?>
+                                                                    <div class="form-check me-3 mb-2">
+                                                                        <input class="form-check-input" type="radio" name="selected_color" 
+                                                                               id="color-<?= $item['cart_item_id'] ?>-<?= $color['id'] ?>" 
+                                                                               value="<?= $color['id'] ?>"
+                                                                               <?= (isset($item['selected_color']) && $item['selected_color'] == $color['id']) ? 'checked' : '' ?>>
+                                                                        <label class="form-check-label d-flex align-items-center" for="color-<?= $item['cart_item_id'] ?>-<?= $color['id'] ?>">
+                                                                            <span class="d-inline-block rounded me-1" style="width: 16px; height: 16px; background-color: <?= $color['hex_code'] ?>; border: 1px solid #ccc;"></span>
+                                                                            <?= $color['name'] ?>
+                                                                        </label>
+                                                                    </div>
+                                                                    <?php endforeach; ?>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <button type="submit" class="btn btn-sm btn-primary">Atualizar Opções</button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                                <?php endif; ?>
+                                                
+                                                <!-- Opções de personalização existentes -->
                                                 <?php if (!empty($item['customization'])): ?>
                                                 <small class="d-block text-muted mb-1">Personalizado</small>
                                                 
@@ -153,6 +254,34 @@
                         <span>Subtotal</span>
                         <span class="fw-semibold">R$ <?= number_format($subtotal, 2, ',', '.') ?></span>
                     </div>
+                    
+                    <!-- Informações de Impressão 3D (sob encomenda) -->
+                    <?php if ($printing_time > 0): ?>
+                    <div class="card bg-light mb-3">
+                        <div class="card-body p-3">
+                            <h6 class="card-title">Informações de Impressão 3D</h6>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">Tempo estimado de impressão:</span>
+                                <span class="fw-medium">
+                                    <?php 
+                                    $hours = floor($printing_time);
+                                    $minutes = round(($printing_time - $hours) * 60);
+                                    echo $hours . 'h ' . $minutes . 'min';
+                                    ?>
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Filamento estimado:</span>
+                                <span class="fw-medium"><?= number_format($filament_usage, 0, '', '.') ?>g</span>
+                            </div>
+                            <div class="form-text small mt-2">
+                                <i class="bi bi-info-circle"></i> 
+                                Produtos sob encomenda serão impressos após a confirmação do pagamento.
+                                O prazo para impressão e envio pode variar de acordo com a fila de produção.
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     
                     <!-- Cálculo de Frete -->
                     <div class="mb-3">
