@@ -2,14 +2,14 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T15:30:00Z"
+    "lastUpdated": "2025-03-29T15:45:00Z"
   },
   "development": {
-    "currentFile": "app/helpers/Logger.php",
+    "currentFile": "public/diagnostico-erros.php",
     "currentComponent": "Depuração e Correção de Erros",
     "inProgress": {
       "type": "fix",
-      "description": "Correção de erros 500 nas páginas de produto e categoria",
+      "description": "Correção de erros críticos de funcionamento",
       "remainingTasks": [
         "Verificar estrutura do banco de dados",
         "Implementar validações mais robustas nas consultas SQL",
@@ -40,9 +40,9 @@
     ]
   },
   "context": {
-    "lastThought": "Foram encontrados e corrigidos dois problemas críticos: 1) a função app_log() estava sendo chamada no Router.php mas não estava definida, e 2) a constante CURRENCY_SYMBOL estava sendo definida duas vezes. Criamos um arquivo Logger.php com a implementação da função app_log e modificamos config.php para evitar redefinição de constantes. Também foram criados arquivos de diagnóstico e páginas de erro para facilitar a identificação e resolução de problemas futuros.",
+    "lastThought": "Foram encontrados e corrigidos dois problemas adicionais críticos para o funcionamento do sistema: 1) a classe Database não estava sendo carregada corretamente em index.php, e 2) a constante CURRENCY_SYMBOL estava mostrando um valor numérico (262145) em vez de 'R$'. Para o primeiro problema, adicionamos o carregamento explícito do arquivo Database.php no index.php antes da inicialização do Router. Para o segundo problema, modificamos a lógica de definição da constante CURRENCY_SYMBOL para evitar problemas de redefinição e garantir o valor correto.",
     "nextSteps": [
-      "Verificar se as correções resolveram os erros 500 usando o arquivo diagnostico-erros.php",
+      "Executar novamente o diagnóstico-erros.php para verificar resolução dos problemas",
       "Implementar validações adicionais no ProductController",
       "Melhorar tratamento de erros no CategoryController",
       "Verificar estrutura e dados do banco com scripts de diagnóstico",
@@ -78,6 +78,24 @@
       ],
       "solution": "Modificado config.php para verificar se a constante já existe antes de tentar defini-la novamente",
       "timestamp": "2025-03-29T15:30:00Z"
+    },
+    "databaseClassNotFound": {
+      "status": "fixed",
+      "description": "Classe Database não encontrada durante diagnóstico",
+      "files": [
+        "public/index.php"
+      ],
+      "solution": "Adicionado carregamento explícito do arquivo Database.php no index.php",
+      "timestamp": "2025-03-29T15:45:00Z"
+    },
+    "currencySymbolIncorrectValue": {
+      "status": "fixed",
+      "description": "Constante CURRENCY_SYMBOL mostrando valor numérico (262145) em vez de 'R$'",
+      "files": [
+        "app/config/config.php"
+      ],
+      "solution": "Corrigida lógica de definição da constante para garantir valor correto",
+      "timestamp": "2025-03-29T15:45:00Z"
     },
     "dbConnection": {
       "status": "verified",
@@ -162,13 +180,18 @@
       "timestamp": "2025-03-29T14:15:00Z"
     },
     "manualDiagnostics": {
-      "status": "inProgress",
+      "status": "improved",
       "description": "Diagnóstico manual de erros usando ferramentas de diagnóstico e logs",
+      "findings": [
+        "Classe Database não encontrada",
+        "Constante CURRENCY_SYMBOL com valor numérico incorreto (262145)",
+        "Problemas de carregamento resolvidos"
+      ],
       "files": [
         "public/diagnostico-erros.php",
         "logs/app_*.log"
       ],
-      "timestamp": "2025-03-29T15:30:00Z"
+      "timestamp": "2025-03-29T15:45:00Z"
     }
   }
 }
