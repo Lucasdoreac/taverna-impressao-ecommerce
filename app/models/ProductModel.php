@@ -199,6 +199,7 @@ class ProductModel extends Model {
      */
     public function getRelated($productId, $categoryId, $limit = 4) {
         try {
+            // CORREÇÃO: Os nomes dos parâmetros na consulta e no array devem corresponder
             $sql = "SELECT p.*, pi.image 
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
@@ -216,5 +217,14 @@ class ProductModel extends Model {
             error_log("Erro ao buscar produtos relacionados: " . $e->getMessage());
             return [];
         }
+    }
+    
+    /**
+     * Obtém o nome da tabela
+     * 
+     * @return string Nome da tabela
+     */
+    public function getTable() {
+        return $this->table;
     }
 }
