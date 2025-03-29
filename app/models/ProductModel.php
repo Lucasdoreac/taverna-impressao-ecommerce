@@ -24,7 +24,7 @@ class ProductModel extends Model {
         try {
             $sql = "SELECT p.*, pi.image, 
                            p.is_tested, 
-                           CASE WHEN p.is_tested = 1 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE p.is_featured = 1 AND p.is_active = 1
@@ -46,7 +46,8 @@ class ProductModel extends Model {
      */
     public function getTestedProducts($limit = 12) {
         try {
-            $sql = "SELECT p.*, pi.image 
+            $sql = "SELECT p.*, pi.image,
+                           'Pronta Entrega' as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE p.is_tested = 1 AND p.stock > 0 AND p.is_active = 1
@@ -68,7 +69,8 @@ class ProductModel extends Model {
      */
     public function getCustomProducts($limit = 12) {
         try {
-            $sql = "SELECT p.*, pi.image 
+            $sql = "SELECT p.*, pi.image,
+                           'Sob Encomenda' as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE (p.is_tested = 0 OR p.stock = 0) AND p.is_active = 1
@@ -79,6 +81,74 @@ class ProductModel extends Model {
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos sob encomenda: " . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * Versão personalizada de paginação que inclui suporte a filtro de disponibilidade
+     * 
+     * @param int $page Página atual
+     * @param int $limit Produtos por página
+     * @param string $conditions Condições SQL adicionais
+     * @param array $params Parâmetros para as condições
+     * @param string $availability Filtro de disponibilidade ('all', 'tested', 'custom')
+     * @param string $orderBy Ordem dos resultados
+     * @return array Produtos e informações de paginação
+     */
+    public function paginate($page = 1, $limit = 10, $conditions = '1=1', $params = [], $availability = 'all', $orderBy = 'created_at DESC') {
+        try {
+            $offset = ($page - 1) * $limit;
+            
+            // Filtro de disponibilidade
+            $availabilityFilter = "";
+            if ($availability === 'tested') {
+                $availabilityFilter = " AND p.is_tested = 1 AND p.stock > 0";
+            } else if ($availability === 'custom') {
+                $availabilityFilter = " AND (p.is_tested = 0 OR p.stock = 0)";
+            }
+            
+            // Contar total de registros
+            $countSql = "SELECT COUNT(*) as total 
+                        FROM {$this->table} p 
+                        WHERE {$conditions}" . $availabilityFilter;
+            $countResult = $this->db()->select($countSql, $params);
+            $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
+            
+            // Buscar registros paginados com imagens e dados de disponibilidade
+            $sql = "SELECT p.*, pi.image,
+                           p.is_tested, p.stock,
+                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                    FROM {$this->table} p
+                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                    WHERE {$conditions}" . $availabilityFilter . "
+                    ORDER BY " . ($availability === 'tested' ? "p.is_tested DESC, " : "") . $orderBy . "
+                    LIMIT :offset, :limit";
+            
+            $queryParams = array_merge($params, ['offset' => $offset, 'limit' => $limit]);
+            $items = $this->db()->select($sql, $queryParams);
+            
+            return [
+                'items' => $items,
+                'total' => $total,
+                'currentPage' => $page,
+                'perPage' => $limit,
+                'lastPage' => ceil($total / $limit),
+                'from' => $offset + 1,
+                'to' => min($offset + $limit, $total),
+                'availability' => $availability
+            ];
+        } catch (Exception $e) {
+            error_log("Erro na paginação de produtos: " . $e->getMessage());
+            return [
+                'items' => [],
+                'total' => 0,
+                'currentPage' => $page,
+                'perPage' => $limit,
+                'lastPage' => 1,
+                'from' => 0,
+                'to' => 0,
+                'availability' => $availability
+            ];
         }
     }
     
