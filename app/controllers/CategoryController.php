@@ -56,6 +56,12 @@ class CategoryController {
                 exit;
             }
             
+            // CORREÇÃO: Verificar se a categoria é um array válido
+            if (!is_array($category)) {
+                error_log("Categoria retornada não é um array válido");
+                throw new Exception("Dados de categoria inválidos");
+            }
+            
             // Verificar campos obrigatórios da categoria
             $requiredFields = ['id', 'name', 'slug'];
             foreach ($requiredFields as $field) {
@@ -65,58 +71,70 @@ class CategoryController {
                 }
             }
             
+            // CORREÇÃO: Garantir que todos os campos opcionais importantes existam com valores padrão
+            $category['description'] = isset($category['description']) ? $category['description'] : '';
+            $category['image'] = isset($category['image']) ? $category['image'] : '';
+            
             // Verificar subcategorias
             if (!isset($category['subcategories']) || !is_array($category['subcategories'])) {
                 $category['subcategories'] = [];
                 error_log("Aviso: Categoria sem subcategorias ou não é array");
             }
             
-            // Obter produtos da categoria com paginação usando método melhorado
+            // Obter produtos da categoria com paginação usando método getCategoryWithProducts
             try {
                 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
                 $limit = 12; // produtos por página
                 
-                // Usar getCategoryWithProducts em vez de getByCategory para tratar produtos de subcategorias
-                $categoryWithProducts = $this->categoryModel->getCategoryWithProducts($slug, $page, $limit);
-                
-                if ($categoryWithProducts && isset($categoryWithProducts['products'])) {
-                    $products = $categoryWithProducts['products'];
+                // Verificar se a categoria já tem produtos carregados (adicionados pelo método getCategoryWithProducts)
+                if (!isset($category['products']) || !is_array($category['products'])) {
+                    $categoryWithProducts = $this->categoryModel->getCategoryWithProducts($slug, $page, $limit);
                     
-                    // Verificar se products tem a estrutura esperada
-                    if (!isset($products['items'])) {
-                        error_log("Estrutura de produtos inválida: 'items' ausente");
-                        $products['items'] = [];
-                    }
-                    
-                    if (!isset($products['total'])) {
-                        error_log("Estrutura de produtos inválida: 'total' ausente");
-                        $products['total'] = 0;
-                    }
-                    
-                    if (!isset($products['currentPage'])) {
-                        error_log("Estrutura de produtos inválida: 'currentPage' ausente");
-                        $products['currentPage'] = $page;
-                    }
-                    
-                    if (!isset($products['perPage'])) {
-                        error_log("Estrutura de produtos inválida: 'perPage' ausente");
-                        $products['perPage'] = $limit;
-                    }
-                    
-                    if (!isset($products['lastPage'])) {
-                        error_log("Estrutura de produtos inválida: 'lastPage' ausente");
-                        $products['lastPage'] = 1;
+                    if ($categoryWithProducts && isset($categoryWithProducts['products']) && is_array($categoryWithProducts['products'])) {
+                        $products = $categoryWithProducts['products'];
+                    } else {
+                        // Fallback para método antigo se getCategoryWithProducts falhar
+                        error_log("Aviso: getCategoryWithProducts falhou, usando getByCategory como fallback");
+                        $products = $this->productModel->getByCategory($category['id'], $page, $limit);
                     }
                 } else {
-                    // Fallback para método antigo se getCategoryWithProducts falhar
-                    error_log("Aviso: getCategoryWithProducts falhou, usando getByCategory como fallback");
-                    $products = $this->productModel->getByCategory($category['id'], $page, $limit);
+                    $products = $category['products'];
                 }
+                
+                // CORREÇÃO: Validar a estrutura de produtos para garantir que todos os campos necessários existam
+                if (!isset($products['items'])) {
+                    error_log("Estrutura de produtos inválida: 'items' ausente");
+                    $products['items'] = [];
+                }
+                
+                if (!isset($products['total'])) {
+                    error_log("Estrutura de produtos inválida: 'total' ausente");
+                    $products['total'] = 0;
+                }
+                
+                if (!isset($products['currentPage'])) {
+                    error_log("Estrutura de produtos inválida: 'currentPage' ausente");
+                    $products['currentPage'] = $page;
+                }
+                
+                if (!isset($products['perPage'])) {
+                    error_log("Estrutura de produtos inválida: 'perPage' ausente");
+                    $products['perPage'] = $limit;
+                }
+                
+                if (!isset($products['lastPage'])) {
+                    error_log("Estrutura de produtos inválida: 'lastPage' ausente");
+                    $products['lastPage'] = ceil($products['total'] / $limit);
+                }
+                
+                // Adicionar produtos à categoria para uso na view
+                $category['products'] = $products;
             } catch (Exception $e) {
                 error_log("Erro ao obter produtos da categoria: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
                 
                 // Criar estrutura vazia em caso de erro
-                $products = [
+                $category['products'] = [
                     'items' => [],
                     'total' => 0,
                     'currentPage' => $page,
@@ -149,6 +167,12 @@ class CategoryController {
             
             // Obter todas as categorias principais
             $categories = $this->categoryModel->getMainCategories();
+            
+            // CORREÇÃO: Validar resultado
+            if (!is_array($categories)) {
+                error_log("getMainCategories não retornou um array válido");
+                $categories = [];
+            }
             
             if (empty($categories)) {
                 error_log("Aviso: Nenhuma categoria principal encontrada");
@@ -204,9 +228,27 @@ class CategoryController {
                 exit;
             }
             
+            // CORREÇÃO: Verificar se category é um array
+            if (!is_array($category)) {
+                error_log("getBySlug não retornou um array válido");
+                throw new Exception("Dados de categoria inválidos");
+            }
+            
             // Obter subcategorias
             try {
+                // CORREÇÃO: Garantir que category['id'] existe
+                if (!isset($category['id'])) {
+                    error_log("Categoria sem ID definido");
+                    throw new Exception("Categoria sem ID");
+                }
+                
                 $subcategories = $this->categoryModel->getSubcategories($category['id']);
+                
+                // CORREÇÃO: Validar o formato de subcategorias
+                if (!is_array($subcategories)) {
+                    error_log("getSubcategories não retornou um array válido");
+                    $subcategories = [];
+                }
                 
                 if (ENVIRONMENT === 'development') {
                     error_log("Subcategorias encontradas: " . count($subcategories));
