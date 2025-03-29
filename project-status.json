@@ -2,7 +2,7 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T14:25:00Z"
+    "lastUpdated": "2025-03-29T14:37:30Z"
   },
   "development": {
     "currentFile": "app/helpers/Router.php",
@@ -12,6 +12,7 @@
       "description": "Correção de erros 500 e problemas de integração",
       "remainingTasks": [
         "Verificar funcionamento em produção após correções",
+        "Continuar implementação do sistema de gerenciamento de pedidos",
         "Implementar recursos pendentes do painel administrativo",
         "Otimizar performance geral do sistema"
       ]
@@ -41,19 +42,17 @@
     ]
   },
   "context": {
-    "lastThought": "Implementadas correções críticas para resolver os erros 500 nas páginas de produto e categoria. Corrigido o problema no Router.php com parâmetro $slug desconhecido, solucionado o problema das constantes CURRENCY e CURRENCY_SYMBOL, e adicionados scripts de diagnóstico e verificação do banco de dados para facilitar a identificação e correção de problemas.",
+    "lastThought": "Implementadas correções adicionais para resolver a redefinição de constantes CURRENCY_SYMBOL no config.php e o problema na função callAction() do Router.php que causava o erro 'Unknown named parameter $slug'. Agora o Router passa os parâmetros como um único array associativo para os métodos do controller, em vez de tentar passá-los como parâmetros individuais.",
     "nextSteps": [
       "Verificar o funcionamento das páginas de produto e categoria em produção após correções",
-      "Executar o script database_setup.php para verificar e corrigir o banco de dados",
+      "Continuar a implementação do sistema de gerenciamento de pedidos",
+      "Começar a implementação do painel administrativo básico",
       "Testar o sistema completo após as correções implementadas",
-      "Continuar implementação dos recursos pendentes",
       "Documentar as correções realizadas para referência futura"
     ],
     "lastEditedFiles": [
       "app/helpers/Router.php",
       "app/config/config.php",
-      "public/system_check.php",
-      "public/database_setup.php",
       "project-status.json"
     ],
     "incompleteOperations": false
@@ -68,6 +67,15 @@
       "solution": "Corrigida a função matchRoute para validar a existência de parâmetros antes de tentar acessá-los",
       "timestamp": "2025-03-29T14:22:27Z"
     },
+    "routerCallAction": {
+      "status": "fixed",
+      "description": "Erro 'Unknown named parameter $slug' na linha 127 do Router.php",
+      "files": [
+        "app/helpers/Router.php"
+      ],
+      "solution": "Modificada a função callAction para passar os parâmetros como um único array associativo",
+      "timestamp": "2025-03-29T14:36:44Z"
+    },
     "currencyConstants": {
       "status": "fixed",
       "description": "Problemas com as constantes CURRENCY e CURRENCY_SYMBOL",
@@ -76,6 +84,15 @@
       ],
       "solution": "Simplificada a definição das constantes e adicionado logging para depuração",
       "timestamp": "2025-03-29T14:22:47Z"
+    },
+    "currencySymbolRedefinition": {
+      "status": "fixed",
+      "description": "Erro por redefinição da constante CURRENCY_SYMBOL",
+      "files": [
+        "app/config/config.php"
+      ],
+      "solution": "Adicionada verificação com !defined() antes de definir as constantes CURRENCY e CURRENCY_SYMBOL",
+      "timestamp": "2025-03-29T14:36:13Z"
     },
     "systemDiagnostics": {
       "status": "improved",
@@ -136,15 +153,6 @@
       ],
       "solution": "Movido o require_once de Logger.php para antes de qualquer uso da função app_log()",
       "timestamp": "2025-03-29T15:55:00Z"
-    },
-    "currencySymbolRedefinition": {
-      "status": "fixed",
-      "description": "Erro por redefinição da constante CURRENCY_SYMBOL",
-      "files": [
-        "app/config/config.php"
-      ],
-      "solution": "Modificado config.php para definir claramente as constantes",
-      "timestamp": "2025-03-29T14:22:47Z"
     },
     "databaseClassNotFound": {
       "status": "fixed",
@@ -303,7 +311,7 @@
   },
   "roadmap": {
     "shortTerm": [
-      "Implementar o banco de dados atualizado em produção",
+      "Verificar funcionamento das correções em produção",
       "Completar sistema de gerenciamento de pedidos",
       "Implementar painel administrativo básico"
     ],
