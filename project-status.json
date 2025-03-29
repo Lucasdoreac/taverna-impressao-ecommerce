@@ -2,18 +2,20 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T00:02:00Z"
+    "lastUpdated": "2025-03-29T14:30:00Z"
   },
   "development": {
-    "currentFile": "app/controllers/OrderController.php",
-    "currentComponent": "OrderManagement",
+    "currentFile": "app/config/config.php",
+    "currentComponent": "Depuração e Correção de Erros",
     "inProgress": {
-      "type": "feature",
-      "description": "Implementação do sistema de gestão de pedidos",
+      "type": "fix",
+      "description": "Correção de erros 500 nas páginas de produto e categoria",
       "remainingTasks": [
-        "Implementar listagem de pedidos no painel administrativo",
-        "Implementar gestão de status de pedidos",
-        "Implementar sistema de notificações por email"
+        "Alterar temporariamente o ambiente para development",
+        "Adicionar logging detalhado nos Controllers problemáticos",
+        "Verificar estrutura do banco de dados",
+        "Implementar validações mais robustas nas consultas SQL",
+        "Corrigir processamento de categorias e imagens de produtos"
       ]
     }
   },
@@ -23,7 +25,6 @@
       "Página Inicial",
       "Navegação",
       "Listagem de Produtos",
-      "Depuração e Correção de Erros",
       "Sistema de Banco de Dados",
       "Carrinho de Compras",
       "Checkout e Pagamento"
@@ -32,7 +33,8 @@
       "Detalhes de Produto",
       "Categorias",
       "Personalização",
-      "Gerenciamento de Pedidos"
+      "Gerenciamento de Pedidos",
+      "Depuração e Correção de Erros"
     ],
     "pending": [
       "Painel Administrativo",
@@ -40,35 +42,33 @@
     ]
   },
   "context": {
-    "lastThought": "Implementado o sistema completo de checkout com integração ao banco de dados e carrinho persistente. O fluxo completo agora inclui finalização de pedido, visualização de detalhes e histórico de pedidos do usuário. A próxima etapa é implementar o painel administrativo para gestão de pedidos, produtos e categorias.",
+    "lastThought": "Testes com Puppeteer revelaram erros 500 nas páginas de detalhes de produto e categorias. O site está configurado para ambiente de produção, o que dificulta o diagnóstico. É necessário alterar temporariamente para ambiente de desenvolvimento, melhorar o logging e implementar validações mais robustas nos controllers problemáticos.",
     "nextSteps": [
-      "Criar AdminController para painel administrativo",
-      "Implementar listagem e gestão de pedidos no painel admin",
-      "Implementar gestão de produtos e categorias no painel admin",
-      "Implementar sistema de notificações por email para novos pedidos e atualizações de status"
+      "Modificar app/config/config.php para ambiente de desenvolvimento",
+      "Implementar validações adicionais no ProductController",
+      "Melhorar tratamento de erros no CategoryController",
+      "Criar scripts de diagnóstico específicos para isolar os problemas",
+      "Verificar estrutura e dados do banco com scripts de diagnóstico"
     ]
   },
   "fixes": {
     "errors500": {
-      "status": "implemented",
-      "description": "Tratamento de exceções adicionado aos controllers para evitar erros 500",
+      "status": "in_progress",
+      "description": "Problemas de erro 500 identificados nas páginas de produto e categoria via testes Puppeteer",
       "files": [
         "app/controllers/CategoryController.php",
         "app/controllers/ProductController.php",
-        "app/controllers/CustomizationController.php",
-        "app/controllers/CartController.php",
-        "app/controllers/CheckoutController.php",
-        "app/controllers/OrderController.php"
+        "app/config/config.php"
       ],
-      "timestamp": "2025-03-29T00:00:32Z"
+      "timestamp": "2025-03-29T14:30:00Z"
     },
     "dbConnection": {
-      "status": "implemented",
-      "description": "Correção na configuração de conexão com o banco de dados para o ambiente da Hostinger",
+      "status": "verified",
+      "description": "Configuração de conexão do banco de dados com usuário 'u135851624_teverna' está correta",
       "files": [
         "app/config/config.php"
       ],
-      "timestamp": "2025-03-28T23:21:16Z"
+      "timestamp": "2025-03-29T14:30:00Z"
     }
   },
   "implementations": {
@@ -105,6 +105,31 @@
         "app/views/order_details.php"
       ],
       "timestamp": "2025-03-29T00:02:00Z"
+    },
+    "debugTools": {
+      "status": "inProgress",
+      "description": "Ferramentas de diagnóstico para identificação e correção de erros",
+      "files": [
+        "public/debug.php",
+        "public/product_debug.php",
+        "public/category_debug.php"
+      ],
+      "timestamp": "2025-03-29T14:30:00Z"
+    }
+  },
+  "diagnostics": {
+    "puppeteer": {
+      "status": "completed",
+      "description": "Testes automatizados com Puppeteer para identificar problemas na interface",
+      "findings": [
+        "Página inicial funcionando corretamente",
+        "Página de produtos (listagem) funcionando corretamente",
+        "Página de carrinho funcionando corretamente",
+        "Página de login funcionando corretamente",
+        "Erro 500 na página de detalhes do produto",
+        "Erro 500 na página de categorias"
+      ],
+      "timestamp": "2025-03-29T14:15:00Z"
     }
   }
 }
