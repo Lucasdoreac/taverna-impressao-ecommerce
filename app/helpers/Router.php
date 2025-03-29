@@ -30,6 +30,7 @@ class Router {
                 
                 if (ENVIRONMENT === 'development' || isset($_GET['debug'])) {
                     app_log("Rota encontrada: {$route} => {$controller}::{$method}", 'debug');
+                    app_log("Parâmetros extraídos: " . json_encode($params), 'debug');
                 }
                 
                 $this->callAction($controller, $method, $params);
@@ -124,7 +125,18 @@ class Router {
                 return;
             }
             
-            call_user_func_array([$controllerObj, $method], $params);
+            // CORREÇÃO: Verificar tipo dos parâmetros e reforçar como array associativo
+            if (is_array($params)) {
+                // Passar os parâmetros como um único array associativo
+                app_log("Chamando {$controller}::{$method} com parâmetros: " . json_encode($params), 'debug');
+                
+                // Chamada do método com um único array
+                $controllerObj->$method($params);
+            } else {
+                // Se não houver parâmetros, chamar sem argumentos
+                app_log("Chamando {$controller}::{$method} sem parâmetros", 'debug');
+                $controllerObj->$method();
+            }
         } catch (Exception $e) {
             app_log("Erro ao chamar controller: " . $e->getMessage(), 'error');
             if (ENVIRONMENT === 'development' || isset($_GET['debug'])) {
