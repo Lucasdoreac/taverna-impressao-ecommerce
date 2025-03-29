@@ -2,17 +2,17 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T16:35:00Z"
+    "lastUpdated": "2025-03-29T17:00:00Z"
   },
   "development": {
-    "currentFile": "app/controllers/CategoryController.php",
+    "currentFile": "database/unified_schema.sql",
     "currentComponent": "Depuração e Correção de Erros",
     "inProgress": {
       "type": "fix",
       "description": "Correção de erros críticos de funcionamento",
       "remainingTasks": [
-        "Verificar resultados do diagnóstico de banco de dados",
-        "Implementar correções com base no diagnóstico",
+        "Executar o arquivo unified_schema.sql para criar as tabelas no banco de dados",
+        "Testar as páginas de produto e categoria após a recriação do banco",
         "Testar fluxo completo de compra após correções"
       ]
     }
@@ -40,23 +40,29 @@
     ]
   },
   "context": {
-    "lastThought": "Implementadas diversas correções para resolver os erros 500 nas páginas de produto e categoria. As principais melhorias incluem: correção de vulnerabilidade de injeção SQL no CategoryModel, validações mais robustas nas controladoras, e criação de uma ferramenta de diagnóstico completa para o banco de dados.",
+    "lastThought": "Diagnóstico de banco de dados revelou que nenhuma das tabelas necessárias existe no banco, apesar de a conexão funcionar. Foi criado um arquivo SQL unificado (unified_schema.sql) para resolver o problema, combinando todos os esquemas necessários e dados iniciais em um único arquivo.",
     "nextSteps": [
-      "Executar o arquivo database_debug.php para verificar problemas no banco de dados",
-      "Implementar correções com base nos resultados do diagnóstico",
+      "Executar o arquivo unified_schema.sql no banco de dados para criar todas as tabelas e adicionar dados iniciais",
       "Testar as páginas de produto e categoria para confirmar a resolução dos erros 500",
+      "Verificar se as imagens dos produtos estão sendo exibidas corretamente",
       "Testar o fluxo completo de compra incluindo autenticação, checkout e pagamento",
-      "Verificar se há problemas de dados órfãos no banco de dados que precisam ser corrigidos"
+      "Quando tudo estiver funcionando, alterar ENVIRONMENT para 'production' em config.php"
     ],
     "lastEditedFiles": [
-      "app/models/CategoryModel.php",
-      "app/models/ProductModel.php",
-      "app/controllers/ProductController.php",
-      "app/controllers/CategoryController.php",
-      "public/database_debug.php"
+      "database/unified_schema.sql",
+      "project-status.json"
     ]
   },
   "fixes": {
+    "missingTables": {
+      "status": "inProgress",
+      "description": "Diagnóstico revelou que nenhuma tabela existe no banco de dados, apesar da conexão funcionar",
+      "files": [
+        "database/unified_schema.sql"
+      ],
+      "solution": "Criado arquivo SQL unificado que drop/recria todas as tabelas necessárias e adiciona dados iniciais",
+      "timestamp": "2025-03-29T17:00:00Z"
+    },
     "errors500": {
       "status": "improved",
       "description": "Problemas de erro 500 identificados nas páginas de produto e categoria via testes Puppeteer",
@@ -150,6 +156,15 @@
       ],
       "solution": "Adicionadas validações robustas para todos os acessos a índices de arrays e estruturas de dados",
       "timestamp": "2025-03-29T16:35:00Z"
+    },
+    "missingIndices": {
+      "status": "fixed",
+      "description": "Diagnóstico identificou índices ausentes em tabelas, principalmente em cart_items",
+      "files": [
+        "database/unified_schema.sql"
+      ],
+      "solution": "Adicionados índices relevantes no arquivo SQL unificado para melhorar performance",
+      "timestamp": "2025-03-29T17:00:00Z"
     }
   },
   "implementations": {
@@ -219,6 +234,21 @@
         "public/database_debug.php"
       ],
       "timestamp": "2025-03-29T16:35:00Z"
+    },
+    "unifiedDatabaseSchema": {
+      "status": "implemented",
+      "description": "Arquivo SQL unificado para recriação completa do banco de dados",
+      "files": [
+        "database/unified_schema.sql"
+      ],
+      "features": [
+        "Remoção de tabelas existentes",
+        "Criação de todas as tabelas necessárias",
+        "Adição de dados iniciais",
+        "Criação de índices otimizados",
+        "Adição de constraints de integridade"
+      ],
+      "timestamp": "2025-03-29T17:00:00Z"
     }
   },
   "diagnostics": {
@@ -254,15 +284,15 @@
       "timestamp": "2025-03-29T16:35:00Z"
     },
     "databaseCheck": {
-      "status": "pending",
+      "status": "completed",
       "description": "Verificação detalhada da estrutura e integridade do banco de dados",
-      "nextSteps": [
-        "Executar diagnóstico através do arquivo database_debug.php",
-        "Verificar tabelas e campos obrigatórios",
-        "Verificar índices críticos",
-        "Identificar e corrigir registros órfãos"
+      "findings": [
+        "Conexão com o banco de dados funciona corretamente",
+        "Nenhuma das tabelas necessárias existe no banco de dados",
+        "Configurações de conexão com o usuário 'u135851624_teverna' estão corretas"
       ],
-      "timestamp": "2025-03-29T16:35:00Z"
+      "solution": "Criado arquivo SQL unificado (unified_schema.sql) para recriação completa do banco de dados",
+      "timestamp": "2025-03-29T17:00:00Z"
     }
   }
 }
