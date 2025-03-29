@@ -44,9 +44,14 @@ define('STORE_NAME', 'TAVERNA DA IMPRESSÃO');
 define('STORE_EMAIL', 'contato@tavernaimpressao.com.br');
 define('STORE_PHONE', '(00) 0000-0000');
 
-// Moeda - definição clara e direta
-define('CURRENCY', 'BRL');
-define('CURRENCY_SYMBOL', 'R$');
+// Moeda - definição clara e direta com verificação
+if (!defined('CURRENCY')) {
+    define('CURRENCY', 'BRL');
+}
+
+if (!defined('CURRENCY_SYMBOL')) {
+    define('CURRENCY_SYMBOL', 'R$');
+}
 
 // Log de configuração para depuração
 if (ENVIRONMENT === 'development') {
