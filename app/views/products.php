@@ -78,12 +78,10 @@
                         </span>
                         <?php endif; ?>
                         
-                        <?php if (!empty($product['image'])): ?>
+                        <?php if (!empty($product['image']) && file_exists(UPLOADS_PATH . '/products/' . $product['image'])): ?>
                         <img src="<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>" class="card-img-top" alt="<?= $product['name'] ?>">
                         <?php else: ?>
-                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
-                            <span class="text-muted">Sem imagem</span>
-                        </div>
+                        <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
                         <?php endif; ?>
                     </div>
                     
