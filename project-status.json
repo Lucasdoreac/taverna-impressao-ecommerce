@@ -2,10 +2,10 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T15:45:00Z"
+    "lastUpdated": "2025-03-29T15:55:00Z"
   },
   "development": {
-    "currentFile": "public/diagnostico-erros.php",
+    "currentFile": "app/config/config.php",
     "currentComponent": "Depuração e Correção de Erros",
     "inProgress": {
       "type": "fix",
@@ -40,13 +40,13 @@
     ]
   },
   "context": {
-    "lastThought": "Foram encontrados e corrigidos dois problemas adicionais críticos para o funcionamento do sistema: 1) a classe Database não estava sendo carregada corretamente em index.php, e 2) a constante CURRENCY_SYMBOL estava mostrando um valor numérico (262145) em vez de 'R$'. Para o primeiro problema, adicionamos o carregamento explícito do arquivo Database.php no index.php antes da inicialização do Router. Para o segundo problema, modificamos a lógica de definição da constante CURRENCY_SYMBOL para evitar problemas de redefinição e garantir o valor correto.",
+    "lastThought": "Corrigido problema de ordem de carregamento no config.php onde a função app_log() estava sendo chamada antes de sua definição. Movemos o require_once do arquivo Logger.php para antes de qualquer uso da função app_log() no arquivo config.php, o que deve resolver o erro fatal encontrado.",
     "nextSteps": [
       "Executar novamente o diagnóstico-erros.php para verificar resolução dos problemas",
+      "Verificar outros arquivos em busca de problemas similares de ordem de carregamento",
       "Implementar validações adicionais no ProductController",
       "Melhorar tratamento de erros no CategoryController",
-      "Verificar estrutura e dados do banco com scripts de diagnóstico",
-      "Após testes, modificar config.php para ambiente de produção novamente"
+      "Verificar estrutura e dados do banco com scripts de diagnóstico"
     ]
   },
   "fixes": {
@@ -69,6 +69,15 @@
       ],
       "solution": "Criado arquivo Logger.php com implementação da função app_log para registrar eventos do sistema",
       "timestamp": "2025-03-29T15:30:00Z"
+    },
+    "appLogOrderError": {
+      "status": "fixed",
+      "description": "Erro fatal por chamada à função app_log() antes de sua definição no config.php",
+      "files": [
+        "app/config/config.php"
+      ],
+      "solution": "Movido o require_once de Logger.php para antes de qualquer uso da função app_log()",
+      "timestamp": "2025-03-29T15:55:00Z"
     },
     "currencySymbolRedefinition": {
       "status": "fixed",
@@ -156,13 +165,14 @@
       "timestamp": "2025-03-29T15:30:00Z"
     },
     "loggingSystem": {
-      "status": "completed",
+      "status": "improved",
       "description": "Sistema de logging para facilitar o diagnóstico e depuração",
       "files": [
         "app/helpers/Logger.php",
-        "logs/.gitkeep"
+        "logs/.gitkeep",
+        "app/config/config.php"
       ],
-      "timestamp": "2025-03-29T15:30:00Z"
+      "timestamp": "2025-03-29T15:55:00Z"
     }
   },
   "diagnostics": {
@@ -185,13 +195,14 @@
       "findings": [
         "Classe Database não encontrada",
         "Constante CURRENCY_SYMBOL com valor numérico incorreto (262145)",
+        "Problema de ordem de carregamento do Logger.php em config.php",
         "Problemas de carregamento resolvidos"
       ],
       "files": [
         "public/diagnostico-erros.php",
         "logs/app_*.log"
       ],
-      "timestamp": "2025-03-29T15:45:00Z"
+      "timestamp": "2025-03-29T15:55:00Z"
     }
   }
 }
