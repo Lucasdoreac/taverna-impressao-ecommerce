@@ -1,7 +1,7 @@
 <?php
 // Configurações globais da aplicação
-define('ENVIRONMENT', 'production'); // 'development' ou 'production'
-define('DISPLAY_ERRORS', false);
+define('ENVIRONMENT', 'development'); // 'development' ou 'production'
+define('DISPLAY_ERRORS', true);
 
 // Configurar exibição de erros com base no ambiente
 if (ENVIRONMENT === 'development') {
@@ -27,7 +27,7 @@ define('UPLOADS_PATH', ROOT_PATH . '/public/uploads');
 // Configurações do banco de dados para Hostinger
 define('DB_HOST', '127.0.0.1:3306');
 define('DB_NAME', 'u135851624_taverna');
-define('DB_USER', 'u135851624_teverna');
+define('DB_USER', 'u135851624_teverna'); // Confirmado como correto
 define('DB_PASS', '#Taverna1');
 
 // Configurações de e-mail
