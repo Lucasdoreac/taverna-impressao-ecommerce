@@ -1,38 +1,32 @@
-            </div><!-- /.container-fluid -->
-        </div><!-- /#content -->
-    </div><!-- /.wrapper -->
-
+                <!-- Page content ends here -->
+            </main>
+        </div>
+    </div>
+    
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- jQuery (necessário para alguns plugins) -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Custom JS -->
-    <script src="<?= BASE_URL ?>assets/js/admin.js"></script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.3.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.1/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.1/js/dataTables.bootstrap5.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     
-    <!-- Scripts específicos de páginas -->
-    <?php if (isset($page_scripts)): ?>
-    <?php foreach ($page_scripts as $script): ?>
-    <script src="<?= BASE_URL ?>assets/js/<?= $script ?>"></script>
-    <?php endforeach; ?>
-    <?php endif; ?>
-
+    <!-- DataTables Initialization -->
     <script>
-        // Script para toggle do sidebar
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('sidebarCollapse').addEventListener('click', function() {
-                document.getElementById('sidebar').classList.toggle('active');
-                document.getElementById('content').classList.toggle('active');
+        $(document).ready(function() {
+            $('.datatable').DataTable({
+                language: {
+                    url: '//cdn.datatables.net/plug-ins/1.13.1/i18n/pt-BR.json'
+                },
+                responsive: true,
+                pageLength: 25
             });
-
-            // Auto-dismiss para alertas
-            setTimeout(function() {
-                var alerts = document.querySelectorAll('.alert');
-                alerts.forEach(function(alert) {
-                    var bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                });
-            }, 5000);
         });
     </script>
+    
+    <!-- Custom JS -->
+    <script src="<?= BASE_URL ?>assets/js/admin.js"></script>
 </body>
 </html>
