@@ -67,10 +67,24 @@
             
             <!-- Disponibilidade -->
             <div class="mb-3">
-                <?php if ($product['stock'] > 0): ?>
-                <span class="badge bg-success">Em estoque</span>
+                <?php if (isset($product['availability'])): ?>
+                    <?php if ($product['availability'] === 'Pronta Entrega'): ?>
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Pronta Entrega</span>
+                    <div class="small text-success mt-1">
+                        <i class="bi bi-truck me-1"></i> Entrega estimada em <?= $product['estimated_delivery'] ?>
+                    </div>
+                    <?php else: ?>
+                    <span class="badge bg-primary"><i class="bi bi-printer me-1"></i> Sob Encomenda</span>
+                    <div class="small text-primary mt-1">
+                        <i class="bi bi-clock-history me-1"></i> Impressão e entrega estimadas em <?= $product['estimated_delivery'] ?>
+                    </div>
+                    <?php endif; ?>
                 <?php else: ?>
-                <span class="badge bg-danger">Fora de estoque</span>
+                    <?php if ($product['stock'] > 0): ?>
+                    <span class="badge bg-success">Em estoque</span>
+                    <?php else: ?>
+                    <span class="badge bg-danger">Fora de estoque</span>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
             
@@ -85,17 +99,73 @@
             <form action="<?= BASE_URL ?>carrinho/adicionar" method="post" class="mb-4">
                 <input type="hidden" name="product_id" value="<?= $product['id'] ?>">
                 
+                <!-- Seleção de Escala (Novo) -->
+                <?php if (isset($product['scale'])): ?>
+                <div class="mb-3">
+                    <label for="selected_scale" class="form-label">Escala</label>
+                    <select id="selected_scale" name="selected_scale" class="form-select">
+                        <?php
+                        // Obter escalas disponíveis das configurações
+                        $scales = [
+                            ['id' => '28mm', 'name' => '28mm (Padrão)'],
+                            ['id' => '32mm', 'name' => '32mm (Heroic)'],
+                            ['id' => '54mm', 'name' => '54mm (Colecionável)']
+                        ];
+                        
+                        if (defined('AVAILABLE_SCALES')) {
+                            $configScales = json_decode(AVAILABLE_SCALES, true);
+                            if (is_array($configScales)) {
+                                $scales = $configScales;
+                            }
+                        }
+                        
+                        foreach ($scales as $scale):
+                        ?>
+                        <option value="<?= $scale['id'] ?>" <?= $product['scale'] === $scale['id'] ? 'selected' : '' ?>>
+                            <?= $scale['name'] ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-text small">Escolha a escala da sua miniatura</div>
+                </div>
+                <?php endif; ?>
+                
+                <!-- Seleção de Cor de Filamento (Novo) -->
+                <?php if (!empty($product['filament_colors'])): ?>
+                <div class="mb-3">
+                    <label class="form-label">Cor do Filamento</label>
+                    <div class="d-flex flex-wrap">
+                        <?php foreach ($product['filament_colors'] as $index => $color): ?>
+                        <div class="form-check form-check-inline color-option mb-2">
+                            <input 
+                                class="form-check-input" 
+                                type="radio" 
+                                name="selected_color" 
+                                id="color_<?= $color['id'] ?>" 
+                                value="<?= $color['id'] ?>"
+                                <?= $index === 0 ? 'checked' : '' ?>
+                            >
+                            <label class="form-check-label d-flex align-items-center" for="color_<?= $color['id'] ?>">
+                                <span class="color-swatch me-1" style="background-color: <?= $color['hex_code'] ?>; width: 20px; height: 20px; display: inline-block; border-radius: 4px; border: 1px solid #ddd;"></span>
+                                <?= $color['name'] ?>
+                            </label>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
                 <div class="mb-3">
                     <label for="quantity" class="form-label">Quantidade</label>
                     <div class="input-group">
                         <button type="button" class="btn btn-outline-secondary quantity-btn" data-action="minus">-</button>
-                        <input type="number" id="quantity" name="quantity" class="form-control text-center" value="1" min="1" max="<?= $product['stock'] ?>">
+                        <input type="number" id="quantity" name="quantity" class="form-control text-center" value="1" min="1" max="<?= $product['stock'] ?? 99 ?>">
                         <button type="button" class="btn btn-outline-secondary quantity-btn" data-action="plus">+</button>
                     </div>
                 </div>
                 
                 <div class="d-grid gap-2">
-                    <?php if ($product['stock'] > 0): ?>
+                    <?php if (isset($product['availability']) && $product['availability'] === 'Pronta Entrega'): ?>
                         <?php if ($product['is_customizable']): ?>
                         <a href="<?= BASE_URL ?>personalizar/<?= $product['slug'] ?>" class="btn btn-primary">
                             <i class="bi bi-brush me-1"></i> Personalizar
@@ -108,13 +178,113 @@
                             <i class="bi bi-cart-plus me-1"></i> Adicionar ao Carrinho
                         </button>
                         <?php endif; ?>
-                    <?php else: ?>
-                        <button type="button" class="btn btn-secondary" disabled>
-                            <i class="bi bi-x-circle me-1"></i> Produto Indisponível
+                    <?php elseif (isset($product['availability']) && $product['availability'] === 'Sob Encomenda'): ?>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-printer me-1"></i> Encomendar Impressão
                         </button>
+                        <div class="text-center small text-muted">
+                            <i class="bi bi-info-circle me-1"></i> Este produto será impresso sob demanda após seu pedido
+                        </div>
+                    <?php else: ?>
+                        <?php if ($product['stock'] > 0): ?>
+                            <?php if ($product['is_customizable']): ?>
+                            <a href="<?= BASE_URL ?>personalizar/<?= $product['slug'] ?>" class="btn btn-primary">
+                                <i class="bi bi-brush me-1"></i> Personalizar
+                            </a>
+                            <button type="submit" class="btn btn-outline-primary">
+                                <i class="bi bi-cart-plus me-1"></i> Adicionar ao Carrinho
+                            </button>
+                            <?php else: ?>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-cart-plus me-1"></i> Adicionar ao Carrinho
+                            </button>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-secondary" disabled>
+                                <i class="bi bi-x-circle me-1"></i> Produto Indisponível
+                            </button>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </form>
+            
+            <!-- Informações Técnicas de Impressão 3D (Novo) -->
+            <div class="card mb-3 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-printer-fill me-1"></i> Informações Técnicas de Impressão 3D
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <?php if (isset($product['print_time_hours'])): ?>
+                        <div class="col-6">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-clock me-2"></i>
+                                <div>
+                                    <div class="small text-muted">Tempo de Impressão:</div>
+                                    <div>
+                                        <?php
+                                        $hours = floor($product['print_time_hours']);
+                                        $minutes = round(($product['print_time_hours'] - $hours) * 60);
+                                        echo $hours > 0 ? $hours . 'h ' : '';
+                                        echo $minutes > 0 ? $minutes . 'min' : '';
+                                        if ($hours == 0 && $minutes == 0) echo 'Menos de 1 min';
+                                        ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if (isset($product['filament_type'])): ?>
+                        <div class="col-6">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-droplet me-2"></i>
+                                <div>
+                                    <div class="small text-muted">Tipo de Filamento:</div>
+                                    <div><?= $product['filament_type'] ?></div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if (isset($product['filament_usage_grams'])): ?>
+                        <div class="col-6">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-speedometer me-2"></i>
+                                <div>
+                                    <div class="small text-muted">Filamento Usado:</div>
+                                    <div><?= $product['filament_usage_grams'] ?>g</div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if (isset($product['dimensions'])): ?>
+                        <div class="col-6">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-rulers me-2"></i>
+                                <div>
+                                    <div class="small text-muted">Dimensões:</div>
+                                    <div><?= $product['dimensions'] ?></div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if (isset($product['scale'])): ?>
+                        <div class="col-6">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-aspect-ratio me-2"></i>
+                                <div>
+                                    <div class="small text-muted">Escala Padrão:</div>
+                                    <div><?= $product['scale'] ?></div>
+                                </div>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
             
             <!-- Informações Adicionais -->
             <div class="mb-3">
@@ -126,30 +296,6 @@
                             <div>
                                 <div class="small text-muted">Código:</div>
                                 <div><?= $product['sku'] ?></div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <?php if (!empty($product['weight'])): ?>
-                    <div class="col-6">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-box-seam me-2"></i>
-                            <div>
-                                <div class="small text-muted">Peso:</div>
-                                <div><?= number_format($product['weight'], 2, ',', '.') ?> kg</div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <?php if (!empty($product['dimensions'])): ?>
-                    <div class="col-6">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-rulers me-2"></i>
-                            <div>
-                                <div class="small text-muted">Dimensões:</div>
-                                <div><?= $product['dimensions'] ?></div>
                             </div>
                         </div>
                     </div>
@@ -181,6 +327,12 @@
                                 Descrição
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="printing-tab" data-bs-toggle="tab" data-bs-target="#printing-content" 
+                                   type="button" role="tab" aria-controls="printing-content" aria-selected="false">
+                                Impressão 3D
+                            </button>
+                        </li>
                         <?php if ($product['is_customizable']): ?>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="customization-tab" data-bs-toggle="tab" data-bs-target="#customization-content" 
@@ -203,6 +355,31 @@
                             <div class="product-description">
                                 <?= $product['description'] ?? '<p>Sem descrição detalhada disponível.</p>' ?>
                             </div>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="printing-content" role="tabpanel" aria-labelledby="printing-tab">
+                            <h4 class="h5 mb-3">Sobre nossa Impressão 3D</h4>
+                            <p>Todos os nossos produtos são impressos utilizando tecnologia FDM (Modelagem por Deposição Fundida) com impressoras de alta qualidade e configurações otimizadas para cada modelo.</p>
+                            
+                            <h5 class="h6 mt-4 mb-2">Características da Impressão</h5>
+                            <ul>
+                                <li><strong>Filamento:</strong> Utilizamos <?= $product['filament_type'] ?? 'PLA' ?> de alta qualidade</li>
+                                <li><strong>Precisão:</strong> Altura de camada de 0.1 a 0.2mm para capturar detalhes finos</li>
+                                <li><strong>Acabamento:</strong> Todas as miniaturas passam por processo de pós-processamento para remoção de suportes</li>
+                                <li><strong>Durabilidade:</strong> Nossas peças são robustas o suficiente para o uso em jogos</li>
+                            </ul>
+                            
+                            <?php if ($product['availability'] === 'Sob Encomenda'): ?>
+                            <div class="alert alert-info mt-3">
+                                <h5 class="h6"><i class="bi bi-info-circle me-2"></i>Produtos Sob Encomenda</h5>
+                                <p class="mb-0">Este é um produto sob encomenda. Após seu pedido, o item será impresso especialmente para você usando as configurações escolhidas. O tempo de produção é de aproximadamente <?= $product['print_time_hours'] ?? '4-8' ?> horas, mais o tempo para acabamento e envio.</p>
+                            </div>
+                            <?php elseif ($product['availability'] === 'Pronta Entrega'): ?>
+                            <div class="alert alert-success mt-3">
+                                <h5 class="h6"><i class="bi bi-check-circle me-2"></i>Produto Testado - Pronta Entrega</h5>
+                                <p class="mb-0">Este produto já foi testado e está disponível para pronta entrega. Nós já imprimimos, validamos a qualidade e temos em estoque, garantindo envio rápido e qualidade comprovada.</p>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         
                         <?php if ($product['is_customizable']): ?>
@@ -232,6 +409,13 @@
                                 <li>PAC: 5 a 15 dias úteis (dependendo da região)</li>
                                 <li>SEDEX: 1 a 5 dias úteis (dependendo da região)</li>
                             </ul>
+                            
+                            <?php if ($product['availability'] === 'Sob Encomenda'): ?>
+                            <div class="alert alert-warning mt-3">
+                                <h5 class="h6"><i class="bi bi-clock me-2"></i>Importante: Prazo Adicional para Impressão</h5>
+                                <p class="mb-0">Este produto é impresso sob demanda. Por favor, adicione 2-3 dias úteis ao prazo de entrega para o tempo de impressão e preparação antes do envio.</p>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -251,6 +435,12 @@
                     <div class="position-relative">
                         <?php if ($related['sale_price'] && $related['sale_price'] < $related['price']): ?>
                         <span class="position-absolute badge bg-danger top-0 start-0 m-2">OFERTA</span>
+                        <?php endif; ?>
+                        
+                        <?php if (isset($related['availability'])): ?>
+                        <span class="position-absolute badge <?= $related['availability'] === 'Pronta Entrega' ? 'bg-success' : 'bg-primary' ?> top-0 end-0 m-2">
+                            <?= $related['availability'] ?>
+                        </span>
                         <?php endif; ?>
                         
                         <?php if (!empty($related['image']) && file_exists(UPLOADS_PATH . '/products/' . $related['image'])): ?>
@@ -286,7 +476,27 @@
     <?php endif; ?>
 </div>
 
-<!-- Script para galeria de imagens -->
+<!-- Estilos para seletores de cores -->
+<style>
+.color-option {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+.color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+    border: 1px solid #ddd;
+}
+.form-check-input:checked + .form-check-label .color-swatch {
+    border: 2px solid #0d6efd;
+    box-shadow: 0 0 0 1px #fff inset;
+}
+</style>
+
+<!-- Script para galeria de imagens e outros elementos interativos -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Script para thumbnails de imagem
