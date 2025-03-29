@@ -2,18 +2,18 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T15:55:00Z"
+    "lastUpdated": "2025-03-29T16:35:00Z"
   },
   "development": {
-    "currentFile": "app/config/config.php",
+    "currentFile": "app/controllers/CategoryController.php",
     "currentComponent": "Depuração e Correção de Erros",
     "inProgress": {
       "type": "fix",
       "description": "Correção de erros críticos de funcionamento",
       "remainingTasks": [
-        "Verificar estrutura do banco de dados",
-        "Implementar validações mais robustas nas consultas SQL",
-        "Corrigir processamento de categorias e imagens de produtos"
+        "Verificar resultados do diagnóstico de banco de dados",
+        "Implementar correções com base no diagnóstico",
+        "Testar fluxo completo de compra após correções"
       ]
     }
   },
@@ -40,25 +40,34 @@
     ]
   },
   "context": {
-    "lastThought": "Corrigido problema de ordem de carregamento no config.php onde a função app_log() estava sendo chamada antes de sua definição. Movemos o require_once do arquivo Logger.php para antes de qualquer uso da função app_log() no arquivo config.php, o que deve resolver o erro fatal encontrado.",
+    "lastThought": "Implementadas diversas correções para resolver os erros 500 nas páginas de produto e categoria. As principais melhorias incluem: correção de vulnerabilidade de injeção SQL no CategoryModel, validações mais robustas nas controladoras, e criação de uma ferramenta de diagnóstico completa para o banco de dados.",
     "nextSteps": [
-      "Executar novamente o diagnóstico-erros.php para verificar resolução dos problemas",
-      "Verificar outros arquivos em busca de problemas similares de ordem de carregamento",
-      "Implementar validações adicionais no ProductController",
-      "Melhorar tratamento de erros no CategoryController",
-      "Verificar estrutura e dados do banco com scripts de diagnóstico"
+      "Executar o arquivo database_debug.php para verificar problemas no banco de dados",
+      "Implementar correções com base nos resultados do diagnóstico",
+      "Testar as páginas de produto e categoria para confirmar a resolução dos erros 500",
+      "Testar o fluxo completo de compra incluindo autenticação, checkout e pagamento",
+      "Verificar se há problemas de dados órfãos no banco de dados que precisam ser corrigidos"
+    ],
+    "lastEditedFiles": [
+      "app/models/CategoryModel.php",
+      "app/models/ProductModel.php",
+      "app/controllers/ProductController.php",
+      "app/controllers/CategoryController.php",
+      "public/database_debug.php"
     ]
   },
   "fixes": {
     "errors500": {
-      "status": "partially_fixed",
+      "status": "improved",
       "description": "Problemas de erro 500 identificados nas páginas de produto e categoria via testes Puppeteer",
       "files": [
         "app/controllers/CategoryController.php",
         "app/controllers/ProductController.php",
-        "app/config/config.php"
+        "app/models/CategoryModel.php",
+        "app/models/ProductModel.php"
       ],
-      "timestamp": "2025-03-29T14:30:00Z"
+      "solution": "Implementadas validações robustas e corrigidas vulnerabilidades de SQL no código",
+      "timestamp": "2025-03-29T16:35:00Z"
     },
     "appLogFunction": {
       "status": "fixed",
@@ -113,6 +122,34 @@
         "app/config/config.php"
       ],
       "timestamp": "2025-03-29T14:30:00Z"
+    },
+    "sqlInjectionVulnerability": {
+      "status": "fixed",
+      "description": "Vulnerabilidade de injeção SQL no método getCategoryWithProducts do CategoryModel",
+      "files": [
+        "app/models/CategoryModel.php"
+      ],
+      "solution": "Substituída a concatenação direta de IDs na string SQL por placeholders e parâmetros nomeados preparados",
+      "timestamp": "2025-03-29T16:35:00Z"
+    },
+    "getRelatedBadParams": {
+      "status": "fixed",
+      "description": "Método getRelated no ProductModel usando parâmetros nomeados incorretamente",
+      "files": [
+        "app/models/ProductModel.php"
+      ],
+      "solution": "Corrigidos os parâmetros para corresponder aos utilizados na consulta SQL",
+      "timestamp": "2025-03-29T16:35:00Z"
+    },
+    "insufficientValidation": {
+      "status": "fixed",
+      "description": "Validações insuficientes nos controllers levando a erros ao acessar propriedades inexistentes",
+      "files": [
+        "app/controllers/ProductController.php",
+        "app/controllers/CategoryController.php"
+      ],
+      "solution": "Adicionadas validações robustas para todos os acessos a índices de arrays e estruturas de dados",
+      "timestamp": "2025-03-29T16:35:00Z"
     }
   },
   "implementations": {
@@ -157,12 +194,13 @@
         "public/debug.php",
         "public/product_debug.php",
         "public/category_debug.php",
+        "public/database_debug.php",
         "public/diagnostico-erros.php",
         "app/helpers/Logger.php",
         "app/views/errors/404.php",
         "app/views/errors/500.php"
       ],
-      "timestamp": "2025-03-29T15:30:00Z"
+      "timestamp": "2025-03-29T16:35:00Z"
     },
     "loggingSystem": {
       "status": "improved",
@@ -173,6 +211,14 @@
         "app/config/config.php"
       ],
       "timestamp": "2025-03-29T15:55:00Z"
+    },
+    "databaseDiagnostics": {
+      "status": "implemented",
+      "description": "Ferramenta de diagnóstico para verificação da estrutura e integridade do banco de dados",
+      "files": [
+        "public/database_debug.php"
+      ],
+      "timestamp": "2025-03-29T16:35:00Z"
     }
   },
   "diagnostics": {
@@ -196,13 +242,27 @@
         "Classe Database não encontrada",
         "Constante CURRENCY_SYMBOL com valor numérico incorreto (262145)",
         "Problema de ordem de carregamento do Logger.php em config.php",
-        "Problemas de carregamento resolvidos"
+        "Vulnerabilidade de injeção SQL no CategoryModel",
+        "Validações insuficientes nos controllers",
+        "Parâmetros incorretos no método getRelated do ProductModel"
       ],
       "files": [
         "public/diagnostico-erros.php",
+        "public/database_debug.php",
         "logs/app_*.log"
       ],
-      "timestamp": "2025-03-29T15:55:00Z"
+      "timestamp": "2025-03-29T16:35:00Z"
+    },
+    "databaseCheck": {
+      "status": "pending",
+      "description": "Verificação detalhada da estrutura e integridade do banco de dados",
+      "nextSteps": [
+        "Executar diagnóstico através do arquivo database_debug.php",
+        "Verificar tabelas e campos obrigatórios",
+        "Verificar índices críticos",
+        "Identificar e corrigir registros órfãos"
+      ],
+      "timestamp": "2025-03-29T16:35:00Z"
     }
   }
 }
