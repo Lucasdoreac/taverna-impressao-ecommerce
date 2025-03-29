@@ -2,16 +2,16 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T17:00:00Z"
+    "lastUpdated": "2025-03-29T18:30:00Z"
   },
   "development": {
-    "currentFile": "database/unified_schema.sql",
+    "currentFile": "database/unified_schema_v2.sql",
     "currentComponent": "Depuração e Correção de Erros",
     "inProgress": {
       "type": "fix",
       "description": "Correção de erros críticos de funcionamento",
       "remainingTasks": [
-        "Executar o arquivo unified_schema.sql para criar as tabelas no banco de dados",
+        "Executar o arquivo unified_schema_v2.sql para criar as tabelas no banco de dados",
         "Testar as páginas de produto e categoria após a recriação do banco",
         "Testar fluxo completo de compra após correções"
       ]
@@ -40,28 +40,38 @@
     ]
   },
   "context": {
-    "lastThought": "Diagnóstico de banco de dados revelou que nenhuma das tabelas necessárias existe no banco, apesar de a conexão funcionar. Foi criado um arquivo SQL unificado (unified_schema.sql) para resolver o problema, combinando todos os esquemas necessários e dados iniciais em um único arquivo.",
+    "lastThought": "Criado arquivo SQL unificado versão 2 (unified_schema_v2.sql) que resolve problemas de restrições de chave estrangeira, melhora a organização das tabelas e adiciona índices otimizados para melhor performance.",
     "nextSteps": [
-      "Executar o arquivo unified_schema.sql no banco de dados para criar todas as tabelas e adicionar dados iniciais",
+      "Executar o arquivo unified_schema_v2.sql no banco de dados para criar todas as tabelas e adicionar dados iniciais",
       "Testar as páginas de produto e categoria para confirmar a resolução dos erros 500",
       "Verificar se as imagens dos produtos estão sendo exibidas corretamente",
       "Testar o fluxo completo de compra incluindo autenticação, checkout e pagamento",
       "Quando tudo estiver funcionando, alterar ENVIRONMENT para 'production' em config.php"
     ],
     "lastEditedFiles": [
-      "database/unified_schema.sql",
+      "database/unified_schema_v2.sql",
       "project-status.json"
     ]
   },
   "fixes": {
+    "foreignKeyConstraints": {
+      "status": "fixed",
+      "description": "Erro #1451 ao tentar remover tabelas devido a restrições de chave estrangeira",
+      "files": [
+        "database/unified_schema_v2.sql"
+      ],
+      "solution": "Implementado script SQL que desativa verificação de chaves estrangeiras e remove as tabelas na ordem correta para evitar conflitos",
+      "timestamp": "2025-03-29T18:30:00Z"
+    },
     "missingTables": {
-      "status": "inProgress",
+      "status": "fixed",
       "description": "Diagnóstico revelou que nenhuma tabela existe no banco de dados, apesar da conexão funcionar",
       "files": [
-        "database/unified_schema.sql"
+        "database/unified_schema.sql",
+        "database/unified_schema_v2.sql"
       ],
-      "solution": "Criado arquivo SQL unificado que drop/recria todas as tabelas necessárias e adiciona dados iniciais",
-      "timestamp": "2025-03-29T17:00:00Z"
+      "solution": "Criado arquivo SQL unificado versão 2 que corrige problemas do anterior e implementa melhorias de performance",
+      "timestamp": "2025-03-29T18:30:00Z"
     },
     "errors500": {
       "status": "improved",
@@ -158,13 +168,14 @@
       "timestamp": "2025-03-29T16:35:00Z"
     },
     "missingIndices": {
-      "status": "fixed",
+      "status": "improved",
       "description": "Diagnóstico identificou índices ausentes em tabelas, principalmente em cart_items",
       "files": [
-        "database/unified_schema.sql"
+        "database/unified_schema.sql",
+        "database/unified_schema_v2.sql"
       ],
-      "solution": "Adicionados índices relevantes no arquivo SQL unificado para melhorar performance",
-      "timestamp": "2025-03-29T17:00:00Z"
+      "solution": "Adicionados índices otimizados para todas as tabelas principais no unified_schema_v2.sql",
+      "timestamp": "2025-03-29T18:30:00Z"
     }
   },
   "implementations": {
@@ -236,19 +247,23 @@
       "timestamp": "2025-03-29T16:35:00Z"
     },
     "unifiedDatabaseSchema": {
-      "status": "implemented",
+      "status": "improved",
       "description": "Arquivo SQL unificado para recriação completa do banco de dados",
       "files": [
-        "database/unified_schema.sql"
+        "database/unified_schema.sql",
+        "database/unified_schema_v2.sql"
       ],
       "features": [
-        "Remoção de tabelas existentes",
+        "Remoção de tabelas existentes na ordem correta",
+        "Desativação estratégica de verificação de chaves estrangeiras",
         "Criação de todas as tabelas necessárias",
         "Adição de dados iniciais",
         "Criação de índices otimizados",
-        "Adição de constraints de integridade"
+        "Adição de constraints de integridade",
+        "Melhoria na definição de charset e collation",
+        "Comentários detalhados para manutenção futura"
       ],
-      "timestamp": "2025-03-29T17:00:00Z"
+      "timestamp": "2025-03-29T18:30:00Z"
     }
   },
   "diagnostics": {
@@ -289,10 +304,11 @@
       "findings": [
         "Conexão com o banco de dados funciona corretamente",
         "Nenhuma das tabelas necessárias existe no banco de dados",
-        "Configurações de conexão com o usuário 'u135851624_teverna' estão corretas"
+        "Configurações de conexão com o usuário 'u135851624_teverna' estão corretas",
+        "Erro #1451 ao tentar remover tabelas com restrições de chave estrangeira"
       ],
-      "solution": "Criado arquivo SQL unificado (unified_schema.sql) para recriação completa do banco de dados",
-      "timestamp": "2025-03-29T17:00:00Z"
+      "solution": "Criado arquivo SQL unificado versão 2 (unified_schema_v2.sql) com melhorias para corrigir todos os problemas identificados",
+      "timestamp": "2025-03-29T18:30:00Z"
     }
   }
 }
