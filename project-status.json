@@ -2,19 +2,17 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO 3D E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-29T16:55:30Z"
+    "lastUpdated": "2025-03-29T17:07:00Z"
   },
   "development": {
-    "currentFile": "app/views/cart.php",
+    "currentFile": "app/views/order_details.php",
     "currentComponent": "Adaptação para Impressão 3D",
     "inProgress": {
       "type": "improvement",
       "description": "Adaptação do sistema para e-commerce de impressão 3D de miniaturas e acessórios para RPG",
       "remainingTasks": [
-        "Adaptar o fluxo de pedidos para impressão sob demanda",
         "Implementar sistema de upload e validação de modelos 3D",
-        "Criar interface de gerenciamento de fila de impressão",
-        "Adaptar a página de checkout para refletir opções de impressão 3D"
+        "Criar interface de gerenciamento de fila de impressão"
       ]
     }
   },
@@ -32,13 +30,14 @@
       "Sistema de Visualização de Imagens",
       "Esquema de Banco de Dados para Impressão 3D",
       "Filtros de Produtos por Disponibilidade",
-      "Adaptação do Carrinho para Opções de Impressão 3D"
+      "Adaptação do Carrinho para Opções de Impressão 3D",
+      "Adaptação do Checkout para Impressão 3D",
+      "Sistema de Pedidos de Impressão 3D"
     ],
     "inProgress": [
       "Detalhes de Produto de Impressão 3D",
       "Categorias",
-      "Personalização 3D",
-      "Gerenciamento de Pedidos de Impressão 3D"
+      "Personalização 3D"
     ],
     "pending": [
       "Painel Administrativo",
@@ -48,21 +47,19 @@
     ]
   },
   "context": {
-    "lastThought": "Adaptação da página do carrinho para exibir e permitir a edição de opções de impressão 3D, incluindo escala, tipo de filamento e cor. Também foram adicionadas funcionalidades para mostrar a disponibilidade dos produtos (pronta entrega vs sob encomenda) e informações sobre o tempo estimado de impressão e uso de filamento para produtos sob encomenda.",
+    "lastThought": "Adaptação concluída do sistema de checkout e pedidos para suportar produtos de impressão 3D. Foram implementadas funcionalidades para diferenciar entre produtos em estoque (pronta entrega) e produtos sob encomenda, cálculo de tempo estimado de impressão, prazos de entrega estimados, e novos status específicos para o fluxo de produção de impressão 3D (validating, printing, finishing).",
     "nextSteps": [
-      "Adaptar a página de checkout para incluir informações de impressão 3D",
-      "Modificar o OrderController para processar informações de impressão 3D",
       "Implementar o sistema de upload e validação de modelos 3D para impressão personalizada",
       "Criar tela de gerenciamento de fila de impressão para o admin",
-      "Adaptar o OrderModel para suportar produtos sob encomenda vs pronta entrega"
+      "Implementar interface de acompanhamento de status de impressão para o cliente",
+      "Desenvolver sistema para gerenciar filamento disponível e otimizar uso"
     ],
     "lastEditedFiles": [
-      "app/views/cart.php",
-      "app/controllers/CartController.php",
-      "app/models/CartModel.php",
-      "app/models/ProductModel.php",
-      "app/controllers/ProductController.php",
-      "app/views/products.php"
+      "app/controllers/CheckoutController.php",
+      "app/views/checkout.php",
+      "app/models/OrderModel.php",
+      "app/controllers/OrderController.php",
+      "project-status.json"
     ],
     "incompleteOperations": false
   },
@@ -229,14 +226,15 @@
       "timestamp": "2025-03-29T00:02:00Z"
     },
     "orderManagement": {
-      "status": "inProgress",
+      "status": "completed",
       "description": "Sistema de gerenciamento de pedidos",
       "files": [
         "app/controllers/OrderController.php",
+        "app/models/OrderModel.php",
         "app/views/orders.php",
         "app/views/order_details.php"
       ],
-      "timestamp": "2025-03-29T00:02:00Z"
+      "timestamp": "2025-03-29T17:03:50Z"
     },
     "debugTools": {
       "status": "improved",
@@ -357,6 +355,31 @@
         "app/views/cart.php"
       ],
       "timestamp": "2025-03-29T16:54:16Z"
+    },
+    "checkout3dSystem": {
+      "status": "completed",
+      "description": "Sistema de checkout adaptado para impressão 3D com exibição de tempo estimado e prazos",
+      "files": [
+        "app/controllers/CheckoutController.php",
+        "app/views/checkout.php"
+      ],
+      "timestamp": "2025-03-29T17:01:42Z"
+    },
+    "orderModel3d": {
+      "status": "completed",
+      "description": "OrderModel adaptado para suportar pedidos de impressão 3D com diferentes fluxos para pronta entrega e sob encomenda",
+      "files": [
+        "app/models/OrderModel.php"
+      ],
+      "timestamp": "2025-03-29T17:02:57Z"
+    },
+    "orderController3d": {
+      "status": "completed",
+      "description": "OrderController adaptado para suportar status específicos de impressão 3D e gerenciamento do fluxo de produção",
+      "files": [
+        "app/controllers/OrderController.php"
+      ],
+      "timestamp": "2025-03-29T17:03:50Z"
     }
   },
   "diagnostics": {
@@ -407,16 +430,16 @@
   },
   "roadmap": {
     "shortTerm": [
-      "Adaptar a página de checkout para processar impressão 3D",
-      "Adaptar o sistema de pedidos para distinguir entre pronta entrega e sob encomenda",
       "Implementar sistema de upload e validação de modelos 3D",
-      "Implementar sistema de tracking de status de impressão"
+      "Criar dashboard para gerenciamento de fila de impressão",
+      "Implementar sistema de tracking de status de impressão para o cliente",
+      "Desenvolver interface para visualização de histórico de produção"
     ],
     "mediumTerm": [
-      "Desenvolver dashboard para gerenciamento de fila de impressão",
       "Implementar sistema de relatórios para uso de filamento e tempo de impressão",
-      "Desenvolver sistema de monitoramento de status da impressão",
-      "Otimizar carregamento de imagens e assets para melhorar a performance"
+      "Desenvolver sistema de monitoramento em tempo real do status da impressão",
+      "Otimizar carregamento de imagens e assets para melhorar a performance",
+      "Implementar sistema de notificações por e-mail para atualizações de status"
     ],
     "longTerm": [
       "Implementar sistema de recomendação de produtos baseado em jogos e interesses",
