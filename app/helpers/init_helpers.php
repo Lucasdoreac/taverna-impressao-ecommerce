@@ -28,6 +28,17 @@ if (class_exists('CacheHelper')) {
     // CacheHelper::setCacheTimeForType('js', 1209600);  // 2 semanas para JS
 }
 
+// Inicializar ResourceOptimizerHelper
+if (class_exists('ResourceOptimizerHelper')) {
+    ResourceOptimizerHelper::init();
+    ResourceOptimizerHelper::setProductionMode($isProduction);
+    
+    // Habilitar CSS crítico apenas em produção para facilitar desenvolvimento
+    if (!$isProduction) {
+        ResourceOptimizerHelper::enableCriticalCSS(false);
+    }
+}
+
 /**
  * Função para facilitar o uso de imagens com lazy loading em toda a aplicação
  * 
@@ -134,5 +145,62 @@ function serveStaticFile($filePath, $cacheTime = null) {
         
         readfile($filePath);
         exit;
+    }
+}
+
+/**
+ * Função para otimizar carregamento de recursos externos
+ * 
+ * @param string $url URL do recurso externo
+ * @param string $type Tipo de recurso (css, js, font)
+ * @param array $options Opções adicionais
+ * @return string Tag HTML otimizada para o recurso
+ */
+function optimizeExternalResource($url, $type = 'js', $options = []) {
+    if (class_exists('ResourceOptimizerHelper')) {
+        // Determinar opções padrão com base no tipo
+        $defaultOptions = [];
+        
+        if ($type === 'js') {
+            $defaultOptions = [
+                'async' => ResourceOptimizerHelper::shouldLoadAsync($url),
+                'defer' => true,
+                'module' => false
+            ];
+        } elseif ($type === 'font') {
+            $defaultOptions = [
+                'preload' => ResourceOptimizerHelper::isCriticalResource($url)
+            ];
+        }
+        
+        // Mesclar opções padrão com opções fornecidas
+        $options = array_merge($defaultOptions, $options);
+        
+        // Otimizar com base no tipo
+        if ($type === 'js') {
+            return ResourceOptimizerHelper::optimizeScriptLoad(
+                $url, 
+                $options['async'], 
+                $options['defer'],
+                $options['module']
+            );
+        } elseif ($type === 'css') {
+            // Para CSS, apenas usar a versão local se disponível
+            $localUrl = ResourceOptimizerHelper::getLocalResourceUrl($url);
+            return '<link rel="stylesheet" href="' . $localUrl . '">';
+        } elseif ($type === 'font') {
+            return ResourceOptimizerHelper::optimizeFontLoad($url, $options['preload']);
+        }
+    }
+    
+    // Fallback para links/scripts padrão
+    if ($type === 'css') {
+        return '<link rel="stylesheet" href="' . $url . '">';
+    } elseif ($type === 'js') {
+        $defer = isset($options['defer']) && $options['defer'] ? ' defer' : '';
+        $async = isset($options['async']) && $options['async'] ? ' async' : '';
+        return '<script src="' . $url . '"' . $defer . $async . '></script>';
+    } elseif ($type === 'font') {
+        return '<link rel="stylesheet" href="' . $url . '">';
     }
 }
