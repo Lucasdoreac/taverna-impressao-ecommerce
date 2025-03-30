@@ -1,10 +1,12 @@
 <?php require_once VIEWS_PATH . '/partials/header.php'; ?>
 <?php 
-// Incluir o helper do visualizador 3D
-require_once APP_PATH . '/helpers/ModelViewerHelper.php'; 
+// Incluir os helpers necessários
+require_once APP_PATH . '/helpers/ModelViewerHelper.php';
+require_once APP_PATH . '/helpers/WebGLDetector.php';
 ?>
 
 <?= ModelViewerHelper::includeThreeJs() ?>
+<?= WebGLDetector::include($product['name'], !empty($product['images']) ? BASE_URL . 'uploads/products/' . $product['images'][0]['image'] : '') ?>
 
 <div class="container py-4">
     <!-- Breadcrumb -->
@@ -70,66 +72,80 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
                     
                     <!-- Aba de Modelo 3D -->
                     <div class="tab-pane fade" id="model-3d-tab-content" role="tabpanel" aria-labelledby="model-3d-tab">
-                        <!-- Visualizador 3D -->
-                        <?php 
-                        // Verificação mais robusta da existência do modelo 3D
-                        $hasModelFile = false;
+                        <!-- Verificação de compatibilidade WebGL -->
+                        <div id="webgl-compatibility-check" class="d-none">
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>Verificando compatibilidade...</strong>
+                                <p>Estamos verificando se seu dispositivo suporta visualização 3D.</p>
+                            </div>
+                        </div>
                         
-                        // Verificar a chave model_file
-                        if (isset($product['model_file']) && !empty($product['model_file'])) {
-                            $hasModelFile = true;
+                        <!-- Visualizador 3D -->
+                        <div id="model-viewer-container">
+                            <?php 
+                            // Verificação mais robusta da existência do modelo 3D
+                            $hasModelFile = false;
                             
-                            // Verificar se o arquivo existe fisicamente
-                            $modelPath = UPLOADS_PATH . '/products/models/' . $product['model_file'];
-                            if (!file_exists($modelPath)) {
-                                // Tentar buscar em locais alternativos
-                                $altPaths = [
-                                    UPLOADS_PATH . '/models/' . $product['model_file'],
-                                    ROOT_PATH . '/public/assets/models/' . $product['model_file']
-                                ];
+                            // Verificar a chave model_file
+                            if (isset($product['model_file']) && !empty($product['model_file'])) {
+                                $hasModelFile = true;
                                 
-                                $hasModelFile = false;
-                                foreach ($altPaths as $path) {
-                                    if (file_exists($path)) {
-                                        $hasModelFile = true;
-                                        break;
+                                // Verificar se o arquivo existe fisicamente
+                                $modelPath = UPLOADS_PATH . '/products/models/' . $product['model_file'];
+                                if (!file_exists($modelPath)) {
+                                    // Tentar buscar em locais alternativos
+                                    $altPaths = [
+                                        UPLOADS_PATH . '/models/' . $product['model_file'],
+                                        ROOT_PATH . '/public/assets/models/' . $product['model_file']
+                                    ];
+                                    
+                                    $hasModelFile = false;
+                                    foreach ($altPaths as $path) {
+                                        if (file_exists($path)) {
+                                            $hasModelFile = true;
+                                            break;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        
-                        // Log para diagnóstico
-                        if (ENVIRONMENT === 'development') {
-                            error_log('Produto ID: ' . $product['id'] . ', Modelo 3D: ' . ($hasModelFile ? 'Sim' : 'Não'));
-                            if (isset($product['model_file'])) {
-                                error_log('Nome do arquivo: ' . $product['model_file']);
+                            
+                            // Log para diagnóstico
+                            if (ENVIRONMENT === 'development') {
+                                error_log('Produto ID: ' . $product['id'] . ', Modelo 3D: ' . ($hasModelFile ? 'Sim' : 'Não'));
+                                if (isset($product['model_file'])) {
+                                    error_log('Nome do arquivo: ' . $product['model_file']);
+                                }
                             }
-                        }
-                        
-                        if ($hasModelFile): 
-                            // Configurar para ser responsivo em dispositivos móveis
-                            echo ModelViewerHelper::createProductModelViewer($product, [
-                                'height' => 'model-viewer-height-md',
-                                'backgroundColor' => '#ffffff',
-                                'modelColor' => '#5a5a5a',
-                                'showGrid' => true,
-                                'showControls' => true,
-                                'autoRotate' => true,
-                                'optimizeForMobile' => true,
-                                'progressiveLoading' => true
-                            ]);
-                        else:
-                        ?>
-                            <div class="card">
-                                <div class="card-body text-center py-5">
-                                    <i class="fas fa-cube fa-3x mb-3 text-muted"></i>
-                                    <h4>Visualização 3D não disponível</h4>
-                                    <p class="text-muted">Este produto não possui um modelo 3D para visualização.</p>
+                            
+                            if ($hasModelFile): 
+                                // Configurar para ser responsivo em dispositivos móveis
+                                echo ModelViewerHelper::createProductModelViewer($product, [
+                                    'height' => 'model-viewer-height-md',
+                                    'backgroundColor' => '#ffffff',
+                                    'modelColor' => '#5a5a5a',
+                                    'showGrid' => true,
+                                    'showControls' => true,
+                                    'autoRotate' => true,
+                                    'optimizeForMobile' => true,
+                                    'progressiveLoading' => true
+                                ]);
+                            else:
+                            ?>
+                                <div class="card">
+                                    <div class="card-body text-center py-5">
+                                        <i class="fas fa-cube fa-3x mb-3 text-muted"></i>
+                                        <h4>Visualização 3D não disponível</h4>
+                                        <p class="text-muted">Este produto não possui um modelo 3D para visualização.</p>
+                                    </div>
                                 </div>
-                            </div>
-                        <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
                         
-                        <div class="mt-2 text-center text-muted small">
+                        <!-- Conteúdo alternativo para quando WebGL não é suportado -->
+                        <div id="webgl-fallback-container"></div>
+                        
+                        <div class="mt-2 text-center text-muted small webgl-instruction">
                             <i class="fas fa-hand-pointer me-1"></i> Você pode rotacionar, aproximar e examinar o modelo de todos os ângulos
                         </div>
                     </div>
@@ -678,9 +694,89 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Script para verificar compatibilidade WebGL e exibir conteúdo alternativo quando necessário
+    const checkWebGLCompat = () => {
+        const compatCheck = document.getElementById('webgl-compatibility-check');
+        const viewerContainer = document.getElementById('model-viewer-container');
+        const fallbackContainer = document.getElementById('webgl-fallback-container');
+        const instruction = document.querySelector('.webgl-instruction');
+        
+        // Mostrar mensagem de verificação de compatibilidade
+        if (compatCheck) {
+            compatCheck.classList.remove('d-none');
+        }
+        
+        // Usar detecção do lado do cliente
+        if (window.tavernaWebGLDetection) {
+            // Esconder mensagem de verificação
+            if (compatCheck) {
+                compatCheck.classList.add('d-none');
+            }
+            
+            // Se WebGL não for suportado ou for Modelo 3D
+            if (!window.tavernaWebGLDetection.hasWebGLSupport()) {
+                // Esconder o container do visualizador
+                if (viewerContainer) {
+                    viewerContainer.style.display = 'none';
+                }
+                
+                // Preencher e mostrar conteúdo alternativo
+                if (fallbackContainer) {
+                    // O fallback HTML já foi injetado pelo backend no início da página
+                    fallbackContainer.style.display = 'block';
+                }
+                
+                // Esconder a instrução para o visualizador 3D
+                if (instruction) {
+                    instruction.style.display = 'none';
+                }
+            }
+        }
+    };
+    
+    // Executar verificação de compatibilidade
+    checkWebGLCompat();
+    
+    // Aplicar otimizações para o visualizador 3D
+    if (window.tavernaWebGLDetection && window.tavernaWebGLDetection.hasWebGLSupport()) {
+        // Obter parâmetros otimizados com base no dispositivo
+        const params = window.tavernaWebGLDetection.getOptimalParameters();
+        const detection = window.tavernaWebGLDetection.getDetectionResults();
+        
+        // Aplicar otimizações ao visualizador quando necessário
+        if (window.modelViewers) {
+            const viewerId = 'product-model-viewer-<?= $product['id'] ?>';
+            if (window.modelViewers[viewerId]) {
+                const viewer = window.modelViewers[viewerId];
+                
+                // Aplicar otimizações com base no dispositivo
+                if (detection.isMobile) {
+                    viewer.setQuality('low');
+                    viewer.disableShadows();
+                    viewer.disableReflections();
+                    viewer.enableProgressiveLoading(true);
+                } else if (detection.memoryStatus === 'low') {
+                    viewer.setQuality('low');
+                    viewer.disableShadows();
+                    viewer.disableReflections();
+                } else if (detection.memoryStatus === 'medium') {
+                    viewer.setQuality('medium');
+                    viewer.disableShadows();
+                }
+                
+                // Registrar para depuração
+                console.log('Visualizador 3D configurado para otimização:', 
+                    detection.isMobile ? 'Modo móvel' : 'Modo desktop',
+                    'WebGL v' + detection.webGLVersion,
+                    'GPU: ' + (detection.renderer || 'Desconhecido'));
+            }
+        }
+    }
 });
 </script>
 
 <?= ModelViewerHelper::getResponsiveOrientationScript() ?>
+<?= WebGLDetector::getOptimizationScript() ?>
 
 <?php require_once VIEWS_PATH . '/partials/footer.php'; ?>
