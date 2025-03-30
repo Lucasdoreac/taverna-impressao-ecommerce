@@ -13,10 +13,13 @@ class AdminPerformanceController extends Controller {
     // Helper para aplicação de otimizações
     private $sqlOptimizer;
     
-    // Model de produtos para análise
+    // Helper para testes de performance
+    private $sqlPerformanceTest;
+    
+    // Modelo de produtos para análise
     private $productModel;
     
-    // Model de categorias para análise
+    // Modelo de categorias para análise
     private $categoryModel;
     
     /**
@@ -31,6 +34,7 @@ class AdminPerformanceController extends Controller {
         // Carregar helpers e modelos necessários
         $this->queryOptimizer = new QueryOptimizerHelper();
         $this->sqlOptimizer = new SQLOptimizationHelper();
+        $this->sqlPerformanceTest = new SQLPerformanceTestHelper();
         $this->productModel = new ProductModel();
         $this->categoryModel = new CategoryModel();
     }
@@ -127,20 +131,20 @@ class AdminPerformanceController extends Controller {
                 $content = file_get_contents($modelFile);
                 
                 // Extrair consultas SQL
-                preg_match_all('/\$sql\s*=\s*[\"\']([\s\S]+?)[\"\']/', $content, $matches);
+                preg_match_all('/\\$sql\\s*=\\s*[\\\"\\']([\\s\\S]+?)[\\\"\\']/', $content, $matches);
                 $queries = $matches[1] ?? [];
                 
                 $analysis = [];
                 foreach ($queries as $index => $query) {
                     // Extrair método onde a query está sendo usada
-                    preg_match('/public\s+function\s+(\w+)[^{]*{[^}]*\$sql\s*=\s*[\"\']/s', $content, $methodMatches);
-                    $method = isset($methodMatches[1]) ? $methodMatches[1] : "unknown_method_$index";
+                    preg_match('/public\\s+function\\s+(\\w+)[^{]*{[^}]*\\$sql\\s*=\\s*[\\\"\\']/s', $content, $methodMatches);
+                    $method = isset($methodMatches[1]) ? $methodMatches[1] : \"unknown_method_$index\";
                     
                     // Analisar a query
                     $suggestions = $this->queryOptimizer->suggestOptimizations($query);
                     
                     // Extrair tabela principal da query
-                    preg_match('/FROM\s+(\w+)/i', $query, $tableMatches);
+                    preg_match('/FROM\\s+(\\w+)/i', $query, $tableMatches);
                     $table = isset($tableMatches[1]) ? str_replace(['{', '}', '$this->table'], 'categories', $tableMatches[1]) : '';
                     
                     $indexAnalysis = $table ? $this->queryOptimizer->analyzeIndexUsage($query, $table) : null;
@@ -237,7 +241,7 @@ class AdminPerformanceController extends Controller {
         $suggestions = $this->queryOptimizer->suggestOptimizations($query);
         
         // Extrair tabela principal da query
-        preg_match('/FROM\s+(\w+)/i', $query, $tableMatches);
+        preg_match('/FROM\\s+(\\w+)/i', $query, $tableMatches);
         $table = isset($tableMatches[1]) ? $tableMatches[1] : '';
         
         // Analisar uso de índices se houver tabela
@@ -725,7 +729,7 @@ if ($hasFulltext) {
         $content = file_get_contents($modelFile);
         
         // Extrair todas as consultas SQL
-        preg_match_all('/\$sql\s*=\s*[\"\']([\s\S]+?)[\"\']/', $content, $matches);
+        preg_match_all('/\\$sql\\s*=\\s*[\\\"\\']([\\s\\S]+?)[\\\"\\']/', $content, $matches);
         $queries = $matches[1] ?? [];
         
         $recommendations = [];
@@ -737,7 +741,7 @@ if ($hasFulltext) {
             $suggestions = $this->queryOptimizer->suggestOptimizations($query);
             
             // Extrair tabela principal da query
-            preg_match('/FROM\s+(\w+)/i', $query, $tableMatches);
+            preg_match('/FROM\\s+(\\w+)/i', $query, $tableMatches);
             $table = isset($tableMatches[1]) ? str_replace(['{', '}', '$this->table'], $tableName, $tableMatches[1]) : '';
             
             // Analisar uso de índices se houver tabela
@@ -808,5 +812,414 @@ if ($hasFulltext) {
             'results' => $performanceResults,
             'indicesApplied' => $indicesApplied
         ]);
+    }
+    
+    /**
+     * Exibe a interface de testes de performance SQL otimizado
+     * 
+     * @return void
+     */
+    public function sqlPerformanceTest() {
+        // Carregar testes anteriores, se existirem
+        $previousTests = $this->loadPreviousPerformanceTests();
+        
+        // Renderizar view
+        $this->view->render('admin/sql_performance_test', [
+            'title' => 'Testes de Performance de Otimizações SQL',
+            'previousTests' => $previousTests
+        ]);
+    }
+    
+    /**
+     * Executa testes de performance SQL e exibe resultados
+     * 
+     * @return void
+     */
+    public function runPerformanceTests() {
+        // Verificar se é uma requisição POST
+        if ($this->request->method() !== 'POST') {
+            $this->redirect('admin_performance/sql_performance_test');
+            return;
+        }
+        
+        try {
+            // Obter parâmetros do formulário
+            $models = $this->request->post('models', []);
+            $iterations = intval($this->request->post('iterations', 10));
+            $includeLoadTest = (bool) $this->request->post('include_load_test', false);
+            $saveResults = (bool) $this->request->post('save_results', true);
+            $useBaseline = (bool) $this->request->post('use_baseline', false);
+            
+            // Verificar parâmetros
+            if (empty($models)) {
+                throw new Exception('Selecione pelo menos um modelo para testar.');
+            }
+            
+            // Configurar número de iterações
+            $this->sqlPerformanceTest->setIterations($iterations);
+            
+            // Resultados
+            $results = [];
+            $baselineResults = null;
+            
+            // Executar testes por modelo
+            foreach ($models as $model) {
+                switch ($model) {
+                    case 'product':
+                        $results['ProductModel'] = $this->sqlPerformanceTest->testProductModelPerformance();
+                        break;
+                    case 'category':
+                        $results['CategoryModel'] = $this->sqlPerformanceTest->testCategoryModelPerformance();
+                        break;
+                }
+            }
+            
+            // Adicionar testes de carga se solicitado
+            if ($includeLoadTest) {
+                $results['LoadTest'] = $this->sqlPerformanceTest->loadTest(5, 3);
+            }
+            
+            // Carregar baseline se solicitado
+            if ($useBaseline) {
+                $baselineResults = $this->loadBaselineResults();
+            }
+            
+            // Gerar relatório
+            $testResults = $this->sqlPerformanceTest->generatePerformanceReport($results, $baselineResults);
+            
+            // Salvar resultados se solicitado
+            $testId = null;
+            if ($saveResults) {
+                $testId = $this->savePerformanceTestResults($results, [
+                    'iterations' => $iterations,
+                    'include_load_test' => $includeLoadTest,
+                    'models' => $models
+                ]);
+            }
+            
+            // Carregar testes anteriores
+            $previousTests = $this->loadPreviousPerformanceTests();
+            
+            // Renderizar view com resultados
+            $this->view->render('admin/sql_performance_test', [
+                'title' => 'Resultados de Testes de Performance SQL',
+                'success' => true,
+                'testId' => $testId,
+                'testResults' => $testResults,
+                'previousTests' => $previousTests
+            ]);
+            
+        } catch (Exception $e) {
+            // Renderizar view com erro
+            $this->view->render('admin/sql_performance_test', [
+                'title' => 'Testes de Performance de Otimizações SQL',
+                'error' => $e->getMessage(),
+                'previousTests' => $this->loadPreviousPerformanceTests()
+            ]);
+        }
+    }
+    
+    /**
+     * Exibe os resultados de um teste anterior específico
+     * 
+     * @param int $testId ID do teste
+     * @return void
+     */
+    public function viewTestResult($testId) {
+        try {
+            // Validar ID
+            $testId = intval($testId);
+            if ($testId <= 0) {
+                throw new Exception('ID de teste inválido.');
+            }
+            
+            // Carregar resultados do teste
+            $testData = $this->loadTestResults($testId);
+            if (!$testData) {
+                throw new Exception('Teste não encontrado.');
+            }
+            
+            // Gerar relatório
+            $testResults = $this->sqlPerformanceTest->generatePerformanceReport($testData['results']);
+            
+            // Renderizar view com resultados
+            $this->view->render('admin/view_test_result', [
+                'title' => 'Resultados do Teste #' . $testId,
+                'testData' => $testData,
+                'testResults' => $testResults
+            ]);
+            
+        } catch (Exception $e) {
+            // Redirecionar com erro
+            $this->setFlash('error', $e->getMessage());
+            $this->redirect('admin_performance/sql_performance_test');
+        }
+    }
+    
+    /**
+     * Compara dois testes de performance
+     * 
+     * @param int $testId1 ID do primeiro teste (opcional)
+     * @param int $testId2 ID do segundo teste (opcional)
+     * @return void
+     */
+    public function compareTests($testId1 = null, $testId2 = null) {
+        try {
+            // Verificar se é uma requisição POST para seleção de testes
+            if ($this->request->method() === 'POST') {
+                $testId1 = $this->request->post('test_id_1');
+                $testId2 = $this->request->post('test_id_2');
+                
+                // Redirecionar para URL com os IDs
+                $this->redirect("admin_performance/compare_tests/$testId1/$testId2");
+                return;
+            }
+            
+            // Validar IDs
+            $testId1 = intval($testId1);
+            $testId2 = intval($testId2);
+            
+            // Se apenas um ID foi fornecido, mostrar formulário para seleção do segundo
+            if ($testId1 > 0 && $testId2 <= 0) {
+                // Carregar lista de testes disponíveis, excluindo o testId1
+                $availableTests = $this->loadPreviousPerformanceTests($testId1);
+                
+                // Renderizar formulário para selecionar o segundo teste
+                $this->view->render('admin/select_comparison_test', [
+                    'title' => 'Selecionar Teste para Comparação',
+                    'testId1' => $testId1,
+                    'availableTests' => $availableTests
+                ]);
+                return;
+            }
+            
+            // Verificar ambos os IDs
+            if ($testId1 <= 0 || $testId2 <= 0) {
+                throw new Exception('IDs de teste inválidos.');
+            }
+            
+            // Carregar resultados dos testes
+            $test1 = $this->loadTestResults($testId1);
+            $test2 = $this->loadTestResults($testId2);
+            
+            if (!$test1 || !$test2) {
+                throw new Exception('Um ou ambos os testes não foram encontrados.');
+            }
+            
+            // Gerar relatório comparativo
+            $comparisonResults = $this->sqlPerformanceTest->generatePerformanceReport($test2['results'], $test1['results']);
+            
+            // Renderizar view com comparação
+            $this->view->render('admin/compare_test_results', [
+                'title' => 'Comparação de Testes de Performance',
+                'test1' => $test1,
+                'test2' => $test2,
+                'comparisonResults' => $comparisonResults
+            ]);
+            
+        } catch (Exception $e) {
+            // Redirecionar com erro
+            $this->setFlash('error', $e->getMessage());
+            $this->redirect('admin_performance/sql_performance_test');
+        }
+    }
+    
+    /**
+     * Salva os resultados de um teste de performance
+     * 
+     * @param array $results Resultados do teste
+     * @param array $metadata Metadados do teste
+     * @return int ID do teste salvo
+     */
+    private function savePerformanceTestResults($results, $metadata) {
+        $testId = time(); // Usar timestamp como ID
+        
+        // Preparar dados para salvar
+        $testData = [
+            'id' => $testId,
+            'timestamp' => date('Y-m-d H:i:s'),
+            'metadata' => $metadata,
+            'results' => $results
+        ];
+        
+        // Caminho para arquivo de resultados
+        $resultsDir = DATA_PATH . '/performance_tests';
+        
+        // Criar diretório se não existir
+        if (!file_exists($resultsDir)) {
+            mkdir($resultsDir, 0755, true);
+        }
+        
+        // Salvar resultados em arquivo JSON
+        $filePath = $resultsDir . '/test_' . $testId . '.json';
+        file_put_contents($filePath, json_encode($testData, JSON_PRETTY_PRINT));
+        
+        // Atualizar índice de testes
+        $this->updateTestIndex($testId, $testData);
+        
+        return $testId;
+    }
+    
+    /**
+     * Atualiza o índice de testes de performance
+     * 
+     * @param int $testId ID do teste
+     * @param array $testData Dados do teste
+     * @return void
+     */
+    private function updateTestIndex($testId, $testData) {
+        // Caminho para arquivo de índice
+        $indexPath = DATA_PATH . '/performance_tests/index.json';
+        
+        // Carregar índice existente ou criar novo
+        $index = [];
+        if (file_exists($indexPath)) {
+            $indexContent = file_get_contents($indexPath);
+            $index = json_decode($indexContent, true) ?: [];
+        }
+        
+        // Preparar informações resumidas
+        $modelNames = [];
+        foreach (array_keys($testData['results']) as $modelName) {
+            if ($modelName !== 'LoadTest') {
+                $modelNames[] = $modelName;
+            }
+        }
+        
+        // Calcular média geral
+        $avgTime = 0;
+        $methodCount = 0;
+        
+        foreach ($testData['results'] as $modelName => $modelResults) {
+            if ($modelName === 'LoadTest') continue;
+            
+            foreach ($modelResults as $methodResult) {
+                $avgTime += $methodResult['avg_time'];
+                $methodCount++;
+            }
+        }
+        
+        $avgTimeMs = $methodCount > 0 ? ($avgTime / $methodCount) * 1000 : 0;
+        
+        // Adicionar ao índice
+        $index[$testId] = [
+            'id' => $testId,
+            'timestamp' => $testData['timestamp'],
+            'models' => implode(', ', $modelNames),
+            'iterations' => $testData['metadata']['iterations'],
+            'avg_results' => number_format($avgTimeMs, 2) . ' ms',
+            'can_compare' => true
+        ];
+        
+        // Salvar índice atualizado
+        file_put_contents($indexPath, json_encode($index, JSON_PRETTY_PRINT));
+    }
+    
+    /**
+     * Carrega a lista de testes de performance anteriores
+     * 
+     * @param int $excludeId ID a ser excluído da lista (opcional)
+     * @return array Lista de testes
+     */
+    private function loadPreviousPerformanceTests($excludeId = null) {
+        // Caminho para arquivo de índice
+        $indexPath = DATA_PATH . '/performance_tests/index.json';
+        
+        // Verificar se o índice existe
+        if (!file_exists($indexPath)) {
+            return [];
+        }
+        
+        // Carregar índice
+        $indexContent = file_get_contents($indexPath);
+        $index = json_decode($indexContent, true) ?: [];
+        
+        // Excluir ID específico se solicitado
+        if ($excludeId !== null) {
+            unset($index[$excludeId]);
+        }
+        
+        // Ordenar por timestamp (mais recente primeiro)
+        uasort($index, function($a, $b) {
+            return strtotime($b['timestamp']) - strtotime($a['timestamp']);
+        });
+        
+        return $index;
+    }
+    
+    /**
+     * Carrega os resultados de um teste específico
+     * 
+     * @param int $testId ID do teste
+     * @return array|null Dados do teste ou null se não encontrado
+     */
+    private function loadTestResults($testId) {
+        // Caminho para arquivo de resultados
+        $filePath = DATA_PATH . '/performance_tests/test_' . $testId . '.json';
+        
+        // Verificar se o arquivo existe
+        if (!file_exists($filePath)) {
+            return null;
+        }
+        
+        // Carregar resultados
+        $content = file_get_contents($filePath);
+        return json_decode($content, true);
+    }
+    
+    /**
+     * Carrega resultados de baseline para comparação
+     * 
+     * @return array|null Resultados de baseline ou null se não encontrado
+     */
+    private function loadBaselineResults() {
+        // Caminho para arquivo de baseline
+        $baselinePath = DATA_PATH . '/performance_tests/baseline.json';
+        
+        // Verificar se o arquivo existe
+        if (!file_exists($baselinePath)) {
+            return null;
+        }
+        
+        // Carregar baseline
+        $content = file_get_contents($baselinePath);
+        $data = json_decode($content, true);
+        
+        return $data['results'] ?? null;
+    }
+    
+    /**
+     * Define um teste como baseline para comparações futuras
+     * 
+     * @param int $testId ID do teste
+     * @return void
+     */
+    public function setAsBaseline($testId) {
+        try {
+            // Validar ID
+            $testId = intval($testId);
+            if ($testId <= 0) {
+                throw new Exception('ID de teste inválido.');
+            }
+            
+            // Carregar resultados do teste
+            $testData = $this->loadTestResults($testId);
+            if (!$testData) {
+                throw new Exception('Teste não encontrado.');
+            }
+            
+            // Salvar como baseline
+            $baselinePath = DATA_PATH . '/performance_tests/baseline.json';
+            file_put_contents($baselinePath, json_encode($testData, JSON_PRETTY_PRINT));
+            
+            // Redirecionar com mensagem de sucesso
+            $this->setFlash('success', 'Teste #' . $testId . ' definido como baseline.');
+            $this->redirect('admin_performance/sql_performance_test');
+            
+        } catch (Exception $e) {
+            // Redirecionar com erro
+            $this->setFlash('error', $e->getMessage());
+            $this->redirect('admin_performance/sql_performance_test');
+        }
     }
 }
