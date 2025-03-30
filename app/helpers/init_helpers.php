@@ -39,6 +39,34 @@ if (class_exists('ResourceOptimizerHelper')) {
     }
 }
 
+// Inicializar ExternalResourceManager
+// Este helper é responsável por minimizar recursos externos
+if (class_exists('ExternalResourceManager')) {
+    // O ExternalResourceManager não requer inicialização específica
+    // mas podemos verificar e baixar recursos comuns aqui se necessário
+    if ($isProduction) {
+        // Array de recursos comuns para verificar
+        $commonResources = [
+            'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+            'https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js'
+        ];
+        
+        // Verificar disponibilidade local para cada recurso
+        foreach ($commonResources as $resource) {
+            // Se existe caminho local, mas o arquivo não existe, baixá-lo
+            $localPath = ExternalResourceManager::getLocalPath($resource);
+            if ($localPath) {
+                $fullPath = ROOT_PATH . '/public/' . $localPath;
+                if (!file_exists($fullPath)) {
+                    // Tentar baixar o recurso
+                    ExternalResourceManager::downloadExternalResource($resource);
+                }
+            }
+        }
+    }
+}
+
 /**
  * Função para facilitar o uso de imagens com lazy loading em toda a aplicação
  * 
@@ -157,7 +185,12 @@ function serveStaticFile($filePath, $cacheTime = null) {
  * @return string Tag HTML otimizada para o recurso
  */
 function optimizeExternalResource($url, $type = 'js', $options = []) {
-    if (class_exists('ResourceOptimizerHelper')) {
+    // Usar ExternalResourceManager se disponível (prioridade)
+    if (class_exists('ExternalResourceManager')) {
+        return ExternalResourceManager::optimizeExternalResource($url, $type, $options);
+    }
+    // Fallback para ResourceOptimizerHelper se disponível
+    else if (class_exists('ResourceOptimizerHelper')) {
         // Determinar opções padrão com base no tipo
         $defaultOptions = [];
         
@@ -203,4 +236,17 @@ function optimizeExternalResource($url, $type = 'js', $options = []) {
     } elseif ($type === 'font') {
         return '<link rel="stylesheet" href="' . $url . '">';
     }
+}
+
+/**
+ * Função para analisar recursos externos em uma página
+ * 
+ * @param string $html Conteúdo HTML a analisar
+ * @return array Recomendações para otimização
+ */
+function analyzeExternalResources($html) {
+    if (class_exists('ExternalResourceManager')) {
+        return ExternalResourceManager::analyzeHtml($html);
+    }
+    return ['Classe ExternalResourceManager não encontrada'];
 }
