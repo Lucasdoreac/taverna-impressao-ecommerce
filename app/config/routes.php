@@ -95,4 +95,11 @@ $routes = [
     
     // Termos e políticas
     '/termos-modelos-3d' => ['PageController', 'termsModels3d'],
+    
+    // Rotas para arquivos estáticos com cache
+    '/static/css/:filename' => ['StaticController', 'css'],
+    '/static/js/:filename' => ['StaticController', 'js'],
+    '/static/image/:filename' => ['StaticController', 'image'],
+    '/static/font/:filename' => ['StaticController', 'font'],
+    '/static/cache/:filename' => ['StaticController', 'cache'],
 ];
