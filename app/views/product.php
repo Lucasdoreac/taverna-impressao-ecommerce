@@ -11,7 +11,9 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="<?= BASE_URL ?>">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= BASE_URL ?>categoria/<?= $product['category_slug'] ?>"><?= $product['category_name'] ?></a></li>
+            <li class="breadcrumb-item"><a href="<?= BASE_URL ?>categoria/<?= $product['category_slug'] ?>">
+                <?= $product['category_name'] ?>
+            </a></li>
             <li class="breadcrumb-item active"><?= $product['name'] ?></li>
         </ol>
     </nav>
@@ -70,7 +72,41 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
                     <div class="tab-pane fade" id="model-3d-tab-content" role="tabpanel" aria-labelledby="model-3d-tab">
                         <!-- Visualizador 3D -->
                         <?php 
-                        if (isset($product['model_file']) && !empty($product['model_file'])): 
+                        // Verificação mais robusta da existência do modelo 3D
+                        $hasModelFile = false;
+                        
+                        // Verificar a chave model_file
+                        if (isset($product['model_file']) && !empty($product['model_file'])) {
+                            $hasModelFile = true;
+                            
+                            // Verificar se o arquivo existe fisicamente
+                            $modelPath = UPLOADS_PATH . '/products/models/' . $product['model_file'];
+                            if (!file_exists($modelPath)) {
+                                // Tentar buscar em locais alternativos
+                                $altPaths = [
+                                    UPLOADS_PATH . '/models/' . $product['model_file'],
+                                    ROOT_PATH . '/public/assets/models/' . $product['model_file']
+                                ];
+                                
+                                $hasModelFile = false;
+                                foreach ($altPaths as $path) {
+                                    if (file_exists($path)) {
+                                        $hasModelFile = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Log para diagnóstico
+                        if (ENVIRONMENT === 'development') {
+                            error_log('Produto ID: ' . $product['id'] . ', Modelo 3D: ' . ($hasModelFile ? 'Sim' : 'Não'));
+                            if (isset($product['model_file'])) {
+                                error_log('Nome do arquivo: ' . $product['model_file']);
+                            }
+                        }
+                        
+                        if ($hasModelFile): 
                             // Configurar para ser responsivo em dispositivos móveis
                             echo ModelViewerHelper::createProductModelViewer($product, [
                                 'height' => 'model-viewer-height-md',
@@ -109,14 +145,20 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
             <div class="mb-3">
                 <?php if ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
                 <div class="d-flex align-items-center">
-                    <span class="text-decoration-line-through text-muted">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
-                    <span class="ms-2 h4 text-danger mb-0">R$ <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
+                    <span class="text-decoration-line-through text-muted">
+                        <?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?>
+                    </span>
+                    <span class="ms-2 h4 text-danger mb-0">
+                        <?= getCurrencySymbol() ?> <?= number_format($product['sale_price'], 2, ',', '.') ?>
+                    </span>
                     <span class="badge bg-danger ms-2">
                         <?= round((1 - $product['sale_price'] / $product['price']) * 100) ?>% OFF
                     </span>
                 </div>
                 <?php else: ?>
-                <span class="h4 mb-0">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
+                <span class="h4 mb-0">
+                    <?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?>
+                </span>
                 <?php endif; ?>
                 
                 <div class="text-muted small mt-1">
@@ -517,10 +559,16 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <?php if ($related['sale_price'] && $related['sale_price'] < $related['price']): ?>
-                                <span class="text-decoration-line-through text-muted small">R$ <?= number_format($related['price'], 2, ',', '.') ?></span>
-                                <span class="ms-1 text-danger fw-bold">R$ <?= number_format($related['sale_price'], 2, ',', '.') ?></span>
+                                <span class="text-decoration-line-through text-muted small">
+                                    <?= getCurrencySymbol() ?> <?= number_format($related['price'], 2, ',', '.') ?>
+                                </span>
+                                <span class="ms-1 text-danger fw-bold">
+                                    <?= getCurrencySymbol() ?> <?= number_format($related['sale_price'], 2, ',', '.') ?>
+                                </span>
                                 <?php else: ?>
-                                <span class="fw-bold">R$ <?= number_format($related['price'], 2, ',', '.') ?></span>
+                                <span class="fw-bold">
+                                    <?= getCurrencySymbol() ?> <?= number_format($related['price'], 2, ',', '.') ?>
+                                </span>
                                 <?php endif; ?>
                             </div>
                             <div>
