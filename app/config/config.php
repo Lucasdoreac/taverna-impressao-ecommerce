@@ -44,20 +44,40 @@ define('STORE_NAME', 'TAVERNA DA IMPRESSÃO');
 define('STORE_EMAIL', 'contato@tavernaimpressao.com.br');
 define('STORE_PHONE', '(00) 0000-0000');
 
-// Moeda - definição clara e direta com verificação
+// Moeda - definição de forma explícita para garantir tipo string
 if (!defined('CURRENCY')) {
     define('CURRENCY', 'BRL');
 }
 
+// Corrigir problema com a constante CURRENCY_SYMBOL sendo exibida como número
+// Garantir que a constante seja sempre tratada como string
 if (!defined('CURRENCY_SYMBOL')) {
     define('CURRENCY_SYMBOL', 'R$');
 }
+
+// Definir uma versão alternativa da constante para uso quando a original apresentar problemas
+define('CURRENCY_SYMBOL_STR', 'R$');
 
 // Log de configuração para depuração
 if (ENVIRONMENT === 'development') {
     app_log("Configurações carregadas com sucesso", "info");
     app_log("CURRENCY_SYMBOL definido como: " . CURRENCY_SYMBOL, "debug");
+    app_log("CURRENCY_SYMBOL_STR definido como: " . CURRENCY_SYMBOL_STR, "debug");
     app_log("CURRENCY definido como: " . CURRENCY, "debug");
+    
+    // Verificar se a constante está sendo exibida corretamente
+    error_log("Verificação CURRENCY_SYMBOL: " . CURRENCY_SYMBOL);
+    error_log("Verificação CURRENCY_SYMBOL como string: '" . CURRENCY_SYMBOL . "'");
+    error_log("Verificação CURRENCY_SYMBOL_STR: " . CURRENCY_SYMBOL_STR);
+}
+
+// Função para obter o símbolo da moeda de forma segura
+function getCurrencySymbol() {
+    // Se a constante CURRENCY_SYMBOL não for 'R$', retorna a alternativa
+    if (CURRENCY_SYMBOL !== 'R$') {
+        return CURRENCY_SYMBOL_STR;
+    }
+    return CURRENCY_SYMBOL;
 }
 
 // Configurações adicionais
