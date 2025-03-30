@@ -74,9 +74,9 @@
                 <div class="card-body">
                     <h5 class="card-title">Resumo</h5>
                     <p class="mb-1"><strong>Produto:</strong> <?= $product['name'] ?></p>
-                    <p class="mb-1"><strong>Preço Base:</strong> <?= CURRENCY_SYMBOL ?> <?= number_format($product['sale_price'] ?: $product['price'], 2, ',', '.') ?></p>
+                    <p class="mb-1"><strong>Preço Base:</strong> <?= getCurrencySymbol() ?> <?= number_format($product['sale_price'] ?: $product['price'], 2, ',', '.') ?></p>
                     <div id="customization-total" class="mt-3">
-                        <p class="mb-1"><strong>Total com customizações:</strong> <span id="total-price"><?= CURRENCY_SYMBOL ?> <?= number_format($product['sale_price'] ?: $product['price'], 2, ',', '.') ?></span></p>
+                        <p class="mb-1"><strong>Total com customizações:</strong> <span id="total-price"><?= getCurrencySymbol() ?> <?= number_format($product['sale_price'] ?: $product['price'], 2, ',', '.') ?></span></p>
                     </div>
                 </div>
             </div>
@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function() {
         totalPrice *= quantity;
         
         // Atualizar exibição
-        totalPriceElement.textContent = '<?= CURRENCY_SYMBOL ?> ' + totalPrice.toFixed(2).replace('.', ',');
+        totalPriceElement.textContent = '<?= getCurrencySymbol() ?> ' + totalPrice.toFixed(2).replace('.', ',');
     }
     
     // Atualizar cores disponíveis para o tipo de filamento selecionado
