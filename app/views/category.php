@@ -274,7 +274,11 @@
                                 <?php endif; ?>
                                 
                                 <?php if (!empty($product['image'])): ?>
-                                <img src="<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>" class="card-img-top product-img" alt="<?= $product['name'] ?>">
+                                <img data-src="<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>" 
+                                     src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3C/svg%3E" 
+                                     class="card-img-top product-img lazy" 
+                                     alt="<?= $product['name'] ?>"
+                                     loading="lazy">
                                 <?php else: ?>
                                 <div class="bg-light d-flex align-items-center justify-content-center product-img-placeholder">
                                     <span class="text-muted">Sem imagem</span>
