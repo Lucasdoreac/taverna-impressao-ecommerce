@@ -14,9 +14,26 @@
     <!-- Ícones -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- CSS Personalizado -->
-    <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/style.css">
-    <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/placeholders.css">
+    <!-- CSS Otimizado -->
+    <?php
+    // Verificar se o AssetOptimizerHelper está carregado
+    if (class_exists('AssetOptimizerHelper')) {
+        echo AssetOptimizerHelper::css(['style.css', 'placeholders.css']);
+    } else {
+        // Fallback para o método convencional
+        echo '<link rel="stylesheet" href="'.BASE_URL.'assets/css/style.css">';
+        echo '<link rel="stylesheet" href="'.BASE_URL.'assets/css/placeholders.css">';
+    }
+    ?>
+    
+    <!-- Cache Control -->
+    <?php
+    // Adicionar headers para cache em arquivos estáticos
+    if (class_exists('CacheHelper')) {
+        // Aplicar versão a qualquer URL que possa precisar de cache-busting
+        $version = CacheHelper::getVersionedUrl('', null);
+    }
+    ?>
 </head>
 <body>
     <header class="main-header">
