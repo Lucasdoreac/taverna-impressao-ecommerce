@@ -114,7 +114,18 @@
                         <?php endif; ?>
                         
                         <?php if (!empty($product['image']) && file_exists(UPLOADS_PATH . '/products/' . $product['image'])): ?>
+                        <?php 
+                        // Implementar lazy loading para imagens na listagem de produtos
+                        if (class_exists('AssetOptimizerHelper')) {
+                            echo AssetOptimizerHelper::lazyImageUrl(
+                                BASE_URL . 'uploads/products/' . $product['image'], 
+                                $product['name'], 
+                                'card-img-top'
+                            );
+                        } else {
+                        ?>
                         <img src="<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>" class="card-img-top" alt="<?= $product['name'] ?>">
+                        <?php } ?>
                         <?php else: ?>
                         <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
                         <?php endif; ?>
@@ -127,10 +138,10 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <?php if ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
-                                <span class="text-decoration-line-through text-muted small">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
-                                <span class="ms-1 text-danger fw-bold">R$ <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
+                                <span class="text-decoration-line-through text-muted small"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
+                                <span class="ms-1 text-danger fw-bold"><?= getCurrencySymbol() ?> <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
                                 <?php else: ?>
-                                <span class="fw-bold">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
+                                <span class="fw-bold"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
                                 <?php endif; ?>
                             </div>
                             <div>
