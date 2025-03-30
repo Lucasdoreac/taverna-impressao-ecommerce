@@ -61,6 +61,18 @@ $routes = [
     '/admin/relatorios/clientes' => ['AdminDashboardController', 'customersReport'],
     '/admin/relatorios/categorias' => ['AdminDashboardController', 'categoriesReport'],
     
+    // Admin - Performance SQL e Otimizações
+    '/admin/performance' => ['AdminPerformanceController', 'index'],
+    '/admin/performance/dailyReport' => ['AdminPerformanceController', 'dailyReport'],
+    '/admin/performance/analyzeModel' => ['AdminPerformanceController', 'analyzeModel'],
+    '/admin/performance/testQuery' => ['AdminPerformanceController', 'testQuery'],
+    '/admin/performance/recommendations' => ['AdminPerformanceController', 'recommendations'],
+    '/admin/performance/applyOptimizations' => ['AdminPerformanceController', 'applyOptimizations'],
+    '/admin/performance/confirmOptimizations' => ['AdminPerformanceController', 'confirmOptimizations'],
+    '/admin/performance/optimizationGuide' => ['AdminPerformanceController', 'optimizationGuide'],
+    '/admin/performance/testPerformance' => ['AdminPerformanceController', 'testPerformance'],
+    '/admin/performance/recentOptimizations' => ['AdminPerformanceController', 'recentOptimizations'],
+    
     // Admin - Monitoramento de Performance
     '/admin/performance/reports' => ['PerformanceMonitoringController', 'reports'],
     
