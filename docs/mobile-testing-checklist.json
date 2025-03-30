@@ -1,0 +1,75 @@
+{
+  "devices": [
+    {"type": "iOS", "models": ["iPhone 14", "iPhone SE", "iPad Pro", "iPad Mini"]},
+    {"type": "Android", "models": ["Samsung Galaxy S22", "Google Pixel 7", "Xiaomi Mi 11", "Samsung Tab S8"]}
+  ],
+  "browsers": ["Chrome", "Safari", "Firefox", "Edge"],
+  "checkpoints": [
+    "Carregamento inicial do modelo 3D",
+    "Rotação do modelo com gestos touch",
+    "Zoom com pinça",
+    "Performance com modelos complexos",
+    "Adaptação a diferentes orientações de tela",
+    "Tempo de carregamento em conexões lentas",
+    "Uso de memória",
+    "Fallback quando WebGL não disponível"
+  ],
+  "metrics": {
+    "frameRate": "Mínimo aceitável: 30fps",
+    "loadTime": "Máximo aceitável: 5 segundos (modelos pequenos), 10 segundos (modelos complexos)",
+    "memoryUsage": "Máximo aceitável: 200MB"
+  },
+  "testCases": [
+    {
+      "id": "TC001",
+      "description": "Carregar modelo pequeno (< 1MB)",
+      "steps": [
+        "Abrir página do produto em dispositivo móvel",
+        "Verificar o carregamento do modelo 3D",
+        "Medir tempo de carregamento e uso de memória"
+      ],
+      "expectedResult": "Modelo carrega em menos de 5 segundos com frame rate estável"
+    },
+    {
+      "id": "TC002",
+      "description": "Verificar gestos de interação",
+      "steps": [
+        "Carregar modelo 3D",
+        "Testar rotação com um dedo",
+        "Testar zoom com dois dedos",
+        "Testar pan com dois dedos"
+      ],
+      "expectedResult": "Todas as interações responsivas sem travamentos"
+    },
+    {
+      "id": "TC003",
+      "description": "Testar modelo complexo (> 5MB)",
+      "steps": [
+        "Abrir página com modelo complexo",
+        "Verificar performance durante rotação",
+        "Medir uso de memória e frame rate"
+      ],
+      "expectedResult": "Modelo carrega em menos de 10 segundos, mantém pelo menos 30fps"
+    },
+    {
+      "id": "TC004",
+      "description": "Verificar adaptação ao girar dispositivo",
+      "steps": [
+        "Carregar modelo 3D",
+        "Girar dispositivo para modo paisagem",
+        "Girar dispositivo para modo retrato"
+      ],
+      "expectedResult": "Visualizador se adapta imediatamente, mantendo o modelo centralizado"
+    },
+    {
+      "id": "TC005",
+      "description": "Testar fallback em dispositivo sem WebGL",
+      "steps": [
+        "Desabilitar WebGL nas configurações do navegador",
+        "Abrir página do produto com modelo 3D",
+        "Verificar comportamento"
+      ],
+      "expectedResult": "Sistema exibe mensagem de incompatibilidade e oferece alternativa (imagens estáticas)"
+    }
+  ]
+}
