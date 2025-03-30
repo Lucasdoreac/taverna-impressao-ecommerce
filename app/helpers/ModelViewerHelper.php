@@ -20,6 +20,7 @@ class ModelViewerHelper {
         <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.min.js"></script>
         <script src="' . BASE_URL . 'assets/js/model-viewer.js"></script>
+        <link rel="stylesheet" href="' . BASE_URL . 'assets/css/model-viewer.css">
         ';
     }
     
@@ -47,6 +48,8 @@ class ModelViewerHelper {
             'enableZoom' => true,
             'enablePan' => true,
             'class' => 'model-viewer',
+            'optimizeForMobile' => true,
+            'progressiveLoading' => true,
         ];
         
         // Mesclar opções fornecidas com padrões
@@ -61,9 +64,37 @@ class ModelViewerHelper {
         // Sanitizar caminho do arquivo
         $filePath = htmlspecialchars($filePath, ENT_QUOTES, 'UTF-8');
         
+        // Verificar se devemos adicionar uma classe responsiva para altura
+        $heightClass = '';
+        if ($options['height'] === '250px' || $options['height'] === '250') {
+            $heightClass = 'model-viewer-height-sm';
+        } elseif ($options['height'] === '350px' || $options['height'] === '350') {
+            $heightClass = 'model-viewer-height-md';
+        } elseif ($options['height'] === '450px' || $options['height'] === '450') {
+            $heightClass = 'model-viewer-height-lg';
+        }
+        
+        if (!empty($heightClass)) {
+            $options['class'] .= ' ' . $heightClass;
+            // Remover altura fixa se usarmos classes de altura
+            $options['height'] = '';
+        }
+        
         // Gerar código para o container
-        $containerStyle = "width: {$options['width']}; height: {$options['height']}; background-color: {$options['backgroundColor']};";
-        $containerHtml = "<div id=\"{$id}\" class=\"{$options['class']}\" style=\"{$containerStyle}\"></div>";
+        $containerStyle = '';
+        if (!empty($options['width'])) {
+            $containerStyle .= "width: {$options['width']};";
+        }
+        if (!empty($options['height'])) {
+            $containerStyle .= "height: {$options['height']};";
+        }
+        if (!empty($options['backgroundColor'])) {
+            $containerStyle .= "background-color: {$options['backgroundColor']};";
+        }
+        
+        $containerHtml = "<div id=\"{$id}\" class=\"{$options['class']}\"" . 
+                         (!empty($containerStyle) ? " style=\"{$containerStyle}\"" : "") . 
+                         "></div>";
         
         // Gerar código JavaScript para inicializar o visualizador
         $initScript = "
@@ -83,8 +114,16 @@ class ModelViewerHelper {
                     showControls: " . ($options['showControls'] ? 'true' : 'false') . ",
                     showStats: " . ($options['showStats'] ? 'true' : 'false') . ",
                     enableZoom: " . ($options['enableZoom'] ? 'true' : 'false') . ",
-                    enablePan: " . ($options['enablePan'] ? 'true' : 'false') . "
+                    enablePan: " . ($options['enablePan'] ? 'true' : 'false') . ",
+                    optimizeForMobile: " . ($options['optimizeForMobile'] ? 'true' : 'false') . ",
+                    progressiveLoading: " . ($options['progressiveLoading'] ? 'true' : 'false') . "
                 });
+                
+                // Salvar instância do viewer no escopo global para acesso posterior
+                if (!window.modelViewers) {
+                    window.modelViewers = {};
+                }
+                window.modelViewers['{$id}'] = viewer;
             } else {
                 console.error('ModelViewer não está definido. Verifique se o script model-viewer.js foi carregado corretamente.');
             }
@@ -120,6 +159,8 @@ class ModelViewerHelper {
             'showControls' => true,
             'autoRotate' => true,
             'class' => 'customer-model-viewer',
+            'optimizeForMobile' => true,
+            'progressiveLoading' => true,
         ];
         
         // Mesclar com opções fornecidas
@@ -163,6 +204,8 @@ class ModelViewerHelper {
             'autoRotate' => true,
             'showGrid' => true,
             'class' => 'product-model-viewer',
+            'optimizeForMobile' => true,
+            'progressiveLoading' => true,
         ];
         
         // Mesclar com opções fornecidas
@@ -176,92 +219,59 @@ class ModelViewerHelper {
     }
     
     /**
-     * Retorna o CSS para os visualizadores 3D
+     * Retorna o CSS para os visualizadores 3D (depreciado - usar arquivo CSS externo agora)
      * 
+     * @deprecated Usar arquivo model-viewer.css externo em vez disso
      * @return string Código CSS
      */
     public static function getViewerCSS() {
+        // Aviso de depreciação
+        trigger_error('ModelViewerHelper::getViewerCSS() está depreciado. Use o arquivo model-viewer.css externo.', E_USER_DEPRECATED);
+        
         return '
-        <style>
-        .model-viewer {
-            position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        .customer-model-viewer {
-            border: 1px solid #ddd;
-        }
-        
-        .product-model-viewer {
-            margin-bottom: 1.5rem;
-        }
-        
-        .model-viewer canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        
-        .model-viewer-controls {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            display: flex;
-            gap: 5px;
-            z-index: 100;
-        }
-        
-        .model-viewer-control-btn {
-            background-color: rgba(255, 255, 255, 0.7);
-            border: none;
-            border-radius: 50%;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .model-viewer-control-btn:hover {
-            background-color: rgba(255, 255, 255, 0.9);
-        }
-        
-        .model-viewer-control-btn i {
-            font-size: 18px;
-            color: #333;
-        }
-        
-        .model-viewer-loading {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: rgba(248, 249, 250, 0.8);
-            z-index: 50;
-        }
-        
-        .model-viewer-loading-spinner {
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: model-viewer-spin 1s linear infinite;
-        }
-        
-        @keyframes model-viewer-spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        </style>
+        <!-- CSS depreciado: Use o arquivo model-viewer.css externo -->
+        <link rel="stylesheet" href="' . BASE_URL . 'assets/css/model-viewer.css">
+        ';
+    }
+    
+    /**
+     * Retorna código para manipular o redimensionamento responsivo em orientação paisagem no mobile
+     * 
+     * @return string Código JavaScript
+     */
+    public static function getResponsiveOrientationScript() {
+        return '
+        <script>
+        // Ajuste responsivo para mudanças de orientação em dispositivos móveis
+        (function() {
+            function adjustModelViewersForOrientation() {
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                               (window.innerWidth <= 768);
+                
+                if (isMobile && window.modelViewers) {
+                    // Para cada visualizador registrado
+                    for (const viewerId in window.modelViewers) {
+                        if (window.modelViewers.hasOwnProperty(viewerId)) {
+                            const viewer = window.modelViewers[viewerId];
+                            if (viewer && viewer.onWindowResize) {
+                                // Forçar atualização do tamanho do visualizador
+                                viewer.onWindowResize();
+                                
+                                // Para dispositivos iOS que às vezes não redimensionam corretamente
+                                setTimeout(() => {
+                                    viewer.onWindowResize();
+                                }, 500);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Observar mudanças de orientação
+            window.addEventListener("orientationchange", adjustModelViewersForOrientation);
+            window.addEventListener("resize", adjustModelViewersForOrientation);
+        })();
+        </script>
         ';
     }
 }
