@@ -27,6 +27,15 @@ class ModelViewer {
             rotationSpeed: 0.005, // Velocidade de rotação automática
             optimizeForMobile: true, // Otimizar para dispositivos móveis
             progressiveLoading: true, // Carregamento progressivo de modelos grandes
+            useWebWorker: true, // Usar Web Worker para processamento assíncrono
+            adaptiveQuality: true, // Ajustar qualidade dinamicamente baseado no desempenho
+            lodThresholds: { // Limiares para níveis de detalhe
+                high: 60, // FPS mínimo para usar LOD alto
+                medium: 40, // FPS mínimo para usar LOD médio
+                low: 20, // FPS mínimo para usar LOD baixo
+                veryLow: 0 // FPS mínimo para usar LOD muito baixo
+            },
+            targetFPS: 45 // FPS alvo para renderização adaptativa
         }, options);
         
         // Validar opções obrigatórias
@@ -49,9 +58,29 @@ class ModelViewer {
         this.object = null;
         this.isLoading = true;
         this.isAutoRotating = this.options.autoRotate;
+        this.lodLevels = null;
+        this.currentLOD = null;
+        this.lastLodSwitchTime = 0;
+        this.workerActive = false;
+        this.modelData = null;
+        
+        // Inicializar monitor de FPS
+        this.fpsMonitor = {
+            frames: 0,
+            lastTime: performance.now(),
+            value: 60,
+            history: []
+        };
         
         // Detectar dispositivo móvel
         this.isMobile = this.detectMobileDevice();
+        
+        // Verificar suporte a Web Workers
+        this.webWorkerSupported = typeof Worker !== 'undefined';
+        if (this.options.useWebWorker && !this.webWorkerSupported) {
+            console.warn('ModelViewer: Web Workers não são suportados neste navegador. Usando processamento síncrono.');
+            this.options.useWebWorker = false;
+        }
         
         // Inicializar o visualizador
         this.init();
@@ -90,6 +119,11 @@ class ModelViewer {
             this.setupAxes();
         }
         
+        // Inicializar estatísticas de FPS se necessário
+        if (this.options.adaptiveQuality || this.options.showStats) {
+            this.setupStats();
+        }
+        
         // Carregar o modelo
         this.loadModel();
         
@@ -103,6 +137,9 @@ class ModelViewer {
         
         // Lidar com redimensionamento da janela
         window.addEventListener('resize', this.onWindowResize.bind(this));
+        
+        // Manipuladores de evento para detectar interação do usuário
+        this.setupInteractionHandlers();
     }
     
     /**
@@ -229,6 +266,289 @@ class ModelViewer {
     }
     
     /**
+     * Configura estatísticas de desempenho
+     */
+    setupStats() {
+        if (this.options.showStats) {
+            const statsContainer = document.createElement('div');
+            statsContainer.className = 'model-viewer-stats';
+            statsContainer.style.position = 'absolute';
+            statsContainer.style.top = '0';
+            statsContainer.style.left = '0';
+            statsContainer.style.zIndex = '100';
+            statsContainer.style.color = '#fff';
+            statsContainer.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            statsContainer.style.padding = '5px';
+            statsContainer.style.fontSize = '12px';
+            statsContainer.style.fontFamily = 'monospace';
+            this.container.appendChild(statsContainer);
+            this.statsElement = statsContainer;
+        }
+    }
+    
+    /**
+     * Atualiza estatísticas de desempenho
+     */
+    updateStats() {
+        if (this.statsElement) {
+            const fps = Math.round(this.fpsMonitor.value);
+            const lodLevel = this.currentLOD ? this.currentLOD : 'N/A';
+            const triangles = this.object ? this.countTriangles() : 0;
+            this.statsElement.textContent = `FPS: ${fps} | LOD: ${lodLevel} | Triangles: ${triangles}`;
+        }
+    }
+    
+    /**
+     * Conta o número de triângulos no modelo atual
+     * @returns {number} Número de triângulos
+     */
+    countTriangles() {
+        let triangles = 0;
+        if (!this.object) return 0;
+        
+        if (this.object.geometry) {
+            // Para geometria única
+            triangles = this.object.geometry.index ? 
+                        this.object.geometry.index.count / 3 : 
+                        this.object.geometry.attributes.position.count / 3;
+        } else {
+            // Para conjunto de objetos
+            this.object.traverse(child => {
+                if (child.geometry) {
+                    triangles += child.geometry.index ? 
+                                 child.geometry.index.count / 3 : 
+                                 child.geometry.attributes.position.count / 3;
+                }
+            });
+        }
+        
+        return Math.round(triangles);
+    }
+    
+    /**
+     * Configura manipuladores de eventos para detectar interação do usuário
+     */
+    setupInteractionHandlers() {
+        // Detectar quando o usuário está interagindo
+        this.userInteracting = false;
+        
+        const interactionStart = () => {
+            this.userInteracting = true;
+            // Usando LOD mais baixo durante interação para melhor desempenho
+            this.switchToLowerLOD();
+        };
+        
+        const interactionEnd = () => {
+            this.userInteracting = false;
+            // Restaurar LOD após delay
+            setTimeout(() => {
+                if (!this.userInteracting) {
+                    this.switchToHigherLOD();
+                }
+            }, 500);
+        };
+        
+        // Mouse e toque
+        this.renderer.domElement.addEventListener('mousedown', interactionStart);
+        this.renderer.domElement.addEventListener('touchstart', interactionStart);
+        window.addEventListener('mouseup', interactionEnd);
+        window.addEventListener('touchend', interactionEnd);
+        
+        // Rolagem (zoom)
+        this.renderer.domElement.addEventListener('wheel', () => {
+            interactionStart();
+            clearTimeout(this.wheelTimeout);
+            this.wheelTimeout = setTimeout(interactionEnd, 200);
+        }, { passive: true });
+    }
+    
+    /**
+     * Muda para um LOD mais baixo durante interação
+     */
+    switchToLowerLOD() {
+        if (!this.lodLevels || !this.options.adaptiveQuality) return;
+        
+        const now = performance.now();
+        // Limitar a frequência de mudanças de LOD
+        if (now - this.lastLodSwitchTime < 300) return;
+        this.lastLodSwitchTime = now;
+        
+        // Durante interação, usar pelo menos um nível abaixo do atual
+        if (this.currentLOD === 'high' && this.lodLevels.medium) {
+            this.applyLOD('medium');
+        } else if (this.currentLOD === 'medium' && this.lodLevels.low) {
+            this.applyLOD('low');
+        }
+    }
+    
+    /**
+     * Muda para um LOD mais alto quando não há interação
+     */
+    switchToHigherLOD() {
+        if (!this.lodLevels || !this.options.adaptiveQuality) return;
+        
+        const now = performance.now();
+        // Limitar a frequência de mudanças de LOD
+        if (now - this.lastLodSwitchTime < 300) return;
+        this.lastLodSwitchTime = now;
+        
+        // Com base no FPS atual, escolher o LOD apropriado
+        this.selectLODBasedOnPerformance();
+    }
+    
+    /**
+     * Seleciona o LOD apropriado com base no desempenho
+     */
+    selectLODBasedOnPerformance() {
+        if (!this.lodLevels || !this.options.adaptiveQuality) return;
+        
+        const fps = this.fpsMonitor.value;
+        const thresholds = this.options.lodThresholds;
+        
+        // Selecionar LOD com base no FPS
+        if (fps >= thresholds.high && this.lodLevels.high) {
+            this.applyLOD('high');
+        } else if (fps >= thresholds.medium && this.lodLevels.medium) {
+            this.applyLOD('medium');
+        } else if (fps >= thresholds.low && this.lodLevels.low) {
+            this.applyLOD('low');
+        } else if (this.lodLevels.veryLow) {
+            this.applyLOD('veryLow');
+        }
+    }
+    
+    /**
+     * Aplica um nível de detalhe específico
+     * @param {string} level - Nível de detalhe ('high', 'medium', 'low', 'veryLow')
+     */
+    applyLOD(level) {
+        if (!this.lodLevels || !this.lodLevels[level] || this.currentLOD === level) {
+            return;
+        }
+        
+        // Atualizar LOD atual
+        this.currentLOD = level;
+        
+        if (!this.object || !this.modelData) {
+            return;
+        }
+        
+        const lodData = this.lodLevels[level];
+        
+        // Remover objeto atual
+        if (this.object.parent) {
+            this.scene.remove(this.object);
+        }
+        
+        // Reconstruir geometria com novo LOD
+        if (this.modelData.type === 'stl') {
+            this.rebuildSTLWithLOD(lodData);
+        } else if (this.modelData.type === 'obj') {
+            this.rebuildOBJWithLOD(lodData);
+        }
+    }
+    
+    /**
+     * Reconstrói um modelo STL com um LOD específico
+     * @param {Object} lodData - Dados do LOD
+     */
+    rebuildSTLWithLOD(lodData) {
+        // Criar nova geometria
+        const geometry = new THREE.BufferGeometry();
+        
+        // Adicionar atributos
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(lodData.vertices.positions), 3));
+        
+        if (lodData.vertices.normals) {
+            geometry.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(lodData.vertices.normals), 3));
+        } else {
+            geometry.computeVertexNormals();
+        }
+        
+        if (lodData.vertices.indices) {
+            geometry.setIndex(new THREE.Uint32BufferAttribute(new Uint32Array(lodData.vertices.indices), 1));
+        }
+        
+        // Criar material
+        const material = this.createOptimizedMaterial();
+        
+        // Criar malha
+        const mesh = new THREE.Mesh(geometry, material);
+        
+        // Configurar posição e rotação
+        if (this.object) {
+            mesh.position.copy(this.object.position);
+            mesh.rotation.copy(this.object.rotation);
+            mesh.scale.copy(this.object.scale);
+        }
+        
+        // Adicionar à cena
+        this.object = mesh;
+        this.scene.add(mesh);
+    }
+    
+    /**
+     * Reconstrói um modelo OBJ com um LOD específico
+     * @param {Object} lodData - Dados do LOD
+     */
+    rebuildOBJWithLOD(lodData) {
+        // Para OBJ, precisamos criar um grupo
+        const group = new THREE.Group();
+        
+        // Reconstruir cada parte do modelo
+        for (let i = 0; i < lodData.models.length; i++) {
+            const modelPart = lodData.models[i];
+            const lodPart = modelPart.lodLevels[this.currentLOD];
+            
+            if (!lodPart) continue;
+            
+            // Criar geometria
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(lodPart.vertices.positions), 3));
+            
+            if (lodPart.vertices.normals) {
+                geometry.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(lodPart.vertices.normals), 3));
+            } else {
+                geometry.computeVertexNormals();
+            }
+            
+            if (lodPart.vertices.indices) {
+                geometry.setIndex(new THREE.Uint32BufferAttribute(new Uint32Array(lodPart.vertices.indices), 1));
+            }
+            
+            // Criar material
+            let material;
+            if (modelPart.materialIndex >= 0 && this.modelData.materials && this.modelData.materials[modelPart.materialIndex]) {
+                const matData = this.modelData.materials[modelPart.materialIndex];
+                material = new THREE.MeshPhongMaterial({
+                    color: new THREE.Color(matData.color[0], matData.color[1], matData.color[2]),
+                    flatShading: this.isMobile && this.options.optimizeForMobile
+                });
+            } else {
+                material = this.createOptimizedMaterial();
+            }
+            
+            // Criar malha
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = modelPart.name;
+            
+            // Adicionar ao grupo
+            group.add(mesh);
+        }
+        
+        // Configurar posição e rotação
+        if (this.object) {
+            group.position.copy(this.object.position);
+            group.rotation.copy(this.object.rotation);
+            group.scale.copy(this.object.scale);
+        }
+        
+        // Adicionar à cena
+        this.object = group;
+        this.scene.add(group);
+    }
+    
+    /**
      * Exibe a animação de carregamento
      */
     showLoading() {
@@ -275,15 +595,218 @@ class ModelViewer {
         const filePath = this.options.filePath;
         const fileType = this.options.fileType.toLowerCase();
         
-        // Escolher o loader correto com base no tipo de arquivo
-        if (fileType === 'stl') {
-            this.loadSTLModel(filePath);
-        } else if (fileType === 'obj') {
-            this.loadOBJModel(filePath);
-        } else {
+        // Verificar se o tipo de arquivo é suportado
+        if (!['stl', 'obj'].includes(fileType)) {
             console.error(`ModelViewer: Tipo de arquivo não suportado: ${fileType}`);
             this.hideLoading();
+            return;
         }
+        
+        // Usar Web Worker se suportado e habilitado
+        if (this.options.useWebWorker && this.webWorkerSupported) {
+            this.loadModelWithWorker(filePath, fileType);
+        } else {
+            // Escolher o loader correto com base no tipo de arquivo
+            if (fileType === 'stl') {
+                this.loadSTLModel(filePath);
+            } else if (fileType === 'obj') {
+                this.loadOBJModel(filePath);
+            }
+        }
+    }
+    
+    /**
+     * Carrega o modelo usando Web Worker
+     * @param {string} filePath - Caminho para o arquivo
+     * @param {string} fileType - Tipo de arquivo (stl ou obj)
+     */
+    loadModelWithWorker(filePath, fileType) {
+        // Criar Web Worker
+        try {
+            const workerPath = `${window.location.origin}/assets/js/model-loader-worker.js`;
+            const worker = new Worker(workerPath);
+            this.modelLoader = worker;
+            this.workerActive = true;
+            
+            // Manipular mensagens do worker
+            worker.onmessage = (e) => {
+                const data = e.data;
+                
+                switch (data.type) {
+                    case 'loadingStarted':
+                        this.updateLoadingProgress(0);
+                        break;
+                        
+                    case 'loadingProgress':
+                        this.updateLoadingProgress(data.progress);
+                        break;
+                        
+                    case 'modelLoaded':
+                        // Processar modelo carregado
+                        this.processWorkerLoadedModel(data, fileType);
+                        break;
+                        
+                    case 'objModelLoaded':
+                        // Processar modelo OBJ carregado
+                        this.processWorkerLoadedOBJ(data);
+                        break;
+                        
+                    case 'error':
+                        console.error(`ModelViewer: ${data.error}`);
+                        this.hideLoading();
+                        break;
+                }
+            };
+            
+            // Configurar tratamento de erros
+            worker.onerror = (error) => {
+                console.error('ModelViewer: Erro no Web Worker', error);
+                this.hideLoading();
+                this.workerActive = false;
+                
+                // Fallback para carregamento síncrono
+                if (fileType === 'stl') {
+                    this.loadSTLModel(filePath);
+                } else if (fileType === 'obj') {
+                    this.loadOBJModel(filePath);
+                }
+            };
+            
+            // Enviar comando para carregar o modelo
+            worker.postMessage({
+                type: 'loadModel',
+                filePath: filePath,
+                fileType: fileType,
+                options: {
+                    optimizeForMobile: this.isMobile && this.options.optimizeForMobile
+                }
+            });
+            
+        } catch (error) {
+            console.error('ModelViewer: Erro ao inicializar Web Worker', error);
+            this.workerActive = false;
+            
+            // Fallback para carregamento síncrono
+            if (fileType === 'stl') {
+                this.loadSTLModel(filePath);
+            } else if (fileType === 'obj') {
+                this.loadOBJModel(filePath);
+            }
+        }
+    }
+    
+    /**
+     * Processa um modelo STL carregado pelo Web Worker
+     * @param {Object} data - Dados do modelo
+     * @param {string} fileType - Tipo de arquivo
+     */
+    processWorkerLoadedModel(data, fileType) {
+        // Extrair LOD levels
+        this.lodLevels = {};
+        data.lodLevels.forEach(level => {
+            this.lodLevels[level.level] = {
+                vertexCount: level.vertexCount,
+                vertices: level.vertices
+            };
+        });
+        
+        // Salvar meta-dados
+        this.modelData = {
+            type: fileType,
+            metadata: data.metadata
+        };
+        
+        // Aplicar o nível de detalhe apropriado baseado no dispositivo
+        const initialLOD = this.isMobile && this.options.optimizeForMobile ? 
+                          (this.lodLevels.medium ? 'medium' : 'high') : 
+                          'high';
+        
+        this.applyLOD(initialLOD);
+        
+        // Ajustar câmera
+        this.adjustCameraToModel();
+        
+        // Esconder carregamento
+        this.hideLoading();
+        
+        // Iniciar monitoramento adaptativo após carregamento inicial
+        setTimeout(() => {
+            if (this.options.adaptiveQuality) {
+                this.selectLODBasedOnPerformance();
+            }
+        }, 1000);
+    }
+    
+    /**
+     * Processa um modelo OBJ carregado pelo Web Worker
+     * @param {Object} data - Dados do modelo
+     */
+    processWorkerLoadedOBJ(data) {
+        // Extrair LOD levels para cada parte do modelo
+        this.lodLevels = {
+            high: { models: [] },
+            medium: { models: [] },
+            low: { models: [] },
+            veryLow: { models: [] }
+        };
+        
+        // Processar cada parte do modelo
+        data.models.forEach(model => {
+            const modelLodLevels = {};
+            
+            // Organizar níveis de detalhe
+            model.lodLevels.forEach(level => {
+                modelLodLevels[level.level] = {
+                    vertexCount: level.vertexCount,
+                    vertices: level.vertices
+                };
+            });
+            
+            // Adicionar a cada nível de LOD global
+            for (const level in this.lodLevels) {
+                if (modelLodLevels[level]) {
+                    this.lodLevels[level].models.push({
+                        name: model.name,
+                        materialIndex: model.materialIndex,
+                        lodLevels: modelLodLevels
+                    });
+                }
+            }
+        });
+        
+        // Remover níveis vazios
+        for (const level in this.lodLevels) {
+            if (this.lodLevels[level].models.length === 0) {
+                delete this.lodLevels[level];
+            }
+        }
+        
+        // Salvar meta-dados
+        this.modelData = {
+            type: 'obj',
+            metadata: data.metadata,
+            materials: data.metadata.materials
+        };
+        
+        // Aplicar o nível de detalhe apropriado baseado no dispositivo
+        const initialLOD = this.isMobile && this.options.optimizeForMobile ? 
+                          (this.lodLevels.medium ? 'medium' : 'high') : 
+                          'high';
+        
+        this.applyLOD(initialLOD);
+        
+        // Ajustar câmera
+        this.adjustCameraToModel();
+        
+        // Esconder carregamento
+        this.hideLoading();
+        
+        // Iniciar monitoramento adaptativo após carregamento inicial
+        setTimeout(() => {
+            if (this.options.adaptiveQuality) {
+                this.selectLODBasedOnPerformance();
+            }
+        }, 1000);
     }
     
     /**
@@ -664,6 +1187,18 @@ class ModelViewer {
             this.resetView();
         });
         
+        // Botão de qualidade em dispositivos com adaptiveQuality ativado
+        if (this.options.adaptiveQuality) {
+            const qualityBtn = this.createControlButton('fas fa-sliders-h', 'Alternar qualidade', () => {
+                // Ciclar entre os níveis de qualidade disponíveis
+                const levels = Object.keys(this.lodLevels || { high: true });
+                const currentIndex = levels.indexOf(this.currentLOD);
+                const nextIndex = (currentIndex + 1) % levels.length;
+                this.applyLOD(levels[nextIndex]);
+            });
+            controlsContainer.appendChild(qualityBtn);
+        }
+        
         // Botão de fullscreen em dispositivos não móveis ou apenas se explicitamente solicitado
         if (!this.isMobile || !this.options.optimizeForMobile) {
             const fullscreenBtn = this.createControlButton('fas fa-expand', 'Tela cheia', () => {
@@ -791,9 +1326,60 @@ class ModelViewer {
                 
                 this.scene.add(this.object);
             }
+            
+            // Se temos LOD, usar um nível mais baixo
+            if (this.options.adaptiveQuality && this.lodLevels) {
+                if (this.lodLevels.medium) {
+                    this.applyLOD('medium');
+                }
+            }
         } else {
             // Restaurar configurações de alta qualidade
             this.renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // Se temos LOD, restaurar alta qualidade
+            if (this.options.adaptiveQuality && this.lodLevels) {
+                if (this.lodLevels.high) {
+                    this.applyLOD('high');
+                }
+            }
+        }
+    }
+    
+    /**
+     * Atualiza monitor de FPS
+     */
+    updateFPSMonitor() {
+        this.fpsMonitor.frames++;
+        
+        const now = performance.now();
+        const elapsed = now - this.fpsMonitor.lastTime;
+        
+        // Atualizar a cada 500ms
+        if (elapsed >= 500) {
+            this.fpsMonitor.value = this.fpsMonitor.frames * 1000 / elapsed;
+            this.fpsMonitor.frames = 0;
+            this.fpsMonitor.lastTime = now;
+            
+            // Armazenar histórico para média móvel
+            this.fpsMonitor.history.push(this.fpsMonitor.value);
+            if (this.fpsMonitor.history.length > 10) {
+                this.fpsMonitor.history.shift();
+            }
+            
+            // Média móvel para suavizar flutuações
+            const sum = this.fpsMonitor.history.reduce((a, b) => a + b, 0);
+            this.fpsMonitor.value = sum / this.fpsMonitor.history.length;
+            
+            // Atualizar estatísticas UI
+            if (this.options.showStats) {
+                this.updateStats();
+            }
+            
+            // Verificar e ajustar qualidade com base no FPS se não estiver interagindo
+            if (this.options.adaptiveQuality && !this.userInteracting && now - this.lastLodSwitchTime > 1000) {
+                this.selectLODBasedOnPerformance();
+            }
         }
     }
     
@@ -802,6 +1388,9 @@ class ModelViewer {
      */
     animate() {
         requestAnimationFrame(this.animate.bind(this));
+        
+        // Atualizar monitor de FPS
+        this.updateFPSMonitor();
         
         // Atualizar controles
         if (this.controls) {
@@ -866,6 +1455,13 @@ class ModelViewer {
         if ('optimizeForMobile' in options && this.isMobile) {
             this.adjustForDeviceType();
         }
+        
+        // Se adaptiveQuality ou LOD thresholds foram alterados
+        if ('adaptiveQuality' in options || 'lodThresholds' in options) {
+            if (this.options.adaptiveQuality && this.lodLevels) {
+                this.selectLODBasedOnPerformance();
+            }
+        }
     }
     
     /**
@@ -899,6 +1495,12 @@ class ModelViewer {
      * Limpa a visualização e remove elementos criados
      */
     dispose() {
+        // Encerrar Web Worker se ativo
+        if (this.workerActive && this.modelLoader) {
+            this.modelLoader.terminate();
+            this.workerActive = false;
+        }
+        
         // Remover event listeners
         window.removeEventListener('resize', this.onWindowResize.bind(this));
         
@@ -925,6 +1527,11 @@ class ModelViewer {
         const controls = this.container.querySelector('.model-viewer-controls');
         if (controls) {
             controls.parentNode.removeChild(controls);
+        }
+        
+        // Remover estatísticas se existirem
+        if (this.statsElement) {
+            this.statsElement.parentNode.removeChild(this.statsElement);
         }
     }
     
