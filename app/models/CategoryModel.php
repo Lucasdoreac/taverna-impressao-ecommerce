@@ -287,9 +287,11 @@ class CategoryModel extends Model {
      * @param int $page Página atual
      * @param int $limit Produtos por página
      * @param bool $includeSubcategories Se deve incluir produtos das subcategorias
+     * @param string $orderBy Campo e direção de ordenação (ex: "price ASC")
+     * @param array $filters Filtros adicionais (ex: ['price_min' => 10, 'price_max' => 100])
      * @return array|null Dados da categoria com produtos ou null se não encontrada
      */
-    public function getCategoryWithProducts($slug, $page = 1, $limit = 12, $includeSubcategories = true) {
+    public function getCategoryWithProducts($slug, $page = 1, $limit = 12, $includeSubcategories = true, $orderBy = "p.is_tested DESC, p.name ASC", $filters = []) {
         try {
             // Obter categoria
             $category = $this->getBySlug($slug);
@@ -332,8 +334,7 @@ class CategoryModel extends Model {
                 return $category;
             }
             
-            // CORREÇÃO: Em vez de concatenar os IDs na string SQL, vamos usar uma abordagem mais segura
-            // criando um array de placeholders e usando parâmetros nomeados
+            // Criar um array de placeholders e parâmetros para os IDs de categoria
             $placeholders = [];
             $params = [];
             
@@ -347,18 +348,86 @@ class CategoryModel extends Model {
             try {
                 $productModel = new ProductModel();
                 
-                // Construir a cláusula WHERE com placeholders
+                // Construir a cláusula WHERE com placeholders para categorias
                 $placeholdersStr = implode(',', $placeholders);
                 $conditions = "category_id IN ({$placeholdersStr}) AND is_active = 1";
+                
+                // Adicionar condições baseadas nos filtros
+                if (!empty($filters)) {
+                    // Filtro de preço mínimo
+                    if (isset($filters['price_min']) && is_numeric($filters['price_min'])) {
+                        $conditions .= " AND (
+                            (p.sale_price > 0 AND p.sale_price >= :price_min) OR
+                            (p.sale_price = 0 AND p.price >= :price_min)
+                        )";
+                        $params['price_min'] = $filters['price_min'];
+                    }
+                    
+                    // Filtro de preço máximo
+                    if (isset($filters['price_max']) && is_numeric($filters['price_max'])) {
+                        $conditions .= " AND (
+                            (p.sale_price > 0 AND p.sale_price <= :price_max) OR
+                            (p.sale_price = 0 AND p.price <= :price_max)
+                        )";
+                        $params['price_max'] = $filters['price_max'];
+                    }
+                    
+                    // Filtro de disponibilidade
+                    if (isset($filters['availability'])) {
+                        if ($filters['availability'] === 'in_stock') {
+                            $conditions .= " AND p.is_tested = 1 AND p.stock > 0";
+                        } elseif ($filters['availability'] === 'custom_order') {
+                            $conditions .= " AND (p.is_tested = 0 OR p.stock = 0)";
+                        }
+                    }
+                    
+                    // Filtro para produtos personalizáveis
+                    if (isset($filters['customizable']) && $filters['customizable']) {
+                        $conditions .= " AND p.is_customizable = 1";
+                    }
+                    
+                    // Filtro para produtos em oferta
+                    if (isset($filters['on_sale']) && $filters['on_sale']) {
+                        $conditions .= " AND p.sale_price > 0 AND p.sale_price < p.price";
+                    }
+                }
                 
                 // Adicionar parâmetros de paginação ao array de parâmetros
                 $params['offset'] = ($page - 1) * $limit;
                 $params['limit'] = $limit;
                 
                 // Contar total
-                $countSql = "SELECT COUNT(*) as total FROM {$productModel->getTable()} WHERE {$conditions}";
+                $countSql = "SELECT COUNT(*) as total FROM {$productModel->getTable()} p WHERE {$conditions}";
                 $countResult = $this->db()->select($countSql, $params);
                 $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
+                
+                // Validar e processar a ordenação
+                $validOrderColumns = [
+                    'name' => 'p.name',
+                    'price' => 'CASE WHEN p.sale_price > 0 THEN p.sale_price ELSE p.price END',
+                    'newest' => 'p.created_at',
+                    'availability' => 'p.is_tested'
+                ];
+                
+                $orderByParts = explode(' ', $orderBy);
+                $orderColumn = $orderByParts[0] ?? 'p.is_tested';
+                $orderDirection = strtoupper($orderByParts[1] ?? 'DESC');
+                
+                // Verificar se a direção de ordenação é válida
+                if (!in_array($orderDirection, ['ASC', 'DESC'])) {
+                    $orderDirection = 'DESC';
+                }
+                
+                // Verificar se a coluna de ordenação está na lista de colunas válidas
+                if (isset($validOrderColumns[$orderColumn])) {
+                    $orderSql = "{$validOrderColumns[$orderColumn]} {$orderDirection}";
+                } elseif (strpos($orderColumn, 'p.') === 0) {
+                    // Se for uma coluna direta da tabela de produtos
+                    $orderSql = "{$orderColumn} {$orderDirection}";
+                } else {
+                    // Ordenação padrão caso não seja válida
+                    $orderSql = "p.is_tested DESC, p.name ASC";
+                }
                 
                 // Buscar produtos
                 $sql = "SELECT p.*, pi.image, 
@@ -367,7 +436,7 @@ class CategoryModel extends Model {
                        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                        WHERE {$conditions}
                        GROUP BY p.id
-                       ORDER BY p.is_tested DESC, p.name ASC
+                       ORDER BY {$orderSql}
                        LIMIT :offset, :limit";
                 
                 $items = $this->db()->select($sql, $params);
@@ -377,7 +446,9 @@ class CategoryModel extends Model {
                     'total' => $total,
                     'currentPage' => $page,
                     'perPage' => $limit,
-                    'lastPage' => ceil($total / $limit)
+                    'lastPage' => ceil($total / $limit),
+                    'orderBy' => $orderSql,
+                    'filters' => $filters
                 ];
             } catch (Exception $e) {
                 error_log("Erro ao buscar produtos da categoria: " . $e->getMessage());
@@ -386,7 +457,9 @@ class CategoryModel extends Model {
                     'total' => 0,
                     'currentPage' => $page,
                     'perPage' => $limit,
-                    'lastPage' => 1
+                    'lastPage' => 1,
+                    'orderBy' => $orderBy,
+                    'filters' => $filters
                 ];
             }
             
