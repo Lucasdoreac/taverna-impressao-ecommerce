@@ -301,6 +301,27 @@ class ProductModel extends Model {
     }
     
     /**
+     * Verifica se o índice FULLTEXT está disponível
+     * 
+     * @return bool True se o índice FULLTEXT está disponível
+     */
+    private function hasFulltextIndex() {
+        static $hasFulltext = null;
+        
+        if ($hasFulltext === null) {
+            try {
+                $showIndexSql = "SHOW INDEX FROM {$this->table} WHERE Key_name = 'ft_products_search'";
+                $indexResult = $this->db()->select($showIndexSql);
+                $hasFulltext = !empty($indexResult);
+            } catch (Exception $e) {
+                $hasFulltext = false;
+            }
+        }
+        
+        return $hasFulltext;
+    }
+    
+    /**
      * Busca produtos por termo
      * 
      * @param string $query Termo de busca
@@ -313,7 +334,7 @@ class ProductModel extends Model {
         try {
             $offset = ($page - 1) * $limit;
             $searchTerm = "%{$query}%";
-            $params = ['term' => $searchTerm];
+            $params = ['term' => $searchTerm, 'termExact' => $query];
             
             // Filtro de disponibilidade
             $availabilityFilter = "";
@@ -324,52 +345,33 @@ class ProductModel extends Model {
             }
             
             // Verificar se temos um índice FULLTEXT
-            $hasFulltext = false;
-            try {
-                $showIndexSql = "SHOW INDEX FROM {$this->table} WHERE Key_name = 'ft_products_search'";
-                $indexResult = $this->db()->select($showIndexSql);
-                $hasFulltext = !empty($indexResult);
-            } catch (Exception $e) {
-                // Se ocorrer erro, assumir que não tem FULLTEXT
-                $hasFulltext = false;
-            }
+            $hasFulltext = $this->hasFulltextIndex();
             
-            // Contar total
-            $countSql = null;
+            // Buscar produtos com SQL_CALC_FOUND_ROWS para eliminar a consulta COUNT separada
             if ($hasFulltext) {
-                $countSql = "SELECT COUNT(*) as total 
-                            FROM {$this->table} p
-                            WHERE MATCH(p.name, p.description) AGAINST(:term IN BOOLEAN MODE) 
-                            AND p.is_active = 1" . $availabilityFilter;
-            } else {
-                $countSql = "SELECT COUNT(*) as total 
-                            FROM {$this->table} p
-                            WHERE (p.name LIKE :term OR p.description LIKE :term) AND p.is_active = 1" . $availabilityFilter;
-            }
-            
-            $countResult = $this->db()->select($countSql, $params);
-            $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
-            
-            // Buscar produtos
-            $sql = null;
-            if ($hasFulltext) {
-                $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
                                pi.image,
-                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability,
+                               MATCH(p.name, p.description) AGAINST(:termExact) as relevance
                         FROM {$this->table} p
                         LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                        WHERE MATCH(p.name, p.description) AGAINST(:term IN BOOLEAN MODE) 
+                        WHERE MATCH(p.name, p.description) AGAINST(:termExact IN BOOLEAN MODE) 
                         AND p.is_active = 1" . $availabilityFilter . "
-                        ORDER BY p.is_tested DESC, p.name ASC
+                        ORDER BY relevance DESC, p.is_tested DESC, p.name ASC
                         LIMIT :offset, :limit";
             } else {
-                $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
                                pi.image,
                                CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                         FROM {$this->table} p
                         LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                         WHERE (p.name LIKE :term OR p.description LIKE :term) AND p.is_active = 1" . $availabilityFilter . "
-                        ORDER BY p.is_tested DESC, p.name ASC
+                        ORDER BY 
+                          CASE WHEN p.name = :termExact THEN 1
+                               WHEN p.name LIKE CONCAT(:termExact, '%') THEN 2
+                               ELSE 3
+                          END,
+                          p.is_tested DESC, p.name ASC
                         LIMIT :offset, :limit";
             }
             
@@ -377,6 +379,10 @@ class ProductModel extends Model {
             $params['limit'] = $limit;
             
             $items = $this->db()->select($sql, $params);
+            
+            // Obter o total de registros encontrados
+            $totalResult = $this->db()->select("SELECT FOUND_ROWS() as total");
+            $total = isset($totalResult[0]['total']) ? $totalResult[0]['total'] : 0;
             
             return [
                 'items' => $items,
