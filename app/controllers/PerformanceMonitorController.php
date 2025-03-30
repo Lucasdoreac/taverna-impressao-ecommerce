@@ -2,9 +2,9 @@
 /**
  * Taverna da Impressão - Sistema de E-commerce
  * 
- * Controlador para Monitor de Testes de Performance
- * Responsável por gerenciar o monitoramento em tempo real dos testes de performance,
- * incluindo visualização de métricas, alertas e relatórios
+ * Controlador para Monitoramento de Performance em Ambiente de Produção
+ * Responsável por gerenciar a coleta e visualização de métricas de performance em ambiente real,
+ * oferecendo insights sobre a experiência do usuário e alertas sobre deterioração de performance
  * 
  * @version 1.0
  * @author Desenvolvimento Taverna da Impressão
@@ -13,40 +13,24 @@
 class PerformanceMonitorController {
     private $model;
     private $baseView = 'admin/';
-    private $metricTypes = [
-        'page_load_time',     // Tempo de carregamento de página
-        'ttfb',               // Time to First Byte
-        'fcp',                // First Contentful Paint
-        'lcp',                // Largest Contentful Paint
-        'cls',                // Cumulative Layout Shift
-        'fid',                // First Input Delay
-        'resource_size',      // Tamanho dos recursos
-        'resource_count',     // Número de recursos
-        'memory_usage',       // Uso de memória
-        'cpu_usage',          // Uso de CPU
-        'query_time',         // Tempo de consulta ao banco de dados
-        'api_response_time',  // Tempo de resposta da API
-        'render_time',        // Tempo de renderização
-        'fps'                 // Frames por segundo (visualizador 3D)
-    ];
+    private $enabledUserAgents = ['chrome', 'firefox', 'safari', 'edge'];
     
     /**
      * Construtor
-     * Inicializa o modelo de monitor de performance
+     * Inicializa o modelo de monitoramento de performance
      */
     public function __construct() {
         require_once 'app/models/PerformanceMonitorModel.php';
         $this->model = new PerformanceMonitorModel();
         
-        // Verificar se o helper existe e incluí-lo
-        if (file_exists('app/helpers/PerformanceMonitorHelper.php')) {
-            require_once 'app/helpers/PerformanceMonitorHelper.php';
+        if (file_exists('app/helpers/PerformanceHelper.php')) {
+            require_once 'app/helpers/PerformanceHelper.php';
         }
     }
     
     /**
-     * Página principal do monitor de performance
-     * Exibe dashboard para monitoramento em tempo real
+     * Dashboard de monitoramento de performance
+     * Exibe uma visão geral das métricas de performance em ambiente de produção
      */
     public function index() {
         // Verificar se o usuário tem permissão administrativa
@@ -55,601 +39,537 @@ class PerformanceMonitorController {
             return;
         }
         
-        // Obter monitores ativos
-        $activeMonitors = $this->model->getActiveMonitors();
+        // Determinar o período de análise
+        $period = isset($_GET['period']) ? (int)$_GET['period'] : 30;
+        $validPeriods = [7, 14, 30, 90, 180];
+        $period = in_array($period, $validPeriods) ? $period : 30;
         
-        // Obter resultados mais recentes
-        $latestResults = $this->model->getLatestResults(10);
-        
-        // Preparar dados para a view
+        // Obter métricas para o dashboard
         $data = [
-            'title' => 'Monitor de Performance | Painel Administrativo',
-            'activeMonitors' => $activeMonitors,
-            'latestResults' => $latestResults,
-            'metricTypes' => $this->metricTypes
+            'title' => 'Monitoramento de Performance | Painel Administrativo',
+            'metrics' => $this->model->getDashboardMetrics($period),
+            'period' => $period,
+            'settings' => $this->model->getMonitorSettings(),
+            'degradation' => $this->model->checkPerformanceDegradation(min($period, 14))
         ];
+        
+        // Verificar se temos dados suficientes
+        if (empty($data['metrics']) || empty($data['metrics']['page_views']) || $data['metrics']['page_views'] < 10) {
+            $data['warning'] = 'Dados insuficientes para análise completa. Continue coletando métricas.';
+        }
         
         // Renderizar a view
         require_once 'app/views/' . $this->baseView . 'performance_monitor.php';
     }
     
     /**
-     * Inicia um novo monitoramento de teste
+     * Endpoint para receber métricas de clientes em produção
+     * Implementa sampling para minimizar o impacto na experiência do usuário
      * 
-     * @return array Resposta em formato JSON
+     * @return array Resposta em JSON
      */
-    public function startMonitoring() {
-        // Verificar se o usuário tem permissão administrativa
-        if (!$this->isAdmin()) {
-            return $this->jsonResponse(['error' => 'Acesso negado'], 403);
-        }
-        
+    public function collectMetrics() {
         // Verificar se a requisição é POST
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             return $this->jsonResponse(['error' => 'Método não permitido'], 405);
+        }
+        
+        // Obter configurações de monitoramento
+        $settings = $this->model->getMonitorSettings();
+        
+        // Se não houver configurações ou o monitoramento estiver desabilitado
+        if (!$settings || isset($settings['sampling_rate']) && $settings['sampling_rate'] <= 0) {
+            return $this->jsonResponse(['status' => 'disabled']);
+        }
+        
+        // Amostragem com base na taxa configurada
+        if (isset($settings['sampling_rate']) && mt_rand(1, 100) > ($settings['sampling_rate'] * 100)) {
+            return $this->jsonResponse(['status' => 'sampled_out']);
         }
         
         // Obter dados da requisição
         $data = json_decode(file_get_contents('php://input'), true);
         
         // Validar dados básicos
-        if (!isset($data['config']) || !is_array($data['config'])) {
-            $data['config'] = [];
-        }
-        
-        // Adicionar configurações padrão se não existirem
-        if (!isset($data['config']['alert_thresholds'])) {
-            $data['config']['alert_thresholds'] = [
-                'page_load_time' => 2000,  // ms
-                'ttfb' => 200,             // ms
-                'lcp' => 2500,             // ms
-                'cls' => 0.1,              // score
-                'fid' => 100,              // ms
-                'query_time' => 200,       // ms
-                'api_response_time' => 300 // ms
-            ];
-        }
-        
-        if (!isset($data['config']['sample_interval'])) {
-            $data['config']['sample_interval'] = 5; // segundos
-        }
-        
-        if (!isset($data['config']['duration'])) {
-            $data['config']['duration'] = 300; // segundos (5 minutos)
-        }
-        
-        // Obter ID do teste associado (se fornecido)
-        $testId = isset($data['test_id']) ? (int)$data['test_id'] : null;
-        
-        // Iniciar monitoramento
-        $monitorId = $this->model->startMonitoring($testId, $data['config']);
-        
-        if (!$monitorId) {
-            return $this->jsonResponse(['error' => 'Falha ao iniciar monitoramento'], 500);
-        }
-        
-        return $this->jsonResponse([
-            'success' => true,
-            'monitor_id' => $monitorId,
-            'message' => 'Monitoramento iniciado com sucesso'
-        ]);
-    }
-    
-    /**
-     * Finaliza um monitoramento em andamento
-     * 
-     * @param int $monitorId ID do monitor a ser finalizado
-     * @return array Resposta em formato JSON
-     */
-    public function stopMonitoring($monitorId) {
-        // Verificar se o usuário tem permissão administrativa
-        if (!$this->isAdmin()) {
-            return $this->jsonResponse(['error' => 'Acesso negado'], 403);
-        }
-        
-        // Verificar se o monitoramento existe
-        $monitor = $this->model->getMonitorById($monitorId);
-        if (!$monitor) {
-            return $this->jsonResponse(['error' => 'Monitoramento não encontrado'], 404);
-        }
-        
-        // Verificar se o monitoramento já foi finalizado
-        if ($monitor['status'] !== 'running') {
-            return $this->jsonResponse(['error' => 'Monitoramento já finalizado'], 400);
-        }
-        
-        // Preparar resultados finais (resumo)
-        $results = [
-            'summary' => [
-                'duration' => $this->calculateDuration($monitor['start_time'], date('Y-m-d H:i:s')),
-                'alert_count' => count($monitor['alerts']),
-                'status' => 'completed',
-                'completion_time' => date('Y-m-d H:i:s')
-            ]
-        ];
-        
-        // Adicionar análise das métricas se disponíveis
-        if (isset($monitor['results']['metrics'])) {
-            $results['summary']['metrics_analysis'] = $this->analyzeMetrics($monitor['results']['metrics']);
-        }
-        
-        // Finalizar monitoramento
-        $success = $this->model->stopMonitoring($monitorId, $results);
-        
-        if (!$success) {
-            return $this->jsonResponse(['error' => 'Falha ao finalizar monitoramento'], 500);
-        }
-        
-        return $this->jsonResponse([
-            'success' => true,
-            'message' => 'Monitoramento finalizado com sucesso',
-            'summary' => $results['summary']
-        ]);
-    }
-    
-    /**
-     * Registra uma métrica de monitoramento
-     * 
-     * @return array Resposta em formato JSON
-     */
-    public function recordMetric() {
-        // Verificar se a requisição é POST
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->jsonResponse(['error' => 'Método não permitido'], 405);
-        }
-        
-        // Obter dados da requisição
-        $data = json_decode(file_get_contents('php://input'), true);
-        
-        // Validar dados básicos
-        if (!isset($data['monitor_id']) || !isset($data['metric_name']) || !isset($data['value'])) {
+        if (!isset($data['pageUrl']) || !isset($data['metrics'])) {
             return $this->jsonResponse(['error' => 'Dados incompletos'], 400);
         }
         
-        $monitorId = (int)$data['monitor_id'];
-        $metricName = $data['metric_name'];
-        $value = $data['value'];
-        $timestamp = isset($data['timestamp']) ? $data['timestamp'] : null;
+        // Sanitizar e processar dados
+        $metrics = $data['metrics'];
+        $pageUrl = filter_var($data['pageUrl'], FILTER_SANITIZE_URL);
+        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
         
-        // Verificar se o monitoramento existe e está ativo
-        $monitor = $this->model->getMonitorById($monitorId);
-        if (!$monitor || $monitor['status'] !== 'running') {
-            return $this->jsonResponse(['error' => 'Monitoramento não encontrado ou inativo'], 404);
+        // Verificar se a página está na lista de habilitadas
+        $enabledPages = isset($settings['enabled_pages']) ? $settings['enabled_pages'] : [];
+        $pageEnabled = $this->isPageEnabled($pageUrl, $enabledPages);
+        
+        if (!$pageEnabled) {
+            return $this->jsonResponse(['status' => 'page_not_monitored']);
         }
         
-        // Registrar métrica
-        $success = $this->model->recordMetric($monitorId, $metricName, $value, $timestamp);
+        // Determinar o tipo de dispositivo
+        $deviceType = $this->detectDeviceType($userAgent);
         
-        if (!$success) {
-            return $this->jsonResponse(['error' => 'Falha ao registrar métrica'], 500);
+        // Obter ID de sessão (se disponível)
+        $sessionId = isset($_COOKIE['PHPSESSID']) ? $_COOKIE['PHPSESSID'] : null;
+        
+        // Salvar métricas no modelo
+        $result = $this->model->saveProductionMetrics($pageUrl, $metrics, $userAgent, $deviceType, $sessionId);
+        
+        if ($result) {
+            return $this->jsonResponse(['success' => true, 'message' => 'Métricas recebidas com sucesso']);
+        } else {
+            return $this->jsonResponse(['error' => 'Erro ao salvar métricas'], 500);
         }
-        
-        // Verificar se deve gerar alerta
-        $alertCreated = false;
-        if (isset($monitor['config']['alert_thresholds'][$metricName])) {
-            $threshold = $monitor['config']['alert_thresholds'][$metricName];
-            
-            // Comparar valor com threshold (assumindo que valores mais altos são ruins)
-            $shouldAlert = false;
-            
-            // Métricas onde valores mais altos são ruins
-            $highIsWorse = ['page_load_time', 'ttfb', 'lcp', 'cls', 'fid', 'query_time', 'api_response_time'];
-            if (in_array($metricName, $highIsWorse) && $value > $threshold) {
-                $shouldAlert = true;
-            }
-            
-            // Métricas onde valores mais baixos são ruins (ex: fps)
-            $lowIsWorse = ['fps'];
-            if (in_array($metricName, $lowIsWorse) && $value < $threshold) {
-                $shouldAlert = true;
-            }
-            
-            if ($shouldAlert) {
-                $alertCreated = $this->model->createAlert($monitorId, $metricName, $threshold, $value, $timestamp);
-            }
-        }
-        
-        return $this->jsonResponse([
-            'success' => true,
-            'alert_created' => $alertCreated
-        ]);
     }
     
     /**
-     * Obtém dados de um monitoramento para exibição em tempo real
+     * Visualização detalhada de métricas para uma página específica
      * 
-     * @param int $monitorId ID do monitor
-     * @return array Resposta em formato JSON
+     * @param string $pageUrl URL da página para análise
      */
-    public function getMonitorData($monitorId) {
-        // Verificar se o usuário tem permissão administrativa
-        if (!$this->isAdmin()) {
-            return $this->jsonResponse(['error' => 'Acesso negado'], 403);
-        }
-        
-        // Obter dados do monitor
-        $monitor = $this->model->getMonitorById($monitorId);
-        if (!$monitor) {
-            return $this->jsonResponse(['error' => 'Monitoramento não encontrado'], 404);
-        }
-        
-        // Preparar dados para resposta
-        $data = [
-            'id' => $monitor['id'],
-            'test_id' => $monitor['test_id'],
-            'start_time' => $monitor['start_time'],
-            'end_time' => $monitor['end_time'],
-            'status' => $monitor['status'],
-            'config' => $monitor['config'],
-            'results' => $monitor['results'],
-            'alerts' => $monitor['alerts'],
-            'duration' => $this->calculateDuration($monitor['start_time'], 
-                           $monitor['status'] === 'running' ? date('Y-m-d H:i:s') : $monitor['end_time'])
-        ];
-        
-        return $this->jsonResponse($data);
-    }
-    
-    /**
-     * Exibe relatório detalhado de um monitoramento
-     * 
-     * @param int $monitorId ID do monitor
-     */
-    public function viewReport($monitorId) {
+    public function pageDetail($pageUrl = null) {
         // Verificar se o usuário tem permissão administrativa
         if (!$this->isAdmin()) {
             $this->redirectToLogin();
             return;
         }
         
-        // Obter dados do monitor
-        $monitor = $this->model->getMonitorById($monitorId);
-        if (!$monitor) {
-            $_SESSION['error'] = 'Monitoramento não encontrado';
-            header('Location: ?page=performance_monitor');
-            exit;
-        }
-        
-        // Obter teste associado se existir
-        $testData = null;
-        if ($monitor['test_id']) {
-            // Incluir modelo de teste se necessário
-            if (!class_exists('PerformanceTestModel')) {
-                require_once 'app/models/PerformanceTestModel.php';
+        // Verificar se a URL da página foi fornecida
+        if ($pageUrl === null) {
+            if (isset($_GET['url'])) {
+                $pageUrl = urldecode($_GET['url']);
+            } else {
+                header('Location: ?page=performance_monitor');
+                exit;
             }
-            $testModel = new PerformanceTestModel();
-            $testData = $testModel->getTestById($monitor['test_id']);
         }
         
-        // Gerar recomendações
-        $recommendations = $this->generateRecommendations($monitor);
+        // Determinar o período e tipo de dispositivo para filtro
+        $period = isset($_GET['period']) ? (int)$_GET['period'] : 30;
+        $validPeriods = [7, 14, 30, 90, 180];
+        $period = in_array($period, $validPeriods) ? $period : 30;
+        
+        $deviceType = isset($_GET['device']) ? $_GET['device'] : null;
+        $validDevices = ['desktop', 'tablet', 'mobile', 'all'];
+        $deviceType = in_array($deviceType, $validDevices) ? $deviceType : null;
+        
+        // Calcular datas de início e fim
+        $endDate = date('Y-m-d H:i:s');
+        $startDate = date('Y-m-d H:i:s', strtotime("-{$period} days"));
+        
+        // Obter métricas para a página
+        $metrics = $this->model->getPageMetrics(
+            $pageUrl,
+            $startDate,
+            $endDate,
+            $deviceType === 'all' ? null : $deviceType
+        );
+        
+        // Processar métricas para visualização
+        $processedMetrics = $this->processPageMetrics($metrics);
         
         // Preparar dados para a view
         $data = [
-            'title' => 'Relatório de Monitoramento | Painel Administrativo',
-            'monitor' => $monitor,
-            'testData' => $testData,
-            'recommendations' => $recommendations,
-            'metricAnalysis' => $this->analyzeMetrics(isset($monitor['results']['metrics']) ? $monitor['results']['metrics'] : [])
+            'title' => 'Análise de Performance: ' . $this->getPageTitle($pageUrl),
+            'pageUrl' => $pageUrl,
+            'period' => $period,
+            'deviceType' => $deviceType ?: 'all',
+            'metrics' => $metrics,
+            'processedMetrics' => $processedMetrics,
+            'devices' => $this->getDeviceDistribution($metrics)
+        ];
+        
+        // Verificar se temos dados suficientes
+        if (empty($metrics)) {
+            $data['warning'] = 'Nenhum dado disponível para esta página no período selecionado.';
+        } elseif (count($metrics) < 5) {
+            $data['warning'] = 'Dados limitados disponíveis. As análises podem não ser estatisticamente significativas.';
+        }
+        
+        // Renderizar a view
+        require_once 'app/views/' . $this->baseView . 'performance_page_detail.php';
+    }
+    
+    /**
+     * Configurações do monitoramento de performance
+     */
+    public function settings() {
+        // Verificar se o usuário tem permissão administrativa
+        if (!$this->isAdmin()) {
+            $this->redirectToLogin();
+            return;
+        }
+        
+        // Processar envio de formulário
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $settings = [
+                'sampling_rate' => isset($_POST['sampling_rate']) ? floatval($_POST['sampling_rate']) / 100 : 0.1,
+                'enabled_pages' => isset($_POST['enabled_pages']) ? $_POST['enabled_pages'] : [],
+                'alert_threshold' => isset($_POST['alert_threshold']) ? floatval($_POST['alert_threshold']) : 20.0,
+                'data_retention_days' => isset($_POST['data_retention_days']) ? (int)$_POST['data_retention_days'] : 90,
+                'notification_email' => isset($_POST['notification_email']) ? $_POST['notification_email'] : ''
+            ];
+            
+            // Validar e ajustar valores
+            $settings['sampling_rate'] = max(0, min(1, $settings['sampling_rate']));
+            $settings['alert_threshold'] = max(5, min(50, $settings['alert_threshold']));
+            $settings['data_retention_days'] = max(7, min(365, $settings['data_retention_days']));
+            
+            $this->model->saveMonitorSettings($settings);
+            $_SESSION['success'] = 'Configurações de monitoramento salvas com sucesso';
+            
+            header('Location: ?page=performance_monitor&action=settings');
+            exit;
+        }
+        
+        // Obter configurações atuais
+        $data = [
+            'title' => 'Configurações de Monitoramento | Painel Administrativo',
+            'settings' => $this->model->getMonitorSettings(),
+            'availablePages' => $this->getAvailablePages()
         ];
         
         // Renderizar a view
-        require_once 'app/views/' . $this->baseView . 'performance_monitor_report.php';
+        require_once 'app/views/' . $this->baseView . 'performance_monitor_settings.php';
     }
     
     /**
-     * Compara os resultados de um monitor com um baseline
-     * 
-     * @param int $monitorId ID do monitor a ser comparado
-     * @param int $baselineId ID do monitor de baseline
-     * @return array Resposta em formato JSON
+     * Visualiza alertas de deterioração de performance
      */
-    public function compareWithBaseline($monitorId, $baselineId) {
+    public function alerts() {
+        // Verificar se o usuário tem permissão administrativa
+        if (!$this->isAdmin()) {
+            $this->redirectToLogin();
+            return;
+        }
+        
+        // Determinar o período para análise
+        $period = isset($_GET['period']) ? (int)$_GET['period'] : 14;
+        $validPeriods = [7, 14, 30];
+        $period = in_array($period, $validPeriods) ? $period : 14;
+        
+        // Obter configurações para threshold
+        $settings = $this->model->getMonitorSettings();
+        $threshold = isset($settings['alert_threshold']) ? $settings['alert_threshold'] : 20.0;
+        
+        // Verificar deterioração
+        $degradation = $this->model->checkPerformanceDegradation($period, $threshold);
+        
+        // Obter métricas para contexto
+        $metrics = $this->model->getDashboardMetrics($period);
+        
+        // Preparar dados para a view
+        $data = [
+            'title' => 'Alertas de Performance | Painel Administrativo',
+            'period' => $period,
+            'threshold' => $threshold,
+            'degradation' => $degradation,
+            'metrics' => $metrics
+        ];
+        
+        // Renderizar a view
+        require_once 'app/views/' . $this->baseView . 'performance_alerts.php';
+    }
+    
+    /**
+     * Endpoint para manutenção de dados
+     * Limpa dados antigos conforme configurações
+     * 
+     * @return array Resposta em JSON
+     */
+    public function maintenance() {
         // Verificar se o usuário tem permissão administrativa
         if (!$this->isAdmin()) {
             return $this->jsonResponse(['error' => 'Acesso negado'], 403);
         }
         
-        // Realizar comparação
-        $comparison = $this->model->compareWithBaseline($monitorId, $baselineId);
+        // Obter configurações
+        $settings = $this->model->getMonitorSettings();
+        $daysToKeep = isset($settings['data_retention_days']) ? $settings['data_retention_days'] : 90;
         
-        return $this->jsonResponse($comparison);
-    }
-    
-    /**
-     * Define um monitor como baseline para comparações futuras
-     * 
-     * @return array Resposta em formato JSON
-     */
-    public function setAsBaseline() {
-        // Verificar se o usuário tem permissão administrativa
-        if (!$this->isAdmin()) {
-            return $this->jsonResponse(['error' => 'Acesso negado'], 403);
-        }
+        // Executar limpeza
+        $result = $this->model->cleanupOldData($daysToKeep);
         
-        // Verificar se a requisição é POST
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->jsonResponse(['error' => 'Método não permitido'], 405);
-        }
-        
-        // Obter dados da requisição
-        $data = json_decode(file_get_contents('php://input'), true);
-        
-        // Validar dados básicos
-        if (!isset($data['monitor_id']) || !isset($data['name'])) {
-            return $this->jsonResponse(['error' => 'Dados incompletos'], 400);
-        }
-        
-        $monitorId = (int)$data['monitor_id'];
-        $name = $data['name'];
-        $notes = isset($data['notes']) ? $data['notes'] : '';
-        
-        // Verificar se o monitoramento existe e está finalizado
-        $monitor = $this->model->getMonitorById($monitorId);
-        if (!$monitor || $monitor['status'] !== 'completed') {
+        if ($result) {
             return $this->jsonResponse([
-                'error' => 'Monitoramento não encontrado ou não finalizado'
-            ], 404);
-        }
-        
-        // Salvar como baseline
-        try {
-            $sql = "INSERT INTO performance_baselines (name, monitor_id, is_active, created_at, notes) 
-                    VALUES (:name, :monitor_id, TRUE, NOW(), :notes)";
-            
-            $params = [
-                'name' => $name,
-                'monitor_id' => $monitorId,
-                'notes' => $notes
-            ];
-            
-            $this->model->db()->execute($sql, $params);
-            $baselineId = $this->model->db()->lastInsertId();
-            
-            return $this->jsonResponse([
-                'success' => true,
-                'baseline_id' => $baselineId,
-                'message' => 'Baseline criado com sucesso'
+                'success' => true, 
+                'message' => 'Manutenção concluída com sucesso',
+                'retention_days' => $daysToKeep
             ]);
-        } catch (Exception $e) {
-            error_log("Erro ao criar baseline: " . $e->getMessage());
-            return $this->jsonResponse([
-                'error' => 'Falha ao criar baseline'
-            ], 500);
-        }
-    }
-    
-    /**
-     * Obtém lista de baselines disponíveis
-     * 
-     * @return array Resposta em formato JSON
-     */
-    public function getBaselines() {
-        // Verificar se o usuário tem permissão administrativa
-        if (!$this->isAdmin()) {
-            return $this->jsonResponse(['error' => 'Acesso negado'], 403);
-        }
-        
-        try {
-            $sql = "SELECT b.id, b.name, b.monitor_id, b.created_at, b.notes, 
-                           m.start_time, m.status
-                    FROM performance_baselines b
-                    JOIN performance_monitors m ON b.monitor_id = m.id
-                    WHERE b.is_active = TRUE
-                    ORDER BY b.created_at DESC";
-            
-            $baselines = $this->model->db()->select($sql);
-            
-            return $this->jsonResponse($baselines);
-        } catch (Exception $e) {
-            error_log("Erro ao obter baselines: " . $e->getMessage());
-            return $this->jsonResponse([
-                'error' => 'Falha ao obter baselines'
-            ], 500);
-        }
-    }
-    
-    /**
-     * Calcula a duração entre duas datas em formato legível
-     * 
-     * @param string $startTime Data/hora de início
-     * @param string $endTime Data/hora de fim
-     * @return string Duração formatada
-     */
-    private function calculateDuration($startTime, $endTime) {
-        $start = new DateTime($startTime);
-        $end = new DateTime($endTime);
-        $interval = $start->diff($end);
-        
-        if ($interval->h > 0) {
-            return $interval->format('%h horas, %i minutos, %s segundos');
-        } elseif ($interval->i > 0) {
-            return $interval->format('%i minutos, %s segundos');
         } else {
-            return $interval->format('%s segundos');
+            return $this->jsonResponse(['error' => 'Erro ao executar manutenção'], 500);
         }
     }
     
     /**
-     * Analisa métricas coletadas para gerar estatísticas
+     * Processa métricas de página para visualização e análise
      * 
-     * @param array $metrics Array de métricas coletadas
-     * @return array Análise estatística das métricas
+     * @param array $metrics Métricas da página
+     * @return array Métricas processadas
      */
-    private function analyzeMetrics($metrics) {
-        $analysis = [];
+    private function processPageMetrics($metrics) {
+        if (empty($metrics)) {
+            return [];
+        }
         
-        foreach ($metrics as $metricName => $values) {
-            if (empty($values)) {
-                continue;
-            }
+        // Inicializar estatísticas
+        $stats = [
+            'count' => count($metrics),
+            'averages' => [
+                'loadTime' => 0,
+                'ttfb' => 0,
+                'fcp' => 0,
+                'lcp' => 0,
+                'cls' => 0,
+                'fid' => 0,
+                'tbt' => 0
+            ],
+            'percentiles' => [
+                'loadTime' => [],
+                'ttfb' => [],
+                'fcp' => [],
+                'lcp' => [],
+                'cls' => [],
+                'fid' => [],
+                'tbt' => []
+            ],
+            'trends' => [
+                'dates' => [],
+                'loadTime' => [],
+                'lcp' => []
+            ]
+        ];
+        
+        // Extrair valores para análise
+        $values = [
+            'loadTime' => [],
+            'ttfb' => [],
+            'fcp' => [],
+            'lcp' => [],
+            'cls' => [],
+            'fid' => [],
+            'tbt' => []
+        ];
+        
+        // Agrupar por data para tendências
+        $byDate = [];
+        
+        foreach ($metrics as $metric) {
+            $metricData = isset($metric['metrics']) ? $metric['metrics'] : [];
+            $date = substr($metric['timestamp'], 0, 10);
             
-            $numericValues = [];
-            foreach ($values as $value) {
-                if (isset($value['value']) && is_numeric($value['value'])) {
-                    $numericValues[] = (float)$value['value'];
+            // Coletar valores para estatísticas
+            foreach ($values as $key => $val) {
+                if (isset($metricData[$key])) {
+                    $values[$key][] = $metricData[$key];
                 }
             }
             
-            if (empty($numericValues)) {
-                continue;
+            // Agrupar por data
+            if (!isset($byDate[$date])) {
+                $byDate[$date] = [
+                    'count' => 0,
+                    'loadTime' => 0,
+                    'lcp' => 0
+                ];
             }
             
-            // Calcular estatísticas
-            $count = count($numericValues);
-            $min = min($numericValues);
-            $max = max($numericValues);
-            $avg = array_sum($numericValues) / $count;
+            $byDate[$date]['count']++;
             
-            // Calcular desvio padrão
-            $variance = 0;
-            foreach ($numericValues as $value) {
-                $variance += pow($value - $avg, 2);
+            if (isset($metricData['loadTime'])) {
+                $byDate[$date]['loadTime'] += $metricData['loadTime'];
             }
-            $stdDev = sqrt($variance / $count);
             
-            // Determinar tendência (últimos 5 valores)
-            $trend = 'stable';
-            if ($count >= 5) {
-                $recent = array_slice($numericValues, -5);
-                $firstHalf = array_slice($recent, 0, 2);
-                $secondHalf = array_slice($recent, -2);
-                $firstAvg = array_sum($firstHalf) / count($firstHalf);
-                $secondAvg = array_sum($secondHalf) / count($secondHalf);
+            if (isset($metricData['lcp'])) {
+                $byDate[$date]['lcp'] += $metricData['lcp'];
+            }
+        }
+        
+        // Calcular médias para cada data
+        foreach ($byDate as $date => $data) {
+            if ($data['count'] > 0) {
+                $stats['trends']['dates'][] = $date;
+                $stats['trends']['loadTime'][] = round($data['loadTime'] / $data['count'], 2);
+                $stats['trends']['lcp'][] = round($data['lcp'] / $data['count'], 2);
+            }
+        }
+        
+        // Calcular médias gerais
+        foreach ($values as $key => $vals) {
+            if (!empty($vals)) {
+                $stats['averages'][$key] = round(array_sum($vals) / count($vals), 2);
                 
-                if ($secondAvg < $firstAvg * 0.95) {
-                    $trend = 'improving';
-                } elseif ($secondAvg > $firstAvg * 1.05) {
-                    $trend = 'worsening';
-                }
+                // Ordenar para percentis
+                sort($vals);
+                $count = count($vals);
+                
+                // Calcular percentis relevantes (p50, p75, p90, p95)
+                $stats['percentiles'][$key] = [
+                    'p50' => $vals[floor($count * 0.5)],
+                    'p75' => $vals[floor($count * 0.75)],
+                    'p90' => $vals[floor($count * 0.9)],
+                    'p95' => $vals[floor($count * 0.95)]
+                ];
             }
-            
-            // Preparar análise
-            $analysis[$metricName] = [
-                'count' => $count,
-                'min' => round($min, 2),
-                'max' => round($max, 2),
-                'avg' => round($avg, 2),
-                'std_dev' => round($stdDev, 2),
-                'trend' => $trend,
-                'first_value' => $numericValues[0],
-                'last_value' => $numericValues[$count - 1]
-            ];
         }
         
-        return $analysis;
+        return $stats;
     }
     
     /**
-     * Gera recomendações baseadas nos dados do monitoramento
+     * Determina se a página deve ser monitorada com base nas configurações
      * 
-     * @param array $monitor Dados do monitor
-     * @return array Lista de recomendações
+     * @param string $pageUrl URL da página
+     * @param array $enabledPages Lista de padrões de URL habilitados
+     * @return bool True se a página deve ser monitorada
      */
-    private function generateRecommendations($monitor) {
-        $recommendations = [];
-        
-        // Verificar métricas coletadas
-        if (!isset($monitor['results']['metrics']) || empty($monitor['results']['metrics'])) {
-            $recommendations[] = 'Não há métricas suficientes para gerar recomendações detalhadas.';
-            return $recommendations;
+    private function isPageEnabled($pageUrl, $enabledPages) {
+        if (empty($enabledPages)) {
+            return true; // Se não houver configuração, monitorar todas
         }
         
-        $metrics = $monitor['results']['metrics'];
-        $analysis = $this->analyzeMetrics($metrics);
-        
-        // Verificar tempo de carregamento
-        if (isset($analysis['page_load_time'])) {
-            $loadTimeAvg = $analysis['page_load_time']['avg'];
-            
-            if ($loadTimeAvg > 3000) {
-                $recommendations[] = 'O tempo médio de carregamento de página é muito alto (> 3s). Considere otimizar recursos ou implementar melhorias de caching.';
-            } elseif ($loadTimeAvg > 2000) {
-                $recommendations[] = 'O tempo médio de carregamento de página está acima do recomendado (> 2s). Revise o carregamento de recursos externos.';
-            }
-            
-            if (isset($analysis['page_load_time']['trend']) && $analysis['page_load_time']['trend'] === 'worsening') {
-                $recommendations[] = 'O tempo de carregamento está piorando ao longo do teste. Verifique possíveis gargalos progressivos.';
+        // Verificar padrões exatos e com wildcards
+        foreach ($enabledPages as $pattern) {
+            // Converter padrão para expressão regular
+            if (strpos($pattern, '*') !== false) {
+                $regexPattern = str_replace(['/', '*'], ['\/', '.*'], $pattern);
+                $regexPattern = '/^' . $regexPattern . '$/';
+                
+                if (preg_match($regexPattern, $pageUrl)) {
+                    return true;
+                }
+            } else {
+                // Comparação exata
+                if ($pattern === $pageUrl) {
+                    return true;
+                }
             }
         }
         
-        // Verificar TTFB
-        if (isset($analysis['ttfb'])) {
-            $ttfbAvg = $analysis['ttfb']['avg'];
+        return false;
+    }
+    
+    /**
+     * Detecta o tipo de dispositivo com base no User Agent
+     * 
+     * @param string $userAgent String do User Agent
+     * @return string Tipo de dispositivo (desktop, tablet, mobile)
+     */
+    private function detectDeviceType($userAgent) {
+        $userAgent = strtolower($userAgent);
+        
+        // Verificar se é um dispositivo móvel
+        if (
+            strpos($userAgent, 'mobile') !== false || 
+            strpos($userAgent, 'android') !== false ||
+            strpos($userAgent, 'iphone') !== false
+        ) {
+            // Verificar se é um tablet
+            if (
+                strpos($userAgent, 'ipad') !== false || 
+                strpos($userAgent, 'tablet') !== false
+            ) {
+                return 'tablet';
+            }
             
-            if ($ttfbAvg > 300) {
-                $recommendations[] = 'O tempo até o primeiro byte (TTFB) é muito alto (> 300ms). Verifique a performance do servidor ou considere otimizações de backend.';
-            } elseif ($ttfbAvg > 200) {
-                $recommendations[] = 'O tempo até o primeiro byte (TTFB) está acima do ideal (> 200ms). Considere ajustes no servidor.';
+            return 'mobile';
+        }
+        
+        return 'desktop';
+    }
+    
+    /**
+     * Obtém a distribuição de tipos de dispositivos
+     * 
+     * @param array $metrics Métricas coletadas
+     * @return array Distribuição de dispositivos
+     */
+    private function getDeviceDistribution($metrics) {
+        $devices = [
+            'desktop' => 0,
+            'tablet' => 0,
+            'mobile' => 0
+        ];
+        
+        if (empty($metrics)) {
+            return $devices;
+        }
+        
+        foreach ($metrics as $metric) {
+            if (isset($metric['device_type'])) {
+                $deviceType = $metric['device_type'];
+                if (isset($devices[$deviceType])) {
+                    $devices[$deviceType]++;
+                }
             }
         }
         
-        // Verificar LCP
-        if (isset($analysis['lcp'])) {
-            $lcpAvg = $analysis['lcp']['avg'];
-            
-            if ($lcpAvg > 2500) {
-                $recommendations[] = 'O Largest Contentful Paint (LCP) está acima do recomendado (> 2.5s). Otimize o carregamento do conteúdo principal.';
+        return $devices;
+    }
+    
+    /**
+     * Obtém o título amigável para uma URL de página
+     * 
+     * @param string $pageUrl URL da página
+     * @return string Título amigável
+     */
+    private function getPageTitle($pageUrl) {
+        // Remover domínio se presente
+        $path = parse_url($pageUrl, PHP_URL_PATH);
+        if (!$path) {
+            $path = $pageUrl;
+        }
+        
+        // Sanitizar e formatar
+        $path = trim($path, '/');
+        if (empty($path)) {
+            return 'Página Inicial';
+        }
+        
+        // Verificar rotas comuns
+        $routes = [
+            'products' => 'Listagem de Produtos',
+            'product' => 'Página de Produto',
+            'cart' => 'Carrinho de Compras',
+            'checkout' => 'Checkout',
+            'categories' => 'Categorias',
+            'search' => 'Busca de Produtos',
+            'user' => 'Perfil do Usuário',
+            'orders' => 'Histórico de Pedidos',
+            'customization' => 'Customização 3D'
+        ];
+        
+        foreach ($routes as $route => $title) {
+            if (strpos($path, $route) === 0) {
+                return $title;
             }
         }
         
-        // Verificar CLS
-        if (isset($analysis['cls'])) {
-            $clsAvg = $analysis['cls']['avg'];
-            
-            if ($clsAvg > 0.1) {
-                $recommendations[] = 'O Cumulative Layout Shift (CLS) está acima do recomendado (> 0.1). Verifique elementos que causam mudanças no layout durante o carregamento.';
-            }
-        }
-        
-        // Verificar tempo de consulta ao banco
-        if (isset($analysis['query_time'])) {
-            $queryTimeAvg = $analysis['query_time']['avg'];
-            
-            if ($queryTimeAvg > 200) {
-                $recommendations[] = 'O tempo médio de consulta ao banco de dados é alto (> 200ms). Considere otimizar consultas ou adicionar índices apropriados.';
-            }
-        }
-        
-        // Verificar contagem de recursos
-        if (isset($analysis['resource_count'])) {
-            $resourceCountAvg = $analysis['resource_count']['avg'];
-            
-            if ($resourceCountAvg > 50) {
-                $recommendations[] = 'O número de recursos carregados é alto (> 50). Considere combinar recursos ou utilizar carregamento assíncrono.';
-            }
-        }
-        
-        // Verificar uso de memória
-        if (isset($analysis['memory_usage'])) {
-            $memoryUsageAvg = $analysis['memory_usage']['avg'];
-            
-            if ($memoryUsageAvg > 100) { // assumindo MB
-                $recommendations[] = 'O uso médio de memória é alto (> 100MB). Verifique possíveis vazamentos de memória ou otimize o consumo de recursos.';
-            }
-        }
-        
-        // Verificar tempo de resposta da API
-        if (isset($analysis['api_response_time'])) {
-            $apiResponseTimeAvg = $analysis['api_response_time']['avg'];
-            
-            if ($apiResponseTimeAvg > 300) {
-                $recommendations[] = 'O tempo médio de resposta da API é alto (> 300ms). Considere otimizações no processamento de requisições.';
-            }
-        }
-        
-        // Verificar alertas
-        if (isset($monitor['alerts']) && !empty($monitor['alerts'])) {
-            $alertCount = count($monitor['alerts']);
-            $recommendations[] = "Foram detectados {$alertCount} alertas durante o monitoramento. Verifique as métricas que ultrapassaram os limiares configurados.";
-        }
-        
-        // Recomendações gerais se nenhuma específica foi gerada
-        if (empty($recommendations)) {
-            $recommendations[] = 'Todas as métricas monitoradas estão dentro dos limites aceitáveis. Continue monitorando regularmente.';
-        }
-        
-        return $recommendations;
+        // Formatar outros caminhos
+        return ucfirst(str_replace(['-', '_', '/'], ' ', $path));
+    }
+    
+    /**
+     * Obtém uma lista de páginas disponíveis para monitoramento
+     * 
+     * @return array Lista de páginas
+     */
+    private function getAvailablePages() {
+        return [
+            '/' => 'Página Inicial',
+            '/products' => 'Listagem de Produtos',
+            '/product/*' => 'Páginas de Produto (todas)',
+            '/cart' => 'Carrinho de Compras',
+            '/checkout' => 'Checkout',
+            '/categories' => 'Categorias',
+            '/category/*' => 'Páginas de Categoria (todas)',
+            '/search' => 'Busca de Produtos',
+            '/user/*' => 'Área do Usuário',
+            '/orders' => 'Histórico de Pedidos',
+            '/customization/*' => 'Customização 3D'
+        ];
     }
     
     /**
