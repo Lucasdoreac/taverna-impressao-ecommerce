@@ -2,417 +2,537 @@
  * Taverna da Impressão - Sistema de E-commerce
  * 
  * Script para coleta de métricas de performance no cliente
- * Este script coleta uma variedade de métricas de performance da navegação
- * e as envia para o servidor para análise e geração de relatórios
+ * Captura dados sobre tempos de carregamento, renderização e recursos
+ * para análise posterior da performance do site
  * 
  * @version 1.0
  * @author Desenvolvimento Taverna da Impressão
  */
 
-// Função para inicializar a coleta de métricas
-function initPerformanceMetrics() {
-    // Verificar se a API de Performance está disponível
-    if (!window.performance || !window.performance.timing) {
-        console.warn('API de Performance não está disponível neste navegador.');
-        return;
-    }
-
-    // Aguardar o carregamento completo da página
-    if (document.readyState !== 'complete') {
-        window.addEventListener('load', collectMetricsOnLoad);
-    } else {
-        collectMetricsOnLoad();
-    }
-}
-
-// Coletar métricas após o carregamento da página
-function collectMetricsOnLoad() {
-    // Deixar um pequeno atraso para garantir que todas as métricas estejam disponíveis
-    setTimeout(function() {
-        // Coletar métricas
-        const metrics = collectAllMetrics();
-        
-        // Enviar métricas para o servidor
-        sendMetricsToServer(metrics);
-        
-        // Registrar no console em modo de desenvolvimento
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            console.log('Métricas de Performance:', metrics);
+// Namespace para métricas de performance
+const PerformanceMetrics = {
+    // Configurações
+    config: {
+        // URL para envio das métricas (relativo à base)
+        endpoint: 'admin/performance_test/collect_metrics',
+        // Se deve coletar automaticamente ao carregar a página
+        autoCollect: true,
+        // Intervalo mínimo entre coletas automáticas (ms)
+        collectInterval: 3600000, // 1 hora
+        // Se deve usar o localStorage para armazenar a última coleta
+        useLocalStorage: true,
+        // Quais métricas coletar
+        metrics: {
+            navigation: true,     // Navigation Timing API
+            resource: true,       // Resource Timing API
+            paint: true,          // Paint Timing API
+            memory: true,         // Memory Info (quando disponível)
+            layout: true,         // Layout Shifts
+            firstInput: true,     // First Input Delay
+            largestPaint: true    // Largest Contentful Paint
         }
-    }, 300);
-}
-
-// Coletar todas as métricas disponíveis
-function collectAllMetrics() {
-    const timing = window.performance.timing;
-    const navigation = window.performance.navigation;
+    },
     
-    // Calcular métricas de tempo
-    const metrics = {
-        // Informações da navegação
-        pageUrl: window.location.href,
-        userAgent: navigator.userAgent,
-        deviceType: getDeviceType(),
-        screenSize: `${window.screen.width}x${window.screen.height}`,
-        viewport: `${window.innerWidth}x${window.innerHeight}`,
-        connectionType: getConnectionType(),
-        
-        // Tempos básicos
-        navigationStart: timing.navigationStart,
-        timestamp: new Date().toISOString(),
-        
-        // Métricas chave de performance
-        pageLoadTime: timing.loadEventEnd - timing.navigationStart,
-        domContentLoadedTime: timing.domContentLoadedEventEnd - timing.navigationStart,
-        timeToFirstByte: timing.responseStart - timing.navigationStart,
-        domProcessingTime: timing.domComplete - timing.domInteractive,
-        redirectTime: timing.redirectEnd - timing.redirectStart,
-        dnsLookupTime: timing.domainLookupEnd - timing.domainLookupStart,
-        tcpConnectionTime: timing.connectEnd - timing.connectStart,
-        serverResponseTime: timing.responseEnd - timing.requestStart,
-        pageRenderTime: timing.loadEventEnd - timing.responseEnd,
-        frontEndTime: timing.loadEventEnd - timing.responseEnd,
-        backEndTime: timing.responseEnd - timing.navigationStart,
-        
-        // Tipo de navegação
-        navigationType: getNavigationType(navigation.type),
-        redirectCount: navigation.redirectCount,
-        
-        // Recursos
-        resourceCount: getResourceCount(),
-        resourceMetrics: collectResourceMetrics(),
-        
-        // Métricas adicionais (se disponíveis)
-        fpTime: getFirstPaintTime(),
-        fcpTime: getFirstContentfulPaintTime(),
-        lcp: getLargestContentfulPaint(),
-        cls: getCumulativeLayoutShift(),
-        fid: getFirstInputDelay(),
-        
-        // Dados do navegador e sistema
-        memory: getMemoryInfo()
-    };
+    // Dados coletados
+    data: {},
     
-    return metrics;
-}
-
-// Obter métricas dos recursos (imagens, scripts, css, etc)
-function collectResourceMetrics() {
-    // Verificar se a API de Performance Timeline está disponível
-    if (!window.performance || !window.performance.getEntriesByType) {
-        return [];
-    }
-    
-    // Obter todos os recursos carregados
-    const resources = window.performance.getEntriesByType('resource');
-    
-    // Estrutura para agrupar os recursos por tipo
-    const resourceMetrics = {
-        summary: {
-            total: resources.length,
-            size: 0,
-            totalDuration: 0,
-            byType: {}
-        },
-        slowestResources: [],
-        largestResources: []
-    };
-    
-    // Processar cada recurso
-    resources.forEach(resource => {
-        const type = getResourceType(resource.name);
-        const size = resource.transferSize || 0;
-        const duration = resource.duration;
+    /**
+     * Inicializa a coleta de métricas
+     * 
+     * @param {object} options Opções de configuração
+     */
+    init: function(options = {}) {
+        // Mesclar configurações
+        if (options) {
+            this.config = { ...this.config, ...options };
+            
+            // Mesclar métricas se fornecidas
+            if (options.metrics) {
+                this.config.metrics = { ...this.config.metrics, ...options.metrics };
+            }
+        }
         
-        // Adicionar ao tamanho total
-        resourceMetrics.summary.size += size;
-        resourceMetrics.summary.totalDuration += duration;
+        // Registrar eventos para coleta de métricas
+        this.registerEvents();
         
-        // Agrupar por tipo
-        if (!resourceMetrics.summary.byType[type]) {
-            resourceMetrics.summary.byType[type] = {
-                count: 0,
-                size: 0,
-                totalDuration: 0
+        // Coletar automaticamente se configurado
+        if (this.config.autoCollect) {
+            // Verificar se já coletou recentemente
+            const lastCollect = this.getLastCollectTime();
+            const now = Date.now();
+            
+            if (!lastCollect || (now - lastCollect) >= this.config.collectInterval) {
+                // Aguardar o carregamento completo antes de coletar
+                window.addEventListener('load', () => {
+                    // Pequeno atraso para garantir que todas as métricas estejam disponíveis
+                    setTimeout(() => this.collect(), 1000);
+                });
+            }
+        }
+        
+        console.log('Taverna Impressão 3D: Sistema de métricas de performance inicializado');
+    },
+    
+    /**
+     * Registra eventos para coleta de métricas específicas
+     */
+    registerEvents: function() {
+        // First Input Delay
+        if (this.config.metrics.firstInput && window.PerformanceObserver) {
+            try {
+                new PerformanceObserver((entryList) => {
+                    const entries = entryList.getEntries();
+                    if (entries.length > 0) {
+                        this.data.firstInput = entries[0].toJSON();
+                    }
+                }).observe({ type: 'first-input', buffered: true });
+            } catch (e) {
+                console.warn('Taverna Impressão 3D: Erro ao observar first-input', e);
+            }
+        }
+        
+        // Largest Contentful Paint
+        if (this.config.metrics.largestPaint && window.PerformanceObserver) {
+            try {
+                new PerformanceObserver((entryList) => {
+                    const entries = entryList.getEntries();
+                    if (entries.length > 0) {
+                        this.data.largestPaint = entries[entries.length - 1].toJSON();
+                    }
+                }).observe({ type: 'largest-contentful-paint', buffered: true });
+            } catch (e) {
+                console.warn('Taverna Impressão 3D: Erro ao observar largest-contentful-paint', e);
+            }
+        }
+        
+        // Layout Shifts
+        if (this.config.metrics.layout && window.PerformanceObserver) {
+            try {
+                let cumulativeLayoutShift = 0;
+                
+                new PerformanceObserver((entryList) => {
+                    for (const entry of entryList.getEntries()) {
+                        // Apenas considerar se não foi causado por interação do usuário
+                        if (!entry.hadRecentInput) {
+                            cumulativeLayoutShift += entry.value;
+                        }
+                    }
+                    
+                    this.data.layoutShift = {
+                        value: cumulativeLayoutShift
+                    };
+                }).observe({ type: 'layout-shift', buffered: true });
+            } catch (e) {
+                console.warn('Taverna Impressão 3D: Erro ao observar layout-shift', e);
+            }
+        }
+    },
+    
+    /**
+     * Coleta as métricas de performance
+     * 
+     * @returns {object} Objeto com as métricas coletadas
+     */
+    collect: function() {
+        // Limpar dados anteriores
+        this.data = {};
+        
+        // Navigation Timing
+        if (this.config.metrics.navigation && window.performance && window.performance.timing) {
+            this.collectNavigationTiming();
+        }
+        
+        // Resource Timing
+        if (this.config.metrics.resource && window.performance && window.performance.getEntriesByType) {
+            this.collectResourceTiming();
+        }
+        
+        // Paint Timing
+        if (this.config.metrics.paint && window.performance && window.performance.getEntriesByType) {
+            this.collectPaintTiming();
+        }
+        
+        // Memory Info
+        if (this.config.metrics.memory && window.performance && window.performance.memory) {
+            this.collectMemoryInfo();
+        }
+        
+        // Informações do dispositivo e navegador
+        this.collectDeviceInfo();
+        
+        // Registrar timestamp da coleta
+        this.data.timestamp = new Date().toISOString();
+        this.data.url = window.location.href;
+        
+        // Salvar timestamp da última coleta
+        if (this.config.useLocalStorage) {
+            this.setLastCollectTime(Date.now());
+        }
+        
+        // Retornar dados coletados
+        return this.data;
+    },
+    
+    /**
+     * Coleta métricas de Navigation Timing
+     */
+    collectNavigationTiming: function() {
+        const timing = window.performance.timing;
+        const navigationStart = timing.navigationStart;
+        
+        this.data.navigation = {
+            // DNS
+            dnsLookup: timing.domainLookupEnd - timing.domainLookupStart,
+            
+            // TCP
+            tcpConnection: timing.connectEnd - timing.connectStart,
+            
+            // Request/Response
+            requestStart: timing.requestStart - navigationStart,
+            responseStart: timing.responseStart - navigationStart,
+            responseEnd: timing.responseEnd - navigationStart,
+            
+            // DOM
+            domInteractive: timing.domInteractive - navigationStart,
+            domContentLoaded: timing.domContentLoadedEventEnd - navigationStart,
+            domComplete: timing.domComplete - navigationStart,
+            
+            // Page Load
+            loadEvent: timing.loadEventEnd - navigationStart,
+            
+            // Total times
+            backendTime: timing.responseStart - timing.navigationStart,
+            frontendTime: timing.loadEventEnd - timing.responseStart,
+            totalTime: timing.loadEventEnd - timing.navigationStart
+        };
+        
+        // Navigation Timing 2 (quando disponível)
+        if (window.PerformanceNavigationTiming) {
+            try {
+                const navigationEntries = performance.getEntriesByType('navigation');
+                if (navigationEntries.length > 0) {
+                    const navEntry = navigationEntries[0];
+                    
+                    this.data.navigation2 = {
+                        // Tempo de resposta do servidor
+                        serverTiming: navEntry.responseStart - navEntry.requestStart,
+                        
+                        // Tempo de redirecionamento
+                        redirectTime: navEntry.redirectEnd - navEntry.redirectStart,
+                        
+                        // Tempo de cache
+                        cacheTime: navEntry.domainLookupStart - navEntry.fetchStart,
+                        
+                        // Tempo para o primeiro byte
+                        ttfb: navEntry.responseStart - navEntry.requestStart,
+                        
+                        // Tipo de navegação
+                        type: navEntry.type
+                    };
+                }
+            } catch (e) {
+                console.warn('Taverna Impressão 3D: Erro ao coletar Navigation Timing 2', e);
+            }
+        }
+    },
+    
+    /**
+     * Coleta métricas de Resource Timing
+     */
+    collectResourceTiming: function() {
+        try {
+            const resources = performance.getEntriesByType('resource');
+            
+            // Agrupar recursos por tipo
+            const resourcesByType = {
+                script: [],
+                css: [],
+                img: [],
+                font: [],
+                xhr: [],
+                fetch: [],
+                other: []
             };
-        }
-        
-        resourceMetrics.summary.byType[type].count++;
-        resourceMetrics.summary.byType[type].size += size;
-        resourceMetrics.summary.byType[type].totalDuration += duration;
-        
-        // Adicionar às listas de recursos mais lentos e maiores
-        resourceMetrics.slowestResources.push({
-            name: resource.name,
-            type: type,
-            duration: duration,
-            size: size
-        });
-        
-        resourceMetrics.largestResources.push({
-            name: resource.name,
-            type: type,
-            duration: duration,
-            size: size
-        });
-    });
-    
-    // Ordenar e limitar os recursos mais lentos e maiores
-    resourceMetrics.slowestResources.sort((a, b) => b.duration - a.duration);
-    resourceMetrics.largestResources.sort((a, b) => b.size - a.size);
-    
-    resourceMetrics.slowestResources = resourceMetrics.slowestResources.slice(0, 5);
-    resourceMetrics.largestResources = resourceMetrics.largestResources.slice(0, 5);
-    
-    // Calcular médias para cada tipo
-    Object.keys(resourceMetrics.summary.byType).forEach(type => {
-        const typeData = resourceMetrics.summary.byType[type];
-        typeData.avgDuration = typeData.totalDuration / typeData.count;
-        typeData.avgSize = typeData.size / typeData.count;
-    });
-    
-    return resourceMetrics;
-}
-
-// Enviar métricas para o servidor
-function sendMetricsToServer(metrics) {
-    // Verificar se o endpoint está definido
-    const endpoint = '/admin/performance_test/collect_metrics';
-    
-    // Enviar via fetch API
-    fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify(metrics),
-        credentials: 'same-origin'
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Falha ao enviar métricas: ' + response.statusText);
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            console.log('Métricas enviadas com sucesso');
-        } else {
-            console.warn('Falha ao processar métricas no servidor:', data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Erro ao enviar métricas:', error);
-    });
-}
-
-// Funções auxiliares para obter informações adicionais
-
-// Obter o tipo de dispositivo
-function getDeviceType() {
-    const ua = navigator.userAgent;
-    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
-        return 'tablet';
-    }
-    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
-        return 'mobile';
-    }
-    return 'desktop';
-}
-
-// Obter informações sobre a conexão
-function getConnectionType() {
-    if (navigator.connection) {
-        return {
-            effectiveType: navigator.connection.effectiveType || 'unknown',
-            downlink: navigator.connection.downlink || 0,
-            rtt: navigator.connection.rtt || 0,
-            saveData: navigator.connection.saveData || false
-        };
-    }
-    return 'not-available';
-}
-
-// Traduzir o tipo de navegação
-function getNavigationType(type) {
-    const types = {
-        0: 'navigation',
-        1: 'reload',
-        2: 'back_forward',
-        255: 'undefined'
-    };
-    return types[type] || 'unknown';
-}
-
-// Contar recursos carregados
-function getResourceCount() {
-    if (!window.performance || !window.performance.getEntriesByType) {
-        return -1;
-    }
-    return window.performance.getEntriesByType('resource').length;
-}
-
-// Obter o tipo de recurso com base na URL
-function getResourceType(url) {
-    if (!url) return 'other';
-    
-    const extension = url.split('.').pop().split('?')[0].toLowerCase();
-    
-    if (/jpe?g|png|gif|svg|webp|bmp|ico/i.test(extension)) {
-        return 'image';
-    } else if (/css/i.test(extension)) {
-        return 'css';
-    } else if (/js/i.test(extension)) {
-        return 'javascript';
-    } else if (/html?/i.test(extension)) {
-        return 'html';
-    } else if (/woff2?|ttf|otf|eot/i.test(extension)) {
-        return 'font';
-    } else if (/json/i.test(extension)) {
-        return 'json';
-    } else if (/xml/i.test(extension)) {
-        return 'xml';
-    }
-    
-    // Verificar por padrões na URL
-    if (url.includes('/api/') || url.includes('/ajax/')) {
-        return 'api';
-    } else if (url.includes('/fonts/')) {
-        return 'font';
-    } else if (url.includes('/images/') || url.includes('/img/')) {
-        return 'image';
-    } else if (url.includes('/css/') || url.includes('/styles/')) {
-        return 'css';
-    } else if (url.includes('/js/') || url.includes('/scripts/')) {
-        return 'javascript';
-    }
-    
-    return 'other';
-}
-
-// Obter tempo da primeira renderização (First Paint)
-function getFirstPaintTime() {
-    if (window.performance && window.performance.getEntriesByType) {
-        const paintMetrics = window.performance.getEntriesByType('paint');
-        const firstPaint = paintMetrics.find(entry => entry.name === 'first-paint');
-        
-        if (firstPaint) {
-            return firstPaint.startTime;
-        }
-    }
-    return null;
-}
-
-// Obter tempo da primeira renderização com conteúdo (First Contentful Paint)
-function getFirstContentfulPaintTime() {
-    if (window.performance && window.performance.getEntriesByType) {
-        const paintMetrics = window.performance.getEntriesByType('paint');
-        const firstContentfulPaint = paintMetrics.find(entry => entry.name === 'first-contentful-paint');
-        
-        if (firstContentfulPaint) {
-            return firstContentfulPaint.startTime;
-        }
-    }
-    return null;
-}
-
-// Obter informações sobre o maior conteúdo visível (Largest Contentful Paint)
-function getLargestContentfulPaint() {
-    if (!window.PerformanceObserver || !window.LargestContentfulPaint) {
-        return null;
-    }
-    
-    // Aqui usamos um valor armazenado pelo PerformanceObserver
-    // que deveria ser inicializado no cabeçalho
-    return window.largestContentfulPaint || null;
-}
-
-// Obter informações sobre mudanças de layout cumulativas (Cumulative Layout Shift)
-function getCumulativeLayoutShift() {
-    if (!window.PerformanceObserver || !window.CumulativeLayoutShift) {
-        return null;
-    }
-    
-    // Aqui usamos um valor armazenado pelo PerformanceObserver
-    // que deveria ser inicializado no cabeçalho
-    return window.cumulativeLayoutShift || null;
-}
-
-// Obter informações sobre o atraso da primeira interação (First Input Delay)
-function getFirstInputDelay() {
-    if (!window.PerformanceObserver || !window.FirstInputDelay) {
-        return null;
-    }
-    
-    // Aqui usamos um valor armazenado pelo PerformanceObserver
-    // que deveria ser inicializado no cabeçalho
-    return window.firstInputDelay || null;
-}
-
-// Obter informações sobre o uso de memória
-function getMemoryInfo() {
-    if (window.performance && window.performance.memory) {
-        return {
-            jsHeapSizeLimit: window.performance.memory.jsHeapSizeLimit,
-            totalJSHeapSize: window.performance.memory.totalJSHeapSize,
-            usedJSHeapSize: window.performance.memory.usedJSHeapSize
-        };
-    }
-    return null;
-}
-
-// Inicializar a coleta de métricas de Web Vitals quando o documento estiver pronto
-function initWebVitals() {
-    // Verificar se o navegador suporta PerformanceObserver
-    if (!window.PerformanceObserver) {
-        return;
-    }
-    
-    // Observador para Largest Contentful Paint (LCP)
-    try {
-        const lcpObserver = new PerformanceObserver((entryList) => {
-            const entries = entryList.getEntries();
-            const lastEntry = entries[entries.length - 1];
-            window.largestContentfulPaint = lastEntry.startTime;
-        });
-        lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
-    } catch (e) {
-        console.warn('LCP measurement not supported', e);
-    }
-    
-    // Observador para Cumulative Layout Shift (CLS)
-    try {
-        let clsValue = 0;
-        const clsObserver = new PerformanceObserver((entryList) => {
-            for (const entry of entryList.getEntries()) {
-                if (!entry.hadRecentInput) {
-                    clsValue += entry.value;
+            
+            let totalSize = 0;
+            let totalTime = 0;
+            
+            // Filtragem e classificação de recursos
+            resources.forEach(resource => {
+                const url = resource.name;
+                
+                // Determinar tipo de recurso
+                let type = 'other';
+                
+                if (url.match(/\.js(\?|$)/)) {
+                    type = 'script';
+                } else if (url.match(/\.css(\?|$)/)) {
+                    type = 'css';
+                } else if (url.match(/\.(png|jpg|jpeg|gif|webp|svg)(\?|$)/)) {
+                    type = 'img';
+                } else if (url.match(/\.(woff|woff2|ttf|otf|eot)(\?|$)/)) {
+                    type = 'font';
+                } else if (resource.initiatorType === 'xmlhttprequest') {
+                    type = 'xhr';
+                } else if (resource.initiatorType === 'fetch') {
+                    type = 'fetch';
+                }
+                
+                // Calcular tempos
+                const duration = resource.duration;
+                const size = resource.transferSize || 0;
+                
+                // Adicionar ao grupo apropriado
+                resourcesByType[type].push({
+                    url: url,
+                    duration: duration,
+                    size: size,
+                    initiatorType: resource.initiatorType,
+                    startTime: resource.startTime
+                });
+                
+                // Somar aos totais
+                totalSize += size;
+                totalTime += duration;
+            });
+            
+            // Calcular estatísticas por tipo
+            const stats = {};
+            
+            for (const type in resourcesByType) {
+                const typeResources = resourcesByType[type];
+                
+                if (typeResources.length > 0) {
+                    // Calcular tempos médios, máximos e totais
+                    const totalDuration = typeResources.reduce((sum, r) => sum + r.duration, 0);
+                    const totalSize = typeResources.reduce((sum, r) => sum + r.size, 0);
+                    const maxDuration = Math.max(...typeResources.map(r => r.duration));
+                    
+                    stats[type] = {
+                        count: typeResources.length,
+                        totalDuration: totalDuration,
+                        avgDuration: totalDuration / typeResources.length,
+                        maxDuration: maxDuration,
+                        totalSize: totalSize,
+                        avgSize: totalSize / typeResources.length
+                    };
                 }
             }
-            window.cumulativeLayoutShift = clsValue;
-        });
-        clsObserver.observe({ type: 'layout-shift', buffered: true });
-    } catch (e) {
-        console.warn('CLS measurement not supported', e);
-    }
+            
+            // Recursos mais lentos
+            const slowestResources = resources
+                .filter(r => r.duration > 0)
+                .sort((a, b) => b.duration - a.duration)
+                .slice(0, 5)
+                .map(r => ({
+                    url: r.name,
+                    duration: r.duration,
+                    size: r.transferSize || 0,
+                    type: r.initiatorType
+                }));
+            
+            // Recursos maiores
+            const largestResources = resources
+                .filter(r => (r.transferSize || 0) > 0)
+                .sort((a, b) => (b.transferSize || 0) - (a.transferSize || 0))
+                .slice(0, 5)
+                .map(r => ({
+                    url: r.name,
+                    duration: r.duration,
+                    size: r.transferSize || 0,
+                    type: r.initiatorType
+                }));
+            
+            // Salvar resultados
+            this.data.resources = {
+                totalCount: resources.length,
+                totalSize: totalSize,
+                totalTime: totalTime,
+                stats: stats,
+                slowestResources: slowestResources,
+                largestResources: largestResources
+            };
+        } catch (e) {
+            console.warn('Taverna Impressão 3D: Erro ao coletar Resource Timing', e);
+        }
+    },
     
-    // Observador para First Input Delay (FID)
-    try {
-        const fidObserver = new PerformanceObserver((entryList) => {
-            const firstInput = entryList.getEntries()[0];
-            if (firstInput) {
-                window.firstInputDelay = firstInput.processingStart - firstInput.startTime;
+    /**
+     * Coleta métricas de Paint Timing
+     */
+    collectPaintTiming: function() {
+        try {
+            const paintEntries = performance.getEntriesByType('paint');
+            
+            // Inicializar objeto de paint
+            this.data.paint = {};
+            
+            // Processar entradas de pintura
+            paintEntries.forEach(paint => {
+                if (paint.name === 'first-paint') {
+                    this.data.paint.firstPaint = paint.startTime;
+                } else if (paint.name === 'first-contentful-paint') {
+                    this.data.paint.firstContentfulPaint = paint.startTime;
+                }
+            });
+        } catch (e) {
+            console.warn('Taverna Impressão 3D: Erro ao coletar Paint Timing', e);
+        }
+    },
+    
+    /**
+     * Coleta informações de memória (quando disponível)
+     */
+    collectMemoryInfo: function() {
+        try {
+            if (window.performance && window.performance.memory) {
+                const memory = window.performance.memory;
+                
+                this.data.memory = {
+                    totalJSHeapSize: memory.totalJSHeapSize,
+                    usedJSHeapSize: memory.usedJSHeapSize,
+                    jsHeapSizeLimit: memory.jsHeapSizeLimit
+                };
             }
+        } catch (e) {
+            console.warn('Taverna Impressão 3D: Erro ao coletar Memory Info', e);
+        }
+    },
+    
+    /**
+     * Coleta informações sobre o dispositivo e navegador
+     */
+    collectDeviceInfo: function() {
+        this.data.device = {
+            // Navegador
+            userAgent: navigator.userAgent,
+            language: navigator.language,
+            
+            // Viewport
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+            devicePixelRatio: window.devicePixelRatio || 1,
+            
+            // Hardware (quando disponível)
+            hardwareConcurrency: navigator.hardwareConcurrency || 'N/A',
+            maxTouchPoints: navigator.maxTouchPoints || 0,
+            
+            // Conexão (quando disponível)
+            connection: (navigator.connection) ? {
+                effectiveType: navigator.connection.effectiveType,
+                downlink: navigator.connection.downlink,
+                rtt: navigator.connection.rtt,
+                saveData: navigator.connection.saveData
+            } : 'N/A'
+        };
+    },
+    
+    /**
+     * Envia as métricas coletadas para o servidor
+     * 
+     * @param {object} data Dados a serem enviados (opcional, usa this.data se não fornecido)
+     * @returns {Promise} Promessa com o resultado do envio
+     */
+    send: function(data = null) {
+        // Usar dados fornecidos ou dados coletados
+        const metricsData = data || this.data;
+        
+        // Verificar se há dados para enviar
+        if (!metricsData || Object.keys(metricsData).length === 0) {
+            console.warn('Taverna Impressão 3D: Nenhum dado para enviar');
+            return Promise.reject(new Error('Nenhum dado para enviar'));
+        }
+        
+        // Preparar dados para envio
+        const payload = {
+            pageUrl: window.location.href,
+            metrics: metricsData
+        };
+        
+        // Determinar URL base do site
+        const baseUrl = (document.querySelector('meta[name="base-url"]')?.content || '') + this.config.endpoint;
+        
+        // Enviar dados
+        return fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Erro HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Taverna Impressão 3D: Métricas enviadas com sucesso', data);
+            return data;
+        })
+        .catch(error => {
+            console.error('Taverna Impressão 3D: Erro ao enviar métricas', error);
+            throw error;
         });
-        fidObserver.observe({ type: 'first-input', buffered: true });
-    } catch (e) {
-        console.warn('FID measurement not supported', e);
+    },
+    
+    /**
+     * Obtém o timestamp da última coleta (de localStorage)
+     * 
+     * @returns {number|null} Timestamp ou null se não encontrado
+     */
+    getLastCollectTime: function() {
+        if (this.config.useLocalStorage && window.localStorage) {
+            try {
+                const timestamp = localStorage.getItem('tavernaPerformanceLastCollect');
+                return timestamp ? parseInt(timestamp, 10) : null;
+            } catch (e) {
+                console.warn('Taverna Impressão 3D: Erro ao acessar localStorage', e);
+                return null;
+            }
+        }
+        return null;
+    },
+    
+    /**
+     * Define o timestamp da última coleta (em localStorage)
+     * 
+     * @param {number} timestamp Timestamp a ser armazenado
+     */
+    setLastCollectTime: function(timestamp) {
+        if (this.config.useLocalStorage && window.localStorage) {
+            try {
+                localStorage.setItem('tavernaPerformanceLastCollect', timestamp.toString());
+            } catch (e) {
+                console.warn('Taverna Impressão 3D: Erro ao acessar localStorage', e);
+            }
+        }
+    },
+    
+    /**
+     * Coleta e envia as métricas em uma única operação
+     * 
+     * @returns {Promise} Promessa com o resultado do envio
+     */
+    collectAndSend: function() {
+        // Coletar métricas
+        const data = this.collect();
+        
+        // Enviar para o servidor
+        return this.send(data);
     }
-}
+};
 
-// Inicializar as métricas de Web Vitals
-initWebVitals();
+// Inicializar automaticamente quando o script for carregado
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se deve inicializar automaticamente
+    const autoInit = document.body.getAttribute('data-performance-auto-init') !== 'false';
+    
+    if (autoInit) {
+        PerformanceMetrics.init();
+    }
+});
 
-// Inicializar a coleta de métricas de performance
-document.addEventListener('DOMContentLoaded', initPerformanceMetrics);
+// Exportar para uso global
+window.PerformanceMetrics = PerformanceMetrics;
