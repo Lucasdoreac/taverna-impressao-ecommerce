@@ -19,6 +19,150 @@ class CustomizationController {
     }
     
     /**
+     * Lista todos os produtos personalizáveis
+     */
+    public function list() {
+        try {
+            // Buscar produtos personalizáveis
+            $customizableProducts = $this->productModel->getCustomizableProducts(24);
+            
+            // Verificar se a view existe
+            if (file_exists(VIEWS_PATH . '/customization/list.php')) {
+                // Renderizar a view dedicada
+                require_once VIEWS_PATH . '/customization/list.php';
+            } else {
+                // Criar uma view na pasta principal caso não exista na subpasta
+                // Verificar se a view alternativa existe
+                if (!file_exists(VIEWS_PATH . '/personalizados.php')) {
+                    // Criar uma view temporária baseada no template de products.php
+                    $this->createPersonalizadosView();
+                }
+                
+                // Renderizar a view temporária
+                require_once VIEWS_PATH . '/personalizados.php';
+            }
+        } catch (Exception $e) {
+            $this->handleError($e, "Erro ao listar produtos personalizáveis");
+        }
+    }
+    
+    /**
+     * Cria a view personalizados.php caso ela não exista
+     */
+    private function createPersonalizadosView() {
+        try {
+            // Verificar se a view de produtos existe para usar como base
+            if (file_exists(VIEWS_PATH . '/products.php')) {
+                $productsViewContent = file_get_contents(VIEWS_PATH . '/products.php');
+                
+                // Substituir o título e adicionar informações específicas para produtos personalizáveis
+                $personalizadosViewContent = str_replace(
+                    ['<h1 class="h2 mb-4">Produtos</h1>', '<h1 class="h2">Produtos</h1>'],
+                    '<h1 class="h2 mb-4">Produtos Personalizáveis</h1>
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Aqui você encontra todos os produtos que podem ser personalizados. 
+                        Escolha um produto e clique em "Personalizar" para configurar de acordo com suas necessidades.
+                    </div>',
+                    $productsViewContent
+                );
+                
+                // Salvar a view temporária
+                file_put_contents(VIEWS_PATH . '/personalizados.php', $personalizadosViewContent);
+                
+                error_log("View personalizados.php criada com sucesso");
+            } else {
+                throw new Exception("View template products.php não encontrada em " . VIEWS_PATH);
+            }
+        } catch (Exception $e) {
+            error_log("Erro ao criar view personalizados.php: " . $e->getMessage());
+            // Se falhar em criar a view, vamos criar uma simples
+            $this->createSimplePersonalizadosView();
+        }
+    }
+    
+    /**
+     * Cria uma view simples para personalizados caso não consiga adaptar a de produtos
+     */
+    private function createSimplePersonalizadosView() {
+        $viewContent = <<<HTML
+<?php require_once VIEWS_PATH . '/partials/header.php'; ?>
+
+<div class="container py-4">
+    <h1 class="h2 mb-4">Produtos Personalizáveis</h1>
+    
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle me-2"></i>
+        Aqui você encontra todos os produtos que podem ser personalizados. 
+        Escolha um produto e clique em "Personalizar" para configurar de acordo com suas necessidades.
+    </div>
+    
+    <?php if (empty(\$customizableProducts)): ?>
+    <div class="alert alert-warning">
+        Nenhum produto personalizável encontrado no momento.
+    </div>
+    <?php else: ?>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+        <?php foreach (\$customizableProducts as \$product): ?>
+        <div class="col">
+            <div class="card h-100 product-card border-0 shadow-sm">
+                <div class="position-relative">
+                    <?php if (isset(\$product['sale_price']) && \$product['sale_price'] && \$product['sale_price'] < \$product['price']): ?>
+                    <span class="position-absolute badge bg-danger top-0 start-0 m-2">OFERTA</span>
+                    <?php endif; ?>
+                    
+                    <?php if (isset(\$product['availability'])): ?>
+                    <span class="position-absolute badge <?= \$product['availability'] === 'Pronta Entrega' ? 'bg-success' : 'bg-primary' ?> top-0 end-0 m-2">
+                        <?= \$product['availability'] ?>
+                    </span>
+                    <?php endif; ?>
+                    
+                    <?php if (isset(\$product['image']) && !empty(\$product['image']) && file_exists(UPLOADS_PATH . '/products/' . \$product['image'])): ?>
+                    <img src="<?= BASE_URL ?>uploads/products/<?= \$product['image'] ?>" class="card-img-top" alt="<?= \$product['name'] ?>">
+                    <?php else: ?>
+                    <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars(\$product['name']) ?>"></div>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="card-body">
+                    <h2 class="card-title h6"><?= \$product['name'] ?></h2>
+                    
+                    <?php if (isset(\$product['short_description'])): ?>
+                    <p class="card-text small"><?= mb_strimwidth(\$product['short_description'], 0, 60, '...') ?></p>
+                    <?php endif; ?>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div>
+                            <?php if (isset(\$product['sale_price']) && \$product['sale_price'] && \$product['sale_price'] < \$product['price']): ?>
+                            <span class="text-decoration-line-through text-muted small">R$ <?= number_format(\$product['price'], 2, ',', '.') ?></span>
+                            <span class="ms-1 text-danger fw-bold">R$ <?= number_format(\$product['sale_price'], 2, ',', '.') ?></span>
+                            <?php else: ?>
+                            <span class="fw-bold">R$ <?= number_format(\$product['price'], 2, ',', '.') ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div>
+                            <a href="<?= BASE_URL ?>personalizar/<?= \$product['slug'] ?>" class="btn btn-sm btn-primary">
+                                <i class="fas fa-brush me-1"></i> Personalizar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+</div>
+
+<?php require_once VIEWS_PATH . '/partials/footer.php'; ?>
+HTML;
+
+        // Salvar a view
+        file_put_contents(VIEWS_PATH . '/personalizados.php', $viewContent);
+        error_log("View simples personalizados.php criada com sucesso");
+    }
+    
+    /**
      * Exibe a página de personalização de um produto
      * 
      * @param array $params Parâmetros da URL
