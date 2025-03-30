@@ -21,20 +21,27 @@ Options -Indexes
 # Begin Cache Control
 <IfModule mod_expires.c>
   ExpiresActive On
+  ExpiresDefault "access plus 1 month"
 
   # CSS
-  ExpiresByType text/css "access plus 1 week"
+  ExpiresByType text/css "access plus 1 year"
 
   # JavaScript
-  ExpiresByType application/javascript "access plus 1 week"
-  ExpiresByType text/javascript "access plus 1 week"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/javascript "access plus 1 year"
+
+  # Data interchange
+  ExpiresByType application/json "access plus 0 seconds"
+  ExpiresByType application/xml "access plus 0 seconds"
+  ExpiresByType text/xml "access plus 0 seconds"
 
   # Images
-  ExpiresByType image/jpeg "access plus 30 days"
-  ExpiresByType image/png "access plus 30 days"
-  ExpiresByType image/gif "access plus 30 days"
-  ExpiresByType image/svg+xml "access plus 30 days"
-  ExpiresByType image/x-icon "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType image/x-icon "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
 
   # Fonts
   ExpiresByType font/woff "access plus 1 year"
@@ -42,6 +49,9 @@ Options -Indexes
   ExpiresByType font/ttf "access plus 1 year"
   ExpiresByType application/vnd.ms-fontobject "access plus 1 year"
   ExpiresByType font/otf "access plus 1 year"
+  
+  # HTML - renovar a cada hora em modo produção
+  ExpiresByType text/html "access plus 3600 seconds"
 </IfModule>
 
 <IfModule mod_deflate.c>
@@ -67,14 +77,31 @@ Options -Indexes
   AddOutputFilterByType DEFLATE text/javascript
   AddOutputFilterByType DEFLATE text/plain
   AddOutputFilterByType DEFLATE text/xml
+  
+  # Remover navegadores antigos que quebram com compressão
+  BrowserMatch ^Mozilla/4 gzip-only-text/html
+  BrowserMatch ^Mozilla/4\.0[678] no-gzip
+  BrowserMatch \bMSIE !no-gzip !gzip-only-text/html
+  
+  # Não comprimir imagens que já estão comprimidas
+  SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|webp)$ no-gzip
 </IfModule>
 # End Cache Control
 
 # Adicionar cabeçalhos de cache
 <IfModule mod_headers.c>
+  # Configuração global para tipos de arquivo estáticos
   <FilesMatch "\.(ico|pdf|jpg|jpeg|png|gif|webp|svg|js|css|woff|woff2|ttf|eot|otf)$">
     Header set Cache-Control "max-age=31536000, public"
   </FilesMatch>
+  
+  # Permitir que recursos possam ser pré-carregados de forma segura
+  <FilesMatch "\.(css|js|woff2|svg)$">
+    Header set Access-Control-Allow-Origin "*"
+  </FilesMatch>
+  
+  # Configurar cabeçalho ETag para melhor validação de cache
+  FileETag MTime Size
   
   # Remover cabeçalho de debug em produção
   Header unset X-Routing-Debug
@@ -83,6 +110,36 @@ Options -Indexes
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-XSS-Protection "1; mode=block"
   Header always set X-Frame-Options "SAMEORIGIN"
+  
+  # Adicionar cabeçalho de recursos que podem ser pré-carregados
+  # Permite que o navegador faça pré-conexões aos domínios externos usados
+  Header set Link "<https://fonts.googleapis.com>; rel=preconnect; crossorigin, <https://fonts.gstatic.com>; rel=preconnect; crossorigin, <https://cdnjs.cloudflare.com>; rel=preconnect"
+  
+  # Definir política de referência para limitar vazamento de informações
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Desabilitar ETags para recursos estáticos para evitar validações desnecessárias
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|jpg|jpeg|png|gif|ico|webp)$">
+    Header unset ETag
+  </FilesMatch>
+</IfModule>
+
+# Otimizações para recursos locais hospedados
+<IfModule mod_rewrite.c>
+  # Redirecionar CDN para recursos locais quando disponíveis
+  # FontAwesome
+  RewriteCond %{HTTP_HOST} ^darkblue-cattle-647559.hostingersite.com [NC]
+  RewriteRule ^cdnjs/(.*)fontawesome(.*)$ /vendor/fontawesome/css/all.min.css [L]
+  
+  # jQuery
+  RewriteCond %{HTTP_HOST} ^darkblue-cattle-647559.hostingersite.com [NC]
+  RewriteRule ^cdnjs/(.*)jquery(.*)$ /vendor/jquery/jquery-3.6.0.min.js [L]
+  
+  # Three.js
+  RewriteCond %{HTTP_HOST} ^darkblue-cattle-647559.hostingersite.com [NC]
+  RewriteRule ^cdn/(.*)three(.*)$ /vendor/threejs/three.min.js [L]
 </IfModule>
 
 # Proteção adicional
