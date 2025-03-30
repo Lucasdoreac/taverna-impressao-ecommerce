@@ -1,0 +1,178 @@
+/* CSS crítico contendo apenas os estilos necessários para o ATF (Above The Fold) */
+
+/* Reset e estilos base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #333;
+  background-color: #f8f9fa;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Container */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 15px;
+}
+
+/* Header */
+.main-header {
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 14px;
+  border-bottom: 1px solid #eee;
+}
+
+.contact-info,
+.user-actions {
+  display: flex;
+  align-items: center;
+}
+
+.contact-info span {
+  margin-right: 15px;
+}
+
+.user-actions a {
+  color: #555;
+  text-decoration: none;
+  margin-left: 15px;
+}
+
+.user-actions a:hover {
+  color: #0056b3;
+}
+
+/* Main Navigation */
+.main-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0056b3;
+  text-decoration: none;
+}
+
+.search-form {
+  display: flex;
+  width: 40%;
+  max-width: 500px;
+}
+
+.search-form input {
+  flex: 1;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px 0 0 4px;
+  outline: none;
+}
+
+.search-form button {
+  padding: 10px 15px;
+  background-color: #0056b3;
+  color: #fff;
+  border: 1px solid #0056b3;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+}
+
+.cart-icon {
+  position: relative;
+  display: inline-block;
+  font-size: 20px;
+  color: #333;
+  text-decoration: none;
+}
+
+.cart-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: #e74c3c;
+  color: #fff;
+  border-radius: 50%;
+}
+
+/* Navigation Menu */
+.nav-menu {
+  background-color: #0056b3;
+}
+
+.nav-menu ul {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-menu ul li {
+  position: relative;
+}
+
+.nav-menu ul li a {
+  display: block;
+  padding: 15px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.nav-menu ul li a:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive Adjustments for Mobile */
+@media (max-width: 768px) {
+  .top-header,
+  .main-nav,
+  .nav-menu ul {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .contact-info,
+  .user-actions {
+    width: 100%;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  
+  .search-form {
+    width: 100%;
+    margin: 15px 0;
+  }
+  
+  .nav-menu ul li {
+    width: 100%;
+  }
+}
