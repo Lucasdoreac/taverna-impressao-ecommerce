@@ -1,5 +1,6 @@
 /**
  * model-viewer.css - Estilos para o visualizador de modelos 3D
+ * Versão otimizada para dispositivos móveis
  */
 
 /* Container principal */
@@ -9,6 +10,15 @@
     overflow: hidden;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     min-height: 300px;
+    /* Evitar seleção de texto, melhora a experiência em toque */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    /* Garantir que o container tenha um z-index apropriado */
+    z-index: 1;
+    /* Melhorar percepção de toque em dispositivos */
+    touch-action: manipulation;
 }
 
 /* Variações específicas */
@@ -26,6 +36,10 @@
     width: 100%;
     height: 100%;
     outline: none;
+    /* Otimizar renderização */
+    image-rendering: optimizeSpeed;
+    /* Melhorar percepção de toque */
+    touch-action: none;
 }
 
 /* Controles para interação */
@@ -37,11 +51,15 @@
     gap: 5px;
     z-index: 100;
     transition: opacity 0.3s ease;
+    /* Garantir que os controles fiquem acima do canvas */
+    pointer-events: auto;
 }
 
 /* Versão com botões maiores para dispositivos de toque */
 .model-viewer-controls-touch {
     gap: 10px;
+    /* Tornar botões mais fáceis de tocar */
+    opacity: 0.85;
 }
 
 /* Botões de controle */
@@ -57,12 +75,27 @@
     cursor: pointer;
     transition: all 0.2s ease-in-out;
     outline: none;
+    /* Evitar tap highlight em dispositivos móveis */
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Botões maiores para toque em dispositivos móveis */
 .model-viewer-control-btn-large {
     width: 46px;
     height: 46px;
+    /* Aumentar área de toque sem aumentar o botão visualmente */
+    position: relative;
+}
+
+/* Aumentar área de toque */
+.model-viewer-control-btn-large::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    right: -8px;
+    bottom: -8px;
+    pointer-events: auto;
 }
 
 .model-viewer-control-btn:hover {
@@ -128,6 +161,67 @@
     100% { transform: rotate(360deg); }
 }
 
+/* Estatísticas (FPS, etc) */
+.model-viewer-stats {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px;
+    font-family: monospace;
+    font-size: 12px;
+    pointer-events: none;
+}
+
+/* Indicador de qualidade (LOD) */
+.model-viewer-quality-indicator {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.model-viewer-quality-indicator.visible {
+    opacity: 1;
+}
+
+/* Dicas de toque (para usuários de dispositivos móveis) */
+.model-viewer-touch-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    white-space: nowrap;
+}
+
+.model-viewer-touch-hint.visible {
+    opacity: 1;
+    animation: fade-out 3s forwards;
+}
+
+@keyframes fade-out {
+    0% { opacity: 1; }
+    70% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
 /* Estilos responsivos */
 @media (max-width: 768px) {
     .model-viewer {
@@ -149,6 +243,15 @@
     .model-viewer-loading-progress {
         font-size: 12px;
     }
+    
+    /* Melhor posicionamento para controles em modo paisagem */
+    @media (orientation: landscape) {
+        .model-viewer-controls {
+            bottom: 8px;
+            right: 8px;
+            flex-direction: column;
+        }
+    }
 }
 
 @media (max-width: 480px) {
@@ -166,6 +269,11 @@
     .model-viewer:active .model-viewer-controls,
     .model-viewer:focus .model-viewer-controls {
         opacity: 1;
+    }
+    
+    /* Estilos otimizados para economia de bateria */
+    .model-viewer.power-save canvas {
+        image-rendering: optimizeSpeed;
     }
 }
 
@@ -218,5 +326,46 @@
 @media (orientation: landscape) and (max-width: 900px) {
     .model-viewer {
         height: 70vh;
+    }
+}
+
+/* Otimizações para dispositivos com tela menor */
+@media (max-width: 320px) {
+    .model-viewer-height-sm {
+        height: 180px;
+    }
+    
+    .model-viewer-height-md {
+        height: 220px;
+    }
+    
+    .model-viewer-height-lg {
+        height: 280px;
+    }
+}
+
+/* Animações para LOD */
+.model-viewer canvas.lod-transition {
+    transition: filter 0.3s ease;
+}
+
+/* Efeito de blur ao mudar LOD */
+.model-viewer canvas.lod-changing {
+    filter: blur(2px);
+}
+
+/* Classes para economia de energia */
+.model-viewer.battery-saver canvas {
+    image-rendering: optimizeSpeed;
+}
+
+/* Ajustes de acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+    .model-viewer-loading-spinner {
+        animation: none;
+    }
+    
+    .model-viewer canvas.lod-transition {
+        transition: none;
     }
 }
