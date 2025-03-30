@@ -87,6 +87,14 @@
     }
     ?>
     
+    <!-- Incluir o monitoramento de performance em produção -->
+    <?php 
+    // Carregar o partial de monitoramento
+    if (file_exists(ROOT_PATH . '/app/views/partials/production_monitoring.php')) {
+        include ROOT_PATH . '/app/views/partials/production_monitoring.php';
+    }
+    ?>
+    
     <!-- Análise de carregamento para desenvolvimento -->
     <?php if (defined('ENVIRONMENT') && ENVIRONMENT === 'development' && isset($_GET['analyze_loading'])): ?>
     <script>
@@ -139,5 +147,19 @@
         });
     </script>
     <?php endif; ?>
+
+    <?php
+    // Finalizar monitoramento de performance (se estiver habilitado)
+    if (class_exists('ProductionMonitoringHelper')) {
+        // Adicionar informações adicionais para o monitoramento
+        $additionalData = [
+            'page_type' => isset($pageType) ? $pageType : 'standard',
+            'template' => isset($pageTemplate) ? $pageTemplate : 'default',
+            'logged_in' => isset($_SESSION['user']) ? true : false
+        ];
+        
+        ProductionMonitoringHelper::endMonitoring($additionalData);
+    }
+    ?>
 </body>
 </html>
