@@ -2,7 +2,7 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO 3D E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-30T12:30:00Z",
+    "lastUpdated": "2025-03-30T12:34:18.967Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
@@ -88,12 +88,12 @@
     "onlineTestResults": {
       "workingTests": [
         "debug.php",
-        "database_setup.php", 
+        "database_setup.php",
         "db_test.php"
       ],
       "partiallyWorkingTests": [
         "system_check.php",
-        "database_debug.php", 
+        "database_debug.php",
         "category_debug.php"
       ],
       "failingTests": [
@@ -166,7 +166,9 @@
     "diagnosticTool3dViewer": {
       "status": "completed",
       "description": "Ferramenta de diagnóstico para visualizador 3D",
-      "files": ["public/diagnostic-model-viewer.php"],
+      "files": [
+        "public/diagnostic-model-viewer.php"
+      ],
       "features": [
         "Verificação de dependências do visualizador",
         "Análise de produtos com modelos 3D no banco de dados",
@@ -198,7 +200,9 @@
     "mobileTestingChecklist": {
       "status": "completed",
       "description": "Checklist detalhado para teste do visualizador 3D em diferentes dispositivos móveis",
-      "files": ["docs/mobile-testing-checklist.json"],
+      "files": [
+        "docs/mobile-testing-checklist.json"
+      ],
       "features": [
         "Lista de dispositivos iOS e Android para testes",
         "Lista de navegadores para verificação de compatibilidade",
@@ -225,7 +229,9 @@
     "customizationListView": {
       "status": "completed",
       "description": "Implementação da view para listagem de produtos personalizáveis",
-      "files": ["app/views/customization/list.php"],
+      "files": [
+        "app/views/customization/list.php"
+      ],
       "features": [
         "Filtros por disponibilidade (pronta entrega/sob encomenda)",
         "Ordenação por diversos critérios",
