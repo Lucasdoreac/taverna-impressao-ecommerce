@@ -70,35 +70,27 @@ class ProductModel extends Model {
      */
     public function getCustomProducts($limit = 12) {
         try {
-            // Dividir em duas consultas para melhorar a performance (evitar OR)
-            $sql1 = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
-                           pi.image,
-                           'Sob Encomenda' as availability
-                    FROM {$this->table} p
-                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                    WHERE p.is_tested = 0 AND p.is_active = 1
-                    ORDER BY p.created_at DESC
-                    LIMIT :limit";
-                    
-            $sql2 = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
-                           pi.image,
-                           'Sob Encomenda' as availability
-                    FROM {$this->table} p
-                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                    WHERE p.stock = 0 AND p.is_tested = 1 AND p.is_active = 1
-                    ORDER BY p.created_at DESC
-                    LIMIT :limit";
-                    
-            $result1 = $this->db()->select($sql1, ['limit' => $limit]);
-            $result2 = $this->db()->select($sql2, ['limit' => $limit]);
+            // Otimização: Usar UNION ALL para combinar as consultas em vez de fazer duas separadas e combinar no PHP
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.created_at,
+                          pi.image,
+                          'Sob Encomenda' as availability
+                   FROM {$this->table} p
+                   LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                   WHERE p.is_tested = 0 AND p.is_active = 1
+                   
+                   UNION ALL
+                   
+                   SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.created_at,
+                          pi.image,
+                          'Sob Encomenda' as availability
+                   FROM {$this->table} p
+                   LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                   WHERE p.stock = 0 AND p.is_tested = 1 AND p.is_active = 1
+                   
+                   ORDER BY created_at DESC
+                   LIMIT :limit";
             
-            // Combinar resultados e limitar ao número solicitado
-            $combined = array_merge($result1, $result2);
-            usort($combined, function($a, $b) {
-                return strtotime($b['created_at']) - strtotime($a['created_at']);
-            });
-            
-            return array_slice($combined, 0, $limit);
+            return $this->db()->select($sql, ['limit' => $limit]);
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos sob encomenda: " . $e->getMessage());
             return [];
