@@ -1,0 +1,679 @@
+/**
+ * Taverna da Impressão - Documentação de Usuários
+ * Estilos específicos para as páginas de documentação
+ * 
+ * @version 1.0
+ */
+
+/* ---------------------------------------------------
+    ESTILOS GERAIS
+----------------------------------------------------- */
+.documentation-container {
+    background-color: #f8f9fa;
+    min-height: calc(100vh - 100px);
+    padding-bottom: 50px;
+}
+
+.doc-content {
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    padding: 30px;
+    margin-bottom: 30px;
+}
+
+/* ---------------------------------------------------
+    HEADER DA DOCUMENTAÇÃO
+----------------------------------------------------- */
+.doc-header {
+    background-color: #fff;
+    border-radius: 5px 5px 0 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    padding: 20px 30px;
+    margin-bottom: 0;
+}
+
+.doc-header-title {
+    font-size: 24px;
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.doc-breadcrumb {
+    margin-bottom: 0;
+    background-color: transparent;
+    padding: 0;
+}
+
+.doc-sidebar-toggle {
+    margin-top: 10px;
+}
+
+/* ---------------------------------------------------
+    SIDEBAR
+----------------------------------------------------- */
+.doc-sidebar {
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px;
+    position: sticky;
+    top: 20px;
+}
+
+.doc-sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.doc-sidebar-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.doc-sidebar-content {
+    padding: 0;
+}
+
+.doc-sidebar-footer {
+    padding: 15px;
+    border-top: 1px solid #eee;
+}
+
+.doc-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.doc-menu-item {
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.doc-menu-link {
+    display: block;
+    padding: 12px 20px;
+    color: #555;
+    transition: all 0.2s ease;
+}
+
+.doc-menu-link:hover, 
+.doc-menu-link:focus {
+    background-color: #f8f9fa;
+    color: #007bff;
+    text-decoration: none;
+}
+
+.doc-menu-item.active .doc-menu-link {
+    background-color: #f0f7ff;
+    color: #007bff;
+    font-weight: 500;
+    border-left: 3px solid #007bff;
+}
+
+.doc-menu-link i {
+    margin-right: 10px;
+    width: 20px;
+    text-align: center;
+}
+
+.doc-submenu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background-color: #f8f9fa;
+}
+
+.doc-submenu-link {
+    display: block;
+    padding: 10px 20px 10px 50px;
+    color: #666;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+}
+
+.doc-submenu-link:hover,
+.doc-submenu-link:focus {
+    background-color: #f0f0f0;
+    color: #007bff;
+    text-decoration: none;
+}
+
+.doc-search-form {
+    margin-bottom: 0;
+}
+
+.doc-search-input {
+    border-radius: 4px 0 0 4px;
+}
+
+.doc-search-btn {
+    border-radius: 0 4px 4px 0;
+}
+
+/* Responsive sidebar */
+@media (max-width: 991px) {
+    .doc-sidebar {
+        position: fixed;
+        top: 0;
+        left: -280px;
+        height: 100vh;
+        width: 280px;
+        z-index: 1050;
+        transition: all 0.3s;
+        overflow-y: auto;
+        box-shadow: 3px 0 5px rgba(0, 0, 0, 0.1);
+        border-radius: 0;
+    }
+    
+    .doc-sidebar.open {
+        left: 0;
+    }
+    
+    .doc-sidebar-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+    }
+    
+    .doc-sidebar-backdrop.visible {
+        display: block;
+    }
+    
+    body.sidebar-open {
+        overflow: hidden;
+    }
+}
+
+/* ---------------------------------------------------
+    SEÇÕES DE CONTEÚDO
+----------------------------------------------------- */
+.doc-section {
+    margin-bottom: 40px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 30px;
+}
+
+.doc-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.doc-section h2 {
+    font-size: 22px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: #333;
+    position: relative;
+    padding-bottom: 10px;
+}
+
+.doc-section h2:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 50px;
+    height: 3px;
+    background-color: #007bff;
+}
+
+.doc-section-content {
+    color: #555;
+    line-height: 1.6;
+}
+
+.doc-section-content h3 {
+    font-size: 18px;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    color: #444;
+}
+
+.doc-section-content p {
+    margin-bottom: 15px;
+}
+
+.doc-image {
+    margin: 20px 0;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.doc-image img {
+    width: 100%;
+    height: auto;
+}
+
+.doc-list {
+    margin-bottom: 20px;
+    padding-left: 20px;
+}
+
+.doc-list li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.doc-note {
+    background-color: #f8f9fa;
+    border-left: 4px solid #17a2b8;
+    padding: 15px;
+    margin: 20px 0;
+    border-radius: 0 5px 5px 0;
+    display: flex;
+    align-items: flex-start;
+}
+
+.doc-note i {
+    font-size: 18px;
+    color: #17a2b8;
+    margin-right: 15px;
+    margin-top: 3px;
+}
+
+.doc-note p {
+    margin: 0;
+    color: #555;
+}
+
+/* ---------------------------------------------------
+    COMPONENTES DE EXEMPLO
+----------------------------------------------------- */
+.feature-box {
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 30px;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.feature-box:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+    margin-bottom: 15px;
+    color: #007bff;
+}
+
+.feature-title {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.feature-description {
+    color: #666;
+    margin-bottom: 15px;
+    min-height: 60px;
+}
+
+.quick-start-guide {
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.steps-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.step-item {
+    display: flex;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px dashed #ddd;
+}
+
+.step-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.step-number {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #007bff;
+    color: #fff;
+    font-weight: bold;
+    text-align: center;
+    line-height: 30px;
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.step-content {
+    flex-grow: 1;
+    padding-top: 5px;
+}
+
+.resource-card {
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.resource-card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.resource-card img {
+    width: 100%;
+    height: auto;
+}
+
+.resource-card-body {
+    padding: 20px;
+}
+
+.resource-card-body h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+.resource-card-body p {
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.support-option {
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    margin-bottom: 30px;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.support-option:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.support-option i {
+    color: #007bff;
+    margin-bottom: 15px;
+}
+
+.support-option h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.support-option p {
+    color: #666;
+    margin-bottom: 15px;
+    min-height: 60px;
+}
+
+/* Exemplo interativo */
+.interactive-example {
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.model-viewer-placeholder {
+    background-color: #e9ecef;
+    border-radius: 5px;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.model-viewer-placeholder-content,
+.video-placeholder-content {
+    text-align: center;
+    color: #6c757d;
+}
+
+.model-viewer-placeholder-content i,
+.video-placeholder-content i {
+    margin-bottom: 15px;
+    color: #007bff;
+}
+
+.video-placeholder {
+    background-color: #e9ecef;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.controls-panel {
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 15px;
+    height: 100%;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.rotation-controls,
+.zoom-controls {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+/* ---------------------------------------------------
+    NAVEGAÇÃO ENTRE PÁGINAS
+----------------------------------------------------- */
+.doc-nav {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.doc-nav-link {
+    display: block;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    transition: all 0.2s ease;
+    color: #555;
+    height: 100%;
+}
+
+.doc-nav-link:hover {
+    background-color: #f0f7ff;
+    text-decoration: none;
+    color: #007bff;
+}
+
+.doc-nav-link.prev {
+    text-align: left;
+}
+
+.doc-nav-link.next {
+    text-align: right;
+}
+
+.doc-nav-link i {
+    font-size: 12px;
+}
+
+.doc-nav-link span {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    color: #999;
+}
+
+.doc-nav-link strong {
+    display: block;
+    font-size: 16px;
+}
+
+/* ---------------------------------------------------
+    PÁGINA DE BUSCA
+----------------------------------------------------- */
+.search-results {
+    margin-top: 20px;
+}
+
+.search-result {
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: all 0.2s ease;
+}
+
+.search-result:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.search-result h3 {
+    margin-top: 0;
+    margin-bottom: 5px;
+    font-size: 18px;
+}
+
+.search-result .path {
+    font-size: 14px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.search-result .excerpt {
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.search-highlight {
+    background-color: #fff9c2;
+    padding: 0 2px;
+}
+
+.no-results {
+    text-align: center;
+    padding: 30px;
+    font-size: 16px;
+    color: #555;
+}
+
+/* ---------------------------------------------------
+    UTILITÁRIOS
+----------------------------------------------------- */
+.mt-3 {
+    margin-top: 15px;
+}
+
+.mb-3 {
+    margin-bottom: 15px;
+}
+
+/* ---------------------------------------------------
+    RESPONSIVIDADE
+----------------------------------------------------- */
+@media (max-width: 767px) {
+    .doc-header {
+        padding: 15px;
+    }
+    
+    .doc-content {
+        padding: 20px;
+    }
+    
+    .doc-header-title {
+        font-size: 20px;
+    }
+    
+    .doc-section h2 {
+        font-size: 20px;
+    }
+    
+    .doc-section-content h3 {
+        font-size: 16px;
+    }
+    
+    .step-number {
+        width: 25px;
+        height: 25px;
+        line-height: 25px;
+        font-size: 12px;
+    }
+    
+    .feature-box,
+    .support-option {
+        height: auto;
+    }
+    
+    .feature-description,
+    .support-option p {
+        min-height: auto;
+    }
+    
+    .doc-nav-link {
+        margin-bottom: 15px;
+    }
+}
+
+/* Animações */
+@keyframes slideIn {
+    from {
+        transform: translateY(30px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.doc-section {
+    animation: slideIn 0.5s ease forwards;
+}
+
+.doc-section:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.doc-section:nth-child(3) {
+    animation-delay: 0.2s;
+}
+
+.doc-section:nth-child(4) {
+    animation-delay: 0.3s;
+}
+
+.doc-section:nth-child(5) {
+    animation-delay: 0.4s;
+}
