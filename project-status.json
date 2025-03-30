@@ -2,13 +2,13 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-30T20:38:30.000Z",
+    "lastUpdated": "2025-03-30T21:15:30.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
     "currentFile": null,
-    "currentComponent": null,
-    "inProgress": null
+    "currentComponent": "Otimizar consultas SQL para melhorar tempos de resposta",
+    "inProgress": true
   },
   "components": {
     "completed": [
@@ -62,23 +62,21 @@
       "Ferramenta de Testes de Performance",
       "Testes de Performance em Ambiente de Produção"
     ],
-    "inProgress": [],
-    "pending": [
+    "inProgress": [
       "Otimizar consultas SQL para melhorar tempos de resposta"
-    ]
+    ],
+    "pending": []
   },
   "context": {
-    "lastThought": "Concluindo o componente de Testes de Performance em Ambiente de Produção, disponibilizamos todas as ferramentas necessárias para monitorar e analisar o desempenho do site em ambiente de produção. Agora podemos avançar para o próximo item no roadmap: otimização de consultas SQL para melhorar os tempos de resposta, utilizando os dados coletados pelo sistema de monitoramento.",
+    "lastThought": "Iniciando o desenvolvimento do componente 'Otimizar consultas SQL para melhorar tempos de resposta'. Baseado nos dados coletados pelo sistema de monitoramento de performance, identificaremos e otimizaremos as consultas SQL mais críticas do sistema. O primeiro passo será criar um helper para análise e otimização de consultas, seguido pela implementação de ferramentas de diagnóstico e otimização das consultas nos principais modelos do sistema.",
     "nextSteps": [
-      "Iniciar o monitoramento em ambiente de produção e coletar dados por pelo menos uma semana",
-      "Analisar os resultados obtidos para identificar pontos críticos",
-      "Iniciar a implementação do componente 'Otimizar consultas SQL para melhorar tempos de resposta'",
-      "Focar nas consultas identificadas pelo sistema de monitoramento como mais lentas"
+      "Criar app/helpers/QueryOptimizerHelper.php com funções para análise e otimização de consultas SQL",
+      "Implementar sistema de análise de logs de performance para identificar consultas lentas",
+      "Otimizar consultas no ProductModel.php para melhorar performance",
+      "Criar interface administrativa para visualização de métricas de consultas"
     ],
     "lastEditedFiles": [
-      "project-status.json",
-      "app/views/admin/performance_monitoring.php",
-      "public/assets/js/production-monitor-client.js"
+      "project-status.json"
     ],
     "onlineTestResults": {
       "workingTests": [
@@ -309,6 +307,30 @@
         "Preservação da privacidade dos usuários com anonimização de IPs"
       ],
       "timestamp": "2025-03-30T20:38:30.000Z"
+    },
+    "sqlOptimization": {
+      "status": "inProgress",
+      "description": "Análise e otimização das consultas SQL mais utilizadas e com pior desempenho no sistema",
+      "files": [
+        "app/helpers/QueryOptimizerHelper.php",
+        "app/models/ProductModel.php",
+        "app/models/CategoryModel.php",
+        "app/models/OrderModel.php",
+        "app/models/CartModel.php",
+        "app/controllers/AdminPerformanceController.php",
+        "app/views/admin/query_performance.php"
+      ],
+      "features": [
+        "Análise de logs de performance para identificação de consultas lentas",
+        "Otimização de consultas com índices e reestruturação",
+        "Ferramentas de diagnóstico para análise de consultas SQL",
+        "Dashboard administrativo para visualização de métricas de consultas",
+        "Otimização específica para consultas em produtos e categorias",
+        "Melhorias na performance de consultas hierárquicas (categorias)",
+        "Implementação de paginação eficiente com consultas otimizadas",
+        "Redução do uso de recursos de banco de dados em consultas frequentes"
+      ],
+      "timestamp": "2025-03-30T21:15:30.000Z"
     }
   },
   "diagnostics": {
