@@ -1,221 +1,301 @@
-<?php 
+<?php
 /**
  * Taverna da Impressão - Sistema de E-commerce
  * 
- * View para visualização de relatórios de monitoramento de performance em produção
+ * View para visualização de relatórios de monitoramento de performance
  * 
  * @version 1.0
  * @author Desenvolvimento Taverna da Impressão
  */
 
-// Incluir partial do header do admin
-include(ROOT_PATH . '/app/views/partials/admin_header.php'); 
+// Incluir header administrativo
+require_once 'app/views/admin/partials/header.php';
 ?>
 
-<div class="admin-content">
-    <div class="admin-header">
-        <h1>Monitoramento de Performance</h1>
-        <p class="description">Análise de métricas de desempenho coletadas em ambiente de produção.</p>
-    </div>
-    
-    <div class="admin-card">
-        <div class="card-header">
-            <h2>Relatórios Disponíveis</h2>
-            
-            <div class="date-filter">
-                <form action="<?= BASE_URL ?>admin/performance/reports" method="GET">
-                    <label for="date">Selecionar Data:</label>
-                    <select name="date" id="date" onchange="this.form.submit()">
-                        <?php if (empty($availableDates)): ?>
-                            <option value="">Nenhum dado disponível</option>
-                        <?php else: ?>
-                            <?php foreach ($availableDates as $date): ?>
-                                <option value="<?= $date ?>" <?= $date === $selectedDate ? 'selected' : '' ?>>
-                                    <?= date('d/m/Y', strtotime($date)) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </select>
-                </form>
+<div class="content-wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="m-0">Monitoramento de Performance</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="<?= BASE_URL ?>admin">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Monitoramento de Performance</li>
+                    </ol>
+                </div>
             </div>
         </div>
-        
-        <?php if (!empty($analysis) && isset($analysis['results']) && !empty($analysis['results'])): ?>
-            <div class="card-content">
-                <div class="stats-summary">
-                    <div class="stat-card">
-                        <h3>Total de Amostras</h3>
-                        <span class="stat-value"><?= $analysis['total_samples'] ?></span>
-                    </div>
-                    <div class="stat-card">
-                        <h3>URLs Analisadas</h3>
-                        <span class="stat-value"><?= $analysis['urls_analyzed'] ?></span>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Período</h3>
-                        <span class="stat-value"><?= date('d/m/Y', strtotime($analysis['period']['start_date'])) ?></span>
-                    </div>
-                </div>
-                
-                <h3 class="section-title">Desempenho por URL</h3>
-                
-                <div class="table-responsive">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>URL</th>
-                                <th>Amostras</th>
-                                <th>Tempo Médio (ms)</th>
-                                <th>Tempo Mínimo (ms)</th>
-                                <th>Tempo Máximo (ms)</th>
-                                <th>Memória (MB)</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($analysis['results'] as $result): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($result['url']) ?></td>
-                                    <td><?= $result['sample_count'] ?></td>
-                                    <td>
-                                        <?php 
-                                        $avgTime = round($result['avg_execution_time_ms'], 2);
-                                        $timeClass = $avgTime > 500 ? 'text-danger' : ($avgTime > 300 ? 'text-warning' : 'text-success');
-                                        echo '<span class="' . $timeClass . '">' . $avgTime . '</span>';
-                                        ?>
-                                    </td>
-                                    <td><?= round($result['min_execution_time_ms'], 2) ?></td>
-                                    <td><?= round($result['max_execution_time_ms'], 2) ?></td>
-                                    <td><?= round($result['avg_memory_used_bytes'] / (1024 * 1024), 2) ?></td>
-                                    <td>
-                                        <?php 
-                                        $statusClass = $avgTime > 500 ? 'status-danger' : ($avgTime > 300 ? 'status-warning' : 'status-success');
-                                        $statusText = $avgTime > 500 ? 'Lento' : ($avgTime > 300 ? 'Médio' : 'Rápido');
-                                        echo '<span class="status-badge ' . $statusClass . '">' . $statusText . '</span>';
-                                        ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <?php if (!empty($recommendations)): ?>
-                    <div class="recommendations-section">
-                        <h3 class="section-title">Recomendações de Otimização</h3>
-                        <div class="recommendation-content">
-                            <ul class="recommendation-list">
-                                <?php foreach ($recommendations as $recommendation): ?>
-                                    <li><?= htmlspecialchars($recommendation) ?></li>
-                                <?php endforeach; ?>
-                            </ul>
+    </div>
+
+    <section class="content">
+        <div class="container-fluid">
+            <!-- Seletor de data -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Selecionar Data de Análise</h3>
+                        </div>
+                        <div class="card-body">
+                            <form method="get" action="<?= BASE_URL ?>admin/performance/reports">
+                                <div class="form-group">
+                                    <label>Data:</label>
+                                    <select name="date" class="form-control" onchange="this.form.submit()">
+                                        <?php if (empty($availableDates)): ?>
+                                            <option value="">Nenhuma data disponível</option>
+                                        <?php else: ?>
+                                            <?php foreach ($availableDates as $date): ?>
+                                                <option value="<?= $date ?>" <?= $date === $selectedDate ? 'selected' : '' ?>>
+                                                    <?= $date ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                            </form>
                         </div>
                     </div>
-                <?php endif; ?>
-                
-                <div class="chart-container">
-                    <h3 class="section-title">Gráfico de Desempenho</h3>
-                    <canvas id="performanceChart" width="800" height="400"></canvas>
                 </div>
             </div>
-            
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
-            <script>
-                // Preparar dados para o gráfico
-                document.addEventListener('DOMContentLoaded', function() {
-                    const ctx = document.getElementById('performanceChart').getContext('2d');
-                    
-                    // Extrair dados da análise
-                    const urls = <?= json_encode(array_map(function($result) {
-                        // Simplificar URLs longas para exibição
-                        $url = $result['url'];
-                        return strlen($url) > 30 ? '...' . substr($url, -30) : $url;
-                    }, $analysis['results'])) ?>;
-                    
-                    const avgTimes = <?= json_encode(array_map(function($result) {
-                        return round($result['avg_execution_time_ms'], 2);
-                    }, $analysis['results'])) ?>;
-                    
-                    const maxTimes = <?= json_encode(array_map(function($result) {
-                        return round($result['max_execution_time_ms'], 2);
-                    }, $analysis['results'])) ?>;
-                    
-                    // Configurar gráfico
-                    new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: urls,
-                            datasets: [
-                                {
-                                    label: 'Tempo Médio (ms)',
-                                    data: avgTimes,
-                                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                                    borderColor: 'rgba(54, 162, 235, 1)',
-                                    borderWidth: 1
-                                },
-                                {
-                                    label: 'Tempo Máximo (ms)',
-                                    data: maxTimes,
-                                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
-                                    borderColor: 'rgba(255, 99, 132, 1)',
-                                    borderWidth: 1
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    title: {
-                                        display: true,
-                                        text: 'Tempo de Execução (ms)'
+
+            <?php if (!empty($analysis) && !isset($analysis['error'])): ?>
+                <!-- Resumo da análise -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-info">
+                                <h3 class="card-title">Resumo da Análise</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="info-box">
+                                            <span class="info-box-icon bg-info"><i class="fas fa-chart-bar"></i></span>
+                                            <div class="info-box-content">
+                                                <span class="info-box-text">Total de Amostras</span>
+                                                <span class="info-box-number"><?= $analysis['total_samples'] ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="info-box">
+                                            <span class="info-box-icon bg-success"><i class="fas fa-globe"></i></span>
+                                            <div class="info-box-content">
+                                                <span class="info-box-text">URLs Analisadas</span>
+                                                <span class="info-box-number"><?= $analysis['urls_analyzed'] ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="info-box">
+                                            <span class="info-box-icon bg-warning"><i class="fas fa-calendar-day"></i></span>
+                                            <div class="info-box-content">
+                                                <span class="info-box-text">Período</span>
+                                                <span class="info-box-number"><?= $analysis['period']['start_date'] ?> a <?= $analysis['period']['end_date'] ?></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resultados por URL -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Resultados por URL</h3>
+                            </div>
+                            <div class="card-body table-responsive p-0">
+                                <table class="table table-hover text-nowrap">
+                                    <thead>
+                                        <tr>
+                                            <th>URL</th>
+                                            <th>Amostras</th>
+                                            <th>Tempo Médio (ms)</th>
+                                            <th>Tempo Mínimo (ms)</th>
+                                            <th>Tempo Máximo (ms)</th>
+                                            <th>Memória Média</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($analysis['results'] as $result): ?>
+                                            <tr>
+                                                <td>
+                                                    <span title="<?= $result['url'] ?>">
+                                                        <?= strlen($result['url']) > 50 ? substr($result['url'], 0, 47) . '...' : $result['url'] ?>
+                                                    </span>
+                                                </td>
+                                                <td><?= $result['sample_count'] ?></td>
+                                                <td>
+                                                    <?php
+                                                    $avgTime = round($result['avg_execution_time_ms'], 2);
+                                                    $timeClass = $avgTime > 500 ? 'text-danger' : ($avgTime > 200 ? 'text-warning' : 'text-success');
+                                                    echo "<span class=\"{$timeClass}\">{$avgTime}</span>";
+                                                    ?>
+                                                </td>
+                                                <td><?= round($result['min_execution_time_ms'], 2) ?></td>
+                                                <td><?= round($result['max_execution_time_ms'], 2) ?></td>
+                                                <td><?= round($result['avg_memory_used_bytes'] / (1024 * 1024), 2) ?> MB</td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recomendações -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-warning">
+                                <h3 class="card-title">Recomendações</h3>
+                            </div>
+                            <div class="card-body">
+                                <?php if (empty($recommendations)): ?>
+                                    <p>Nenhuma recomendação disponível.</p>
+                                <?php else: ?>
+                                    <ul class="list-group">
+                                        <?php foreach ($recommendations as $recommendation): ?>
+                                            <li class="list-group-item">
+                                                <?= $recommendation ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Gráfico de Desempenho -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Gráfico de Tempos de Execução</h3>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="performanceChart" style="min-height: 400px;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        // Preparar dados para o gráfico
+                        const ctx = document.getElementById('performanceChart').getContext('2d');
+                        
+                        // Extrair até 10 urls mais lentas
+                        const urlData = <?= json_encode(array_slice($analysis['results'], 0, 10)) ?>;
+                        
+                        // Preparar labels e dados
+                        const labels = urlData.map(item => {
+                            // Recortar URL longa
+                            const url = item.url;
+                            return url.length > 30 ? url.substring(0, 27) + '...' : url;
+                        });
+                        
+                        const avgTimes = urlData.map(item => item.avg_execution_time_ms);
+                        const minTimes = urlData.map(item => item.min_execution_time_ms);
+                        const maxTimes = urlData.map(item => item.max_execution_time_ms);
+                        
+                        // Criar gráfico
+                        const chart = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: 'Tempo Médio (ms)',
+                                        data: avgTimes,
+                                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                        borderColor: 'rgb(54, 162, 235)',
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'Tempo Mínimo (ms)',
+                                        data: minTimes,
+                                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                                        borderColor: 'rgb(75, 192, 192)',
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'Tempo Máximo (ms)',
+                                        data: maxTimes,
+                                        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                                        borderColor: 'rgb(255, 99, 132)',
+                                        borderWidth: 1
                                     }
-                                },
-                                x: {
-                                    title: {
-                                        display: true,
-                                        text: 'URLs'
-                                    }
-                                }
+                                ]
                             },
-                            plugins: {
-                                title: {
-                                    display: true,
-                                    text: 'Tempos de Execução por URL'
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    x: {
+                                        stacked: false,
+                                        title: {
+                                            display: true,
+                                            text: 'URLs'
+                                        }
+                                    },
+                                    y: {
+                                        stacked: false,
+                                        title: {
+                                            display: true,
+                                            text: 'Tempo (ms)'
+                                        },
+                                        beginAtZero: true
+                                    }
                                 },
-                                legend: {
-                                    position: 'top',
-                                },
-                                tooltip: {
-                                    callbacks: {
-                                        title: function(tooltipItems) {
-                                            // Mostrar URL completa no tooltip
-                                            const urlIndex = tooltipItems[0].dataIndex;
-                                            return <?= json_encode(array_map(function($result) {
-                                                return $result['url'];
-                                            }, $analysis['results'])) ?>[urlIndex];
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Tempos de Execução por URL'
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(tooltipItems) {
+                                                const index = tooltipItems[0].dataIndex;
+                                                return urlData[index].url;
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
+                        });
                     });
-                });
-            </script>
-        <?php else: ?>
-            <div class="card-content">
-                <div class="no-data-message">
-                    <i class="fas fa-chart-line"></i>
-                    <p>Nenhum dado de performance disponível para a data selecionada.</p>
-                    <p>O monitoramento de performance coleta dados de uma amostra de usuários reais em ambiente de produção.</p>
+                </script>
+            <?php elseif (!empty($analysis) && isset($analysis['error'])): ?>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="alert alert-danger">
+                            <h5><i class="icon fas fa-ban"></i> Erro!</h5>
+                            <?= $analysis['error'] ?>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        <?php endif; ?>
-    </div>
+            <?php elseif (empty($availableDates)): ?>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <h5><i class="icon fas fa-info"></i> Informação</h5>
+                            Nenhum dado de monitoramento disponível. Os dados serão coletados automaticamente à medida que os usuários navegam pelo site.
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+        </div>
+    </section>
 </div>
 
-<?php 
-// Incluir partial do footer do admin
-include(ROOT_PATH . '/app/views/partials/admin_footer.php'); 
-?>
+<!-- Incluir footer administrativo -->
+<?php require_once 'app/views/admin/partials/footer.php'; ?>
