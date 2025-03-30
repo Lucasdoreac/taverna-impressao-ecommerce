@@ -17,15 +17,23 @@ class CategoryModel extends Model {
      */
     public function getMainCategories($withSubcategories = false) {
         try {
-            $sql = "SELECT * FROM {$this->table} 
+            // Selecionar apenas as colunas necessárias em vez de *
+            $sql = "SELECT id, name, slug, description, image, display_order, left_value, right_value 
+                    FROM {$this->table} 
                     WHERE parent_id IS NULL AND is_active = 1
                     ORDER BY display_order, name";
             
             $categories = $this->db()->select($sql);
             
             if ($withSubcategories && !empty($categories)) {
+                // Evitar N+1 consultas carregando todas as subcategorias de uma vez
+                $categoryIds = array_column($categories, 'id');
+                $subcategories = $this->getAllSubcategoriesByParentIds($categoryIds);
+                
                 foreach ($categories as &$category) {
-                    $category['subcategories'] = $this->getSubcategories($category['id'], true);
+                    $category['subcategories'] = isset($subcategories[$category['id']]) 
+                        ? $subcategories[$category['id']] 
+                        : [];
                 }
             }
             
@@ -45,7 +53,11 @@ class CategoryModel extends Model {
      */
     public function getBySlug($slug, $recursiveSubcategories = false) {
         try {
-            $sql = "SELECT * FROM {$this->table} WHERE slug = :slug AND is_active = 1";
+            // Selecionar apenas as colunas necessárias
+            $sql = "SELECT id, name, slug, description, image, parent_id, left_value, right_value, is_active, display_order 
+                    FROM {$this->table} 
+                    WHERE slug = :slug AND is_active = 1";
+            
             $result = $this->db()->select($sql, ['slug' => $slug]);
             
             if (empty($result)) {
@@ -57,11 +69,12 @@ class CategoryModel extends Model {
             // Buscar subcategorias
             try {
                 if ($recursiveSubcategories) {
-                    // Buscar subcategorias recursivamente
-                    $category['subcategories'] = $this->getSubcategoriesRecursive($category['id']);
+                    // Usar método otimizado em vez de recursivo
+                    $category['subcategories'] = $this->getSubcategoriesAll($category['id']);
                 } else {
                     // Buscar apenas subcategorias diretas
-                    $sql = "SELECT * FROM {$this->table} 
+                    $sql = "SELECT id, name, slug, description, image, parent_id, left_value, right_value, display_order 
+                            FROM {$this->table} 
                             WHERE parent_id = :id AND is_active = 1
                             ORDER BY display_order, name";
                     $category['subcategories'] = $this->db()->select($sql, ['id' => $category['id']]);
@@ -88,10 +101,11 @@ class CategoryModel extends Model {
     public function getSubcategories($parentId, $recursive = false) {
         try {
             if ($recursive) {
-                return $this->getSubcategoriesRecursive($parentId);
+                return $this->getSubcategoriesAll($parentId);
             }
             
-            $sql = "SELECT * FROM {$this->table} 
+            $sql = "SELECT id, name, slug, description, image, parent_id, left_value, right_value, display_order 
+                    FROM {$this->table} 
                     WHERE parent_id = :parent_id AND is_active = 1
                     ORDER BY display_order, name";
             
@@ -103,14 +117,16 @@ class CategoryModel extends Model {
     }
     
     /**
-     * Obter subcategorias de forma recursiva
+     * Obter subcategorias de forma recursiva (método original mantido para compatibilidade)
      * 
      * @param int $parentId ID da categoria pai
      * @return array Lista de subcategorias com suas subcategorias
+     * @deprecated Use getSubcategoriesAll em vez deste método
      */
     public function getSubcategoriesRecursive($parentId) {
         try {
-            $sql = "SELECT * FROM {$this->table} 
+            $sql = "SELECT id, name, slug, description, image, parent_id, left_value, right_value, display_order 
+                    FROM {$this->table} 
                     WHERE parent_id = :parent_id AND is_active = 1
                     ORDER BY display_order, name";
             
@@ -128,6 +144,138 @@ class CategoryModel extends Model {
     }
     
     /**
+     * Obtém todas as subcategorias de uma categoria pai (método otimizado não recursivo)
+     * 
+     * @param int $parentId ID da categoria pai
+     * @param bool $useNestedSets Se deve usar algoritmo Nested Sets (mais eficiente)
+     * @return array Lista de subcategorias organizadas em hierarquia
+     */
+    public function getSubcategoriesAll($parentId, $useNestedSets = true) {
+        try {
+            if ($useNestedSets) {
+                // Verificar se a categoria existe e obter seus valores left/right
+                $parent = $this->find($parentId);
+                if (!$parent || !isset($parent['left_value']) || !isset($parent['right_value'])) {
+                    $useNestedSets = false;
+                }
+            }
+            
+            if ($useNestedSets) {
+                // Método eficiente usando Nested Sets - uma única consulta
+                $sql = "SELECT child.* 
+                        FROM {$this->table} parent
+                        JOIN {$this->table} child ON child.left_value > parent.left_value 
+                                               AND child.right_value < parent.right_value
+                        WHERE parent.id = :parent_id AND child.is_active = 1
+                        ORDER BY child.left_value";
+                
+                $allSubcategories = $this->db()->select($sql, ['parent_id' => $parentId]);
+                
+                // Organizar em hierarquia
+                return $this->buildHierarchy($allSubcategories);
+            } else {
+                // Método alternativo usando estrutura de adjacência
+                // Ainda melhor que chamar recursivamente várias consultas SQL
+                $sql = "WITH RECURSIVE category_tree AS (
+                          SELECT * FROM {$this->table} WHERE id = :parent_id AND is_active = 1
+                          UNION ALL
+                          SELECT c.* FROM {$this->table} c
+                          JOIN category_tree ct ON c.parent_id = ct.id
+                          WHERE c.is_active = 1
+                        )
+                        SELECT * FROM category_tree WHERE id != :parent_id
+                        ORDER BY display_order, name";
+                
+                // Se o banco não suportar CTE, voltar ao método antigo
+                try {
+                    $allSubcategories = $this->db()->select($sql, ['parent_id' => $parentId]);
+                    return $this->buildHierarchy($allSubcategories);
+                } catch (Exception $e) {
+                    error_log("Banco de dados não suporta CTE. Usando método recursivo: " . $e->getMessage());
+                    return $this->getSubcategoriesRecursive($parentId);
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Erro ao buscar subcategorias: " . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Método auxiliar para carregar subcategorias em massa a partir de múltiplos pais
+     * 
+     * @param array $parentIds IDs das categorias pai
+     * @return array Subcategorias agrupadas por parent_id
+     */
+    private function getAllSubcategoriesByParentIds(array $parentIds) {
+        if (empty($parentIds)) {
+            return [];
+        }
+        
+        // Criar placeholders para os IDs
+        $placeholders = [];
+        $params = [];
+        
+        foreach ($parentIds as $index => $id) {
+            $paramName = "id{$index}";
+            $placeholders[] = ":{$paramName}";
+            $params[$paramName] = $id;
+        }
+        
+        $placeholdersStr = implode(',', $placeholders);
+        
+        // Carregando todas as subcategorias diretas de uma vez
+        $sql = "SELECT c.id, c.name, c.slug, c.description, c.image, c.parent_id, 
+                       c.left_value, c.right_value, c.display_order
+                FROM {$this->table} c
+                WHERE c.parent_id IN ({$placeholdersStr}) AND c.is_active = 1
+                ORDER BY c.display_order, c.name";
+        
+        $result = $this->db()->select($sql, $params);
+        
+        // Organizar por parent_id
+        $grouped = [];
+        foreach ($result as $row) {
+            $parentId = $row['parent_id'];
+            if (!isset($grouped[$parentId])) {
+                $grouped[$parentId] = [];
+            }
+            $grouped[$parentId][] = $row;
+        }
+        
+        return $grouped;
+    }
+    
+    /**
+     * Organiza uma lista plana de categorias em uma estrutura hierárquica
+     * 
+     * @param array $flatList Lista plana de categorias
+     * @return array Categorias organizadas em hierarquia
+     */
+    private function buildHierarchy($flatList) {
+        // Indexar categorias por ID para referência rápida
+        $indexed = [];
+        foreach ($flatList as $category) {
+            $category['subcategories'] = [];
+            $indexed[$category['id']] = $category;
+        }
+        
+        // Organizar em hierarquia
+        $hierarchy = [];
+        foreach ($indexed as $id => $category) {
+            if (isset($category['parent_id']) && isset($indexed[$category['parent_id']])) {
+                // Se o pai está na lista, adicionar como subcategoria
+                $indexed[$category['parent_id']]['subcategories'][] = &$indexed[$id];
+            } else {
+                // Se o pai não está na lista, adicionar ao nível principal
+                $hierarchy[] = &$indexed[$id];
+            }
+        }
+        
+        return $hierarchy;
+    }
+    
+    /**
      * Obter hierarquia completa de categorias
      * 
      * @return array Hierarquia de categorias
@@ -137,9 +285,28 @@ class CategoryModel extends Model {
             // Buscar categorias principais
             $mainCategories = $this->getMainCategories();
             
-            // Buscar subcategorias para cada categoria principal (de forma recursiva)
+            // Usar Nested Sets para buscar todas as categorias exceto os nós raiz em uma única consulta
+            $sql = "SELECT id, name, slug, description, image, parent_id, 
+                           left_value, right_value, display_order
+                    FROM {$this->table}
+                    WHERE parent_id IS NOT NULL AND is_active = 1
+                    ORDER BY left_value";
+            
+            $allSubcategories = $this->db()->select($sql);
+            
+            // Organizar subcategorias por parent_id
+            $subcategoriesByParent = [];
+            foreach ($allSubcategories as $category) {
+                $parentId = $category['parent_id'];
+                if (!isset($subcategoriesByParent[$parentId])) {
+                    $subcategoriesByParent[$parentId] = [];
+                }
+                $subcategoriesByParent[$parentId][] = $category;
+            }
+            
+            // Associar subcategorias às categorias principais
             foreach ($mainCategories as &$category) {
-                $category['subcategories'] = $this->getSubcategoriesRecursive($category['id']);
+                $category['subcategories'] = $this->buildHierarchyRecursive($category['id'], $subcategoriesByParent);
             }
             
             return $mainCategories;
@@ -150,26 +317,47 @@ class CategoryModel extends Model {
     }
     
     /**
+     * Constrói hierarquia recursivamente a partir de um mapa de subcategorias
+     * 
+     * @param int $parentId ID da categoria pai
+     * @param array $subcategoriesByParent Mapa de subcategorias por parent_id
+     * @return array Subcategorias organizadas em hierarquia
+     */
+    private function buildHierarchyRecursive($parentId, &$subcategoriesByParent) {
+        if (!isset($subcategoriesByParent[$parentId])) {
+            return [];
+        }
+        
+        $result = $subcategoriesByParent[$parentId];
+        
+        foreach ($result as &$category) {
+            $category['subcategories'] = $this->buildHierarchyRecursive($category['id'], $subcategoriesByParent);
+        }
+        
+        return $result;
+    }
+    
+    /**
      * Obter hierarquia de categorias em formato plano com nível de indentação
      * 
      * @return array Lista de categorias com nível de indentação
      */
     public function getFlatHierarchy() {
         try {
-            $sql = "SELECT c.*, 
-                          COALESCE((
-                              SELECT COUNT(*) 
-                              FROM {$this->table} p 
-                              WHERE 
-                                FIND_IN_SET(p.id, GetCategoryAncestors(c.id)) > 0
-                          ), 0) as depth
+            // Usar Nested Sets para obter a hierarquia de forma eficiente em uma única consulta
+            // Evitar o uso de funções SQL como FIND_IN_SET e GetCategoryAncestors
+            $sql = "SELECT c.id, c.name, c.slug, c.description, c.image, c.parent_id, 
+                          c.left_value, c.right_value, c.display_order,
+                          (SELECT COUNT(*) 
+                           FROM {$this->table} p 
+                           WHERE c.left_value > p.left_value AND c.left_value < p.right_value) as depth
                    FROM {$this->table} c
                    WHERE c.is_active = 1
                    ORDER BY c.left_value";
             
             $categories = $this->db()->select($sql);
             
-            // Se não tiver left_value e right_value, fazer o processamento via PHP
+            // Se não tiver left_value e right_value, usar o método alternativo
             if (empty($categories) || !isset($categories[0]['left_value'])) {
                 return $this->getFlatHierarchyViaPhp();
             }
@@ -231,7 +419,8 @@ class CategoryModel extends Model {
     public function getBreadcrumb($categoryId) {
         try {
             // Tentar usar o algoritmo de Nested Sets primeiro (mais eficiente)
-            $sql = "SELECT parent.* 
+            $sql = "SELECT parent.id, parent.name, parent.slug, parent.description, parent.image, 
+                           parent.parent_id, parent.left_value, parent.right_value
                     FROM {$this->table} node, {$this->table} parent 
                     WHERE node.left_value BETWEEN parent.left_value AND parent.right_value 
                     AND node.id = :id 
@@ -294,10 +483,16 @@ class CategoryModel extends Model {
     public function getCategoryWithProducts($slug, $page = 1, $limit = 12, $includeSubcategories = true, $orderBy = "p.is_tested DESC, p.name ASC", $filters = []) {
         try {
             // Obter categoria
-            $category = $this->getBySlug($slug);
-            if (!$category) {
+            $sql = "SELECT id, name, slug, description, image, parent_id, left_value, right_value 
+                    FROM {$this->table} WHERE slug = :slug AND is_active = 1";
+                    
+            $result = $this->db()->select($sql, ['slug' => $slug]);
+            
+            if (empty($result)) {
                 return null;
             }
+            
+            $category = $result[0];
             
             // Obter IDs de todas as subcategorias (para incluir produtos das subcategorias)
             $categoryIds = [$category['id']];
@@ -320,6 +515,10 @@ class CategoryModel extends Model {
             } elseif ($includeSubcategories && isset($category['subcategories']) && is_array($category['subcategories'])) {
                 // Método alternativo: obter IDs de subcategorias recursivamente
                 $this->collectSubcategoryIds($category['subcategories'], $categoryIds);
+            } elseif ($includeSubcategories) {
+                // Se não temos subcategorias ou valores nested sets, tentar obtê-las diretamente
+                $subcategories = $this->getSubcategoriesAll($category['id']);
+                $this->collectAllSubcategoryIds($subcategories, $categoryIds);
             }
             
             // Verificar se o array de IDs tem elementos
@@ -429,9 +628,11 @@ class CategoryModel extends Model {
                     $orderSql = "p.is_tested DESC, p.name ASC";
                 }
                 
-                // Buscar produtos
-                $sql = "SELECT p.*, pi.image, 
-                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                // Buscar produtos com colunas selecionadas explicitamente
+                $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, 
+                               p.short_description, p.category_id, pi.image,
+                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' 
+                                    ELSE 'Sob Encomenda' END as availability
                        FROM {$productModel->getTable()} p
                        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                        WHERE {$conditions}
@@ -489,6 +690,28 @@ class CategoryModel extends Model {
     }
     
     /**
+     * Coleta todos os IDs de subcategorias a partir de um array hierárquico
+     * 
+     * @param array $subcategories Lista hierárquica de subcategorias
+     * @param array &$ids Array para armazenar os IDs
+     */
+    private function collectAllSubcategoryIds($subcategories, &$ids) {
+        if (!is_array($subcategories)) {
+            return;
+        }
+        
+        foreach ($subcategories as $subcategory) {
+            if (isset($subcategory['id'])) {
+                $ids[] = $subcategory['id'];
+            }
+            
+            if (isset($subcategory['subcategories'])) {
+                $this->collectAllSubcategoryIds($subcategory['subcategories'], $ids);
+            }
+        }
+    }
+    
+    /**
      * Busca categorias por termo
      * 
      * @param string $query Termo de busca
@@ -498,7 +721,8 @@ class CategoryModel extends Model {
         try {
             $searchTerm = "%{$query}%";
             
-            $sql = "SELECT * FROM {$this->table} 
+            $sql = "SELECT id, name, slug, description, image, parent_id, left_value, right_value 
+                    FROM {$this->table} 
                     WHERE (name LIKE :term OR description LIKE :term) AND is_active = 1
                     ORDER BY display_order, name";
             
