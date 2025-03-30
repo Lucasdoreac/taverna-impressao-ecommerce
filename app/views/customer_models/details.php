@@ -1,4 +1,11 @@
 <?php require_once VIEWS_PATH . '/partials/header.php'; ?>
+<?php 
+// Incluir o helper do visualizador 3D
+require_once APP_PATH . '/helpers/ModelViewerHelper.php'; 
+?>
+
+<?= ModelViewerHelper::getViewerCSS() ?>
+<?= ModelViewerHelper::includeThreeJs() ?>
 
 <div class="container py-4">
     <nav aria-label="breadcrumb">
@@ -28,6 +35,21 @@
                     </span>
                 </div>
                 <div class="card-body">
+                    <!-- Visualizador 3D (NOVO) -->
+                    <div class="mb-4">
+                        <?= ModelViewerHelper::createCustomerModelViewer($model, [
+                            'height' => '350px',
+                            'backgroundColor' => '#f0f0f0',
+                            'modelColor' => '#3d7b9c',
+                            'showGrid' => true,
+                            'showControls' => true,
+                            'autoRotate' => true
+                        ]) ?>
+                        <div class="mt-2 text-center text-muted small">
+                            <i class="fas fa-mouse me-1"></i> Clique e arraste para rotacionar o modelo. Use a roda do mouse para zoom.
+                        </div>
+                    </div>
+                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <p><strong>Data de Envio:</strong> <?= date('d/m/Y H:i', strtotime($model['created_at'])) ?></p>
@@ -242,23 +264,25 @@
                 </div>
             <?php endif; ?>
             
-            <!-- Informações sobre validação e impressão 3D -->
+            <!-- Informações sobre visualização e validação 3D (ATUALIZADO) -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-info text-white">
-                    <h3 class="h5 mb-0"><i class="fas fa-info-circle me-2"></i> Informações sobre Validação</h3>
+                    <h3 class="h5 mb-0"><i class="fas fa-info-circle me-2"></i> Informações sobre Visualização 3D</h3>
                 </div>
                 <div class="card-body">
-                    <p>
-                        Todos os modelos 3D enviados passam por um processo de validação para garantir que possam ser impressos corretamente. 
-                        Este processo verifica:
-                    </p>
-                    
+                    <h4 class="h6 mb-2">Como usar o visualizador:</h4>
                     <ul class="mb-3">
-                        <li>Integridade da malha 3D</li>
-                        <li>Dimensões adequadas para impressão</li>
-                        <li>Possíveis problemas na geometria</li>
-                        <li>Otimização para impressão FDM</li>
+                        <li><i class="fas fa-mouse me-2"></i> <strong>Rotação:</strong> Clique e arraste para rotacionar</li>
+                        <li><i class="fas fa-search-plus me-2"></i> <strong>Zoom:</strong> Use a roda do mouse</li>
+                        <li><i class="fas fa-arrows-alt me-2"></i> <strong>Pan:</strong> Clique com botão direito e arraste</li>
+                        <li><i class="fas fa-sync-alt me-2"></i> <strong>Auto-rotação:</strong> Clique no botão de rotação</li>
+                        <li><i class="fas fa-home me-2"></i> <strong>Reset:</strong> Clique no botão de home</li>
+                        <li><i class="fas fa-expand me-2"></i> <strong>Tela cheia:</strong> Clique no botão de expandir</li>
                     </ul>
+                    
+                    <p>
+                        O visualizador 3D permite analisar seu modelo de todos os ângulos e verificar detalhes antes de prosseguir com a impressão.
+                    </p>
                     
                     <div class="alert alert-info">
                         <i class="fas fa-lightbulb me-1"></i> <strong>Dica:</strong> Para melhores resultados, certifique-se de que seu modelo tenha uma base plana para impressão e evite detalhes muito pequenos que podem ser difíceis de imprimir.
