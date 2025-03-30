@@ -8,6 +8,9 @@ $routes = [
     '/categoria/:slug' => ['CategoryController', 'show'],
     '/busca' => ['SearchController', 'index'],
     
+    // Nova rota para produtos personalizáveis
+    '/personalizados' => ['CustomizationController', 'list'],
+    
     // Carrinho e checkout
     '/carrinho' => ['CartController', 'index'],
     '/carrinho/adicionar' => ['CartController', 'add'],
