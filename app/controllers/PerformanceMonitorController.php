@@ -2,9 +2,9 @@
 /**
  * Taverna da Impressão - Sistema de E-commerce
  * 
- * Controlador para Monitoramento de Performance em Ambiente de Produção
- * Responsável por gerenciar a coleta e visualização de métricas de performance em ambiente real,
- * oferecendo insights sobre a experiência do usuário e alertas sobre deterioração de performance
+ * Controlador para monitoramento de testes de performance em ambiente de produção
+ * Responsável por coletar, analisar e exibir métricas de performance reais
+ * baseadas nos dados coletados de clientes
  * 
  * @version 1.0
  * @author Desenvolvimento Taverna da Impressão
@@ -13,24 +13,24 @@
 class PerformanceMonitorController {
     private $model;
     private $baseView = 'admin/';
-    private $enabledUserAgents = ['chrome', 'firefox', 'safari', 'edge'];
     
     /**
      * Construtor
-     * Inicializa o modelo de monitoramento de performance
+     * Inicializa os modelos necessários
      */
     public function __construct() {
-        require_once 'app/models/PerformanceMonitorModel.php';
-        $this->model = new PerformanceMonitorModel();
+        require_once 'app/models/PerformanceTestModel.php';
+        $this->model = new PerformanceTestModel();
         
+        // Verificar se o helper existe e incluí-lo
         if (file_exists('app/helpers/PerformanceHelper.php')) {
             require_once 'app/helpers/PerformanceHelper.php';
         }
     }
     
     /**
-     * Dashboard de monitoramento de performance
-     * Exibe uma visão geral das métricas de performance em ambiente de produção
+     * Página principal do monitor de performance
+     * Exibe um dashboard com métricas coletadas em ambiente de produção
      */
     public function index() {
         // Verificar se o usuário tem permissão administrativa
@@ -39,161 +39,101 @@ class PerformanceMonitorController {
             return;
         }
         
-        // Determinar o período de análise
+        // Obter período de análise (padrão: 30 dias)
         $period = isset($_GET['period']) ? (int)$_GET['period'] : 30;
-        $validPeriods = [7, 14, 30, 90, 180];
-        $period = in_array($period, $validPeriods) ? $period : 30;
-        
-        // Obter métricas para o dashboard
-        $data = [
-            'title' => 'Monitoramento de Performance | Painel Administrativo',
-            'metrics' => $this->model->getDashboardMetrics($period),
-            'period' => $period,
-            'settings' => $this->model->getMonitorSettings(),
-            'degradation' => $this->model->checkPerformanceDegradation(min($period, 14))
-        ];
-        
-        // Verificar se temos dados suficientes
-        if (empty($data['metrics']) || empty($data['metrics']['page_views']) || $data['metrics']['page_views'] < 10) {
-            $data['warning'] = 'Dados insuficientes para análise completa. Continue coletando métricas.';
+        if (!in_array($period, [7, 14, 30, 90, 180])) {
+            $period = 30;
         }
         
+        // Obter métricas para o período
+        $metrics = $this->getProductionMetrics($period);
+        
+        // Verificar se há alertas de degradação de performance
+        $degradation = $this->checkPerformanceDegradation($period);
+        
         // Renderizar a view
+        $data = [
+            'title' => 'Monitoramento de Performance | Painel Administrativo',
+            'metrics' => $metrics,
+            'period' => $period,
+            'degradation' => $degradation
+        ];
+        
         require_once 'app/views/' . $this->baseView . 'performance_monitor.php';
     }
     
     /**
-     * Endpoint para receber métricas de clientes em produção
-     * Implementa sampling para minimizar o impacto na experiência do usuário
-     * 
-     * @return array Resposta em JSON
+     * Exibe detalhes sobre o desempenho de uma página específica
      */
-    public function collectMetrics() {
-        // Verificar se a requisição é POST
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->jsonResponse(['error' => 'Método não permitido'], 405);
-        }
-        
-        // Obter configurações de monitoramento
-        $settings = $this->model->getMonitorSettings();
-        
-        // Se não houver configurações ou o monitoramento estiver desabilitado
-        if (!$settings || isset($settings['sampling_rate']) && $settings['sampling_rate'] <= 0) {
-            return $this->jsonResponse(['status' => 'disabled']);
-        }
-        
-        // Amostragem com base na taxa configurada
-        if (isset($settings['sampling_rate']) && mt_rand(1, 100) > ($settings['sampling_rate'] * 100)) {
-            return $this->jsonResponse(['status' => 'sampled_out']);
-        }
-        
-        // Obter dados da requisição
-        $data = json_decode(file_get_contents('php://input'), true);
-        
-        // Validar dados básicos
-        if (!isset($data['pageUrl']) || !isset($data['metrics'])) {
-            return $this->jsonResponse(['error' => 'Dados incompletos'], 400);
-        }
-        
-        // Sanitizar e processar dados
-        $metrics = $data['metrics'];
-        $pageUrl = filter_var($data['pageUrl'], FILTER_SANITIZE_URL);
-        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
-        
-        // Verificar se a página está na lista de habilitadas
-        $enabledPages = isset($settings['enabled_pages']) ? $settings['enabled_pages'] : [];
-        $pageEnabled = $this->isPageEnabled($pageUrl, $enabledPages);
-        
-        if (!$pageEnabled) {
-            return $this->jsonResponse(['status' => 'page_not_monitored']);
-        }
-        
-        // Determinar o tipo de dispositivo
-        $deviceType = $this->detectDeviceType($userAgent);
-        
-        // Obter ID de sessão (se disponível)
-        $sessionId = isset($_COOKIE['PHPSESSID']) ? $_COOKIE['PHPSESSID'] : null;
-        
-        // Salvar métricas no modelo
-        $result = $this->model->saveProductionMetrics($pageUrl, $metrics, $userAgent, $deviceType, $sessionId);
-        
-        if ($result) {
-            return $this->jsonResponse(['success' => true, 'message' => 'Métricas recebidas com sucesso']);
-        } else {
-            return $this->jsonResponse(['error' => 'Erro ao salvar métricas'], 500);
-        }
-    }
-    
-    /**
-     * Visualização detalhada de métricas para uma página específica
-     * 
-     * @param string $pageUrl URL da página para análise
-     */
-    public function pageDetail($pageUrl = null) {
+    public function pageDetail() {
         // Verificar se o usuário tem permissão administrativa
         if (!$this->isAdmin()) {
             $this->redirectToLogin();
             return;
         }
         
-        // Verificar se a URL da página foi fornecida
-        if ($pageUrl === null) {
-            if (isset($_GET['url'])) {
-                $pageUrl = urldecode($_GET['url']);
-            } else {
-                header('Location: ?page=performance_monitor');
-                exit;
-            }
+        // Obter URL da página
+        $pageUrl = isset($_GET['url']) ? $_GET['url'] : null;
+        if (!$pageUrl) {
+            header('Location: ?page=performance_monitor');
+            exit;
         }
         
-        // Determinar o período e tipo de dispositivo para filtro
+        // Obter período de análise (padrão: 30 dias)
         $period = isset($_GET['period']) ? (int)$_GET['period'] : 30;
-        $validPeriods = [7, 14, 30, 90, 180];
-        $period = in_array($period, $validPeriods) ? $period : 30;
-        
-        $deviceType = isset($_GET['device']) ? $_GET['device'] : null;
-        $validDevices = ['desktop', 'tablet', 'mobile', 'all'];
-        $deviceType = in_array($deviceType, $validDevices) ? $deviceType : null;
-        
-        // Calcular datas de início e fim
-        $endDate = date('Y-m-d H:i:s');
-        $startDate = date('Y-m-d H:i:s', strtotime("-{$period} days"));
-        
-        // Obter métricas para a página
-        $metrics = $this->model->getPageMetrics(
-            $pageUrl,
-            $startDate,
-            $endDate,
-            $deviceType === 'all' ? null : $deviceType
-        );
-        
-        // Processar métricas para visualização
-        $processedMetrics = $this->processPageMetrics($metrics);
-        
-        // Preparar dados para a view
-        $data = [
-            'title' => 'Análise de Performance: ' . $this->getPageTitle($pageUrl),
-            'pageUrl' => $pageUrl,
-            'period' => $period,
-            'deviceType' => $deviceType ?: 'all',
-            'metrics' => $metrics,
-            'processedMetrics' => $processedMetrics,
-            'devices' => $this->getDeviceDistribution($metrics)
-        ];
-        
-        // Verificar se temos dados suficientes
-        if (empty($metrics)) {
-            $data['warning'] = 'Nenhum dado disponível para esta página no período selecionado.';
-        } elseif (count($metrics) < 5) {
-            $data['warning'] = 'Dados limitados disponíveis. As análises podem não ser estatisticamente significativas.';
+        if (!in_array($period, [7, 14, 30, 90, 180])) {
+            $period = 30;
         }
+        
+        // Obter métricas específicas da página
+        $pageMetrics = $this->getPageMetrics($pageUrl, $period);
+        
+        // Obter tendências da página
+        $trends = $this->getPageTrends($pageUrl, $period);
         
         // Renderizar a view
+        $data = [
+            'title' => 'Detalhes de Performance da Página | Painel Administrativo',
+            'page_url' => $pageUrl,
+            'metrics' => $pageMetrics,
+            'trends' => $trends,
+            'period' => $period
+        ];
+        
         require_once 'app/views/' . $this->baseView . 'performance_page_detail.php';
     }
     
     /**
-     * Configurações do monitoramento de performance
+     * Exibe alertas de deterioração de performance
+     */
+    public function alerts() {
+        // Verificar se o usuário tem permissão administrativa
+        if (!$this->isAdmin()) {
+            $this->redirectToLogin();
+            return;
+        }
+        
+        // Obter período de análise (padrão: 30 dias)
+        $period = isset($_GET['period']) ? (int)$_GET['period'] : 30;
+        if (!in_array($period, [7, 14, 30, 90, 180])) {
+            $period = 30;
+        }
+        
+        // Obter todos os alertas
+        $allAlerts = $this->getAllPerformanceAlerts($period);
+        
+        // Renderizar a view
+        $data = [
+            'title' => 'Alertas de Performance | Painel Administrativo',
+            'alerts' => $allAlerts,
+            'period' => $period
+        ];
+        
+        require_once 'app/views/' . $this->baseView . 'performance_alerts.php';
+    }
+    
+    /**
+     * Página de configurações do monitor de performance
      */
     public function settings() {
         // Verificar se o usuário tem permissão administrativa
@@ -205,371 +145,623 @@ class PerformanceMonitorController {
         // Processar envio de formulário
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settings = [
-                'sampling_rate' => isset($_POST['sampling_rate']) ? floatval($_POST['sampling_rate']) / 100 : 0.1,
-                'enabled_pages' => isset($_POST['enabled_pages']) ? $_POST['enabled_pages'] : [],
-                'alert_threshold' => isset($_POST['alert_threshold']) ? floatval($_POST['alert_threshold']) : 20.0,
-                'data_retention_days' => isset($_POST['data_retention_days']) ? (int)$_POST['data_retention_days'] : 90,
-                'notification_email' => isset($_POST['notification_email']) ? $_POST['notification_email'] : ''
+                'metrics_to_collect' => isset($_POST['metrics_to_collect']) ? $_POST['metrics_to_collect'] : [],
+                'alert_thresholds' => [
+                    'load_time' => isset($_POST['threshold_load_time']) ? (int)$_POST['threshold_load_time'] : 2000,
+                    'lcp' => isset($_POST['threshold_lcp']) ? (int)$_POST['threshold_lcp'] : 2500,
+                    'cls' => isset($_POST['threshold_cls']) ? (float)$_POST['threshold_cls'] : 0.1,
+                    'change_percentage' => isset($_POST['threshold_change']) ? (int)$_POST['threshold_change'] : 20
+                ],
+                'sampling_rate' => isset($_POST['sampling_rate']) ? (int)$_POST['sampling_rate'] : 100,
+                'excluded_paths' => isset($_POST['excluded_paths']) ? $this->parseMultilineInput($_POST['excluded_paths']) : [],
+                'email_alerts' => isset($_POST['email_alerts']) ? (bool)$_POST['email_alerts'] : false,
+                'alert_email' => isset($_POST['alert_email']) ? $_POST['alert_email'] : '',
+                'updated_at' => date('Y-m-d H:i:s')
             ];
             
-            // Validar e ajustar valores
-            $settings['sampling_rate'] = max(0, min(1, $settings['sampling_rate']));
-            $settings['alert_threshold'] = max(5, min(50, $settings['alert_threshold']));
-            $settings['data_retention_days'] = max(7, min(365, $settings['data_retention_days']));
+            // Salvar configurações
+            $this->saveSettings($settings);
             
-            $this->model->saveMonitorSettings($settings);
-            $_SESSION['success'] = 'Configurações de monitoramento salvas com sucesso';
-            
+            // Redirecionar para evitar reenvio do formulário
+            $_SESSION['success'] = 'Configurações salvas com sucesso';
             header('Location: ?page=performance_monitor&action=settings');
             exit;
         }
         
         // Obter configurações atuais
+        $settings = $this->getSettings();
+        
+        // Renderizar a view
         $data = [
             'title' => 'Configurações de Monitoramento | Painel Administrativo',
-            'settings' => $this->model->getMonitorSettings(),
-            'availablePages' => $this->getAvailablePages()
+            'settings' => $settings
         ];
         
-        // Renderizar a view
-        require_once 'app/views/' . $this->baseView . 'performance_monitor_settings.php';
+        require_once 'app/views/' . $this->baseView . 'performance_settings.php';
     }
     
     /**
-     * Visualiza alertas de deterioração de performance
+     * Processa webhooks para coleta de métricas
+     * Endpoint para receber métricas enviadas pelo cliente
      */
-    public function alerts() {
-        // Verificar se o usuário tem permissão administrativa
-        if (!$this->isAdmin()) {
-            $this->redirectToLogin();
-            return;
+    public function processWebhook() {
+        // Verificar se a requisição é POST
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            return $this->jsonResponse(['error' => 'Método não permitido'], 405);
         }
         
-        // Determinar o período para análise
-        $period = isset($_GET['period']) ? (int)$_GET['period'] : 14;
-        $validPeriods = [7, 14, 30];
-        $period = in_array($period, $validPeriods) ? $period : 14;
+        // Obter dados da requisição
+        $data = json_decode(file_get_contents('php://input'), true);
         
-        // Obter configurações para threshold
-        $settings = $this->model->getMonitorSettings();
-        $threshold = isset($settings['alert_threshold']) ? $settings['alert_threshold'] : 20.0;
-        
-        // Verificar deterioração
-        $degradation = $this->model->checkPerformanceDegradation($period, $threshold);
-        
-        // Obter métricas para contexto
-        $metrics = $this->model->getDashboardMetrics($period);
-        
-        // Preparar dados para a view
-        $data = [
-            'title' => 'Alertas de Performance | Painel Administrativo',
-            'period' => $period,
-            'threshold' => $threshold,
-            'degradation' => $degradation,
-            'metrics' => $metrics
-        ];
-        
-        // Renderizar a view
-        require_once 'app/views/' . $this->baseView . 'performance_alerts.php';
-    }
-    
-    /**
-     * Endpoint para manutenção de dados
-     * Limpa dados antigos conforme configurações
-     * 
-     * @return array Resposta em JSON
-     */
-    public function maintenance() {
-        // Verificar se o usuário tem permissão administrativa
-        if (!$this->isAdmin()) {
-            return $this->jsonResponse(['error' => 'Acesso negado'], 403);
+        // Validar dados básicos
+        if (!isset($data['metrics'])) {
+            return $this->jsonResponse(['error' => 'Dados incompletos'], 400);
         }
+        
+        // Sanitizar e processar dados
+        $metrics = $data['metrics'];
+        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Desconhecido';
+        $timestamp = date('Y-m-d H:i:s');
+        $clientIp = $this->getClientIp();
+        
+        // Determinar tipo de dispositivo
+        $deviceType = $this->detectDeviceType($userAgent);
         
         // Obter configurações
-        $settings = $this->model->getMonitorSettings();
-        $daysToKeep = isset($settings['data_retention_days']) ? $settings['data_retention_days'] : 90;
+        $settings = $this->getSettings();
         
-        // Executar limpeza
-        $result = $this->model->cleanupOldData($daysToKeep);
+        // Aplicar taxa de amostragem
+        if ($settings['sampling_rate'] < 100) {
+            // Gerar número aleatório entre 1 e 100
+            $random = mt_rand(1, 100);
+            
+            // Se o número for maior que a taxa de amostragem, ignorar esta métrica
+            if ($random > $settings['sampling_rate']) {
+                return $this->jsonResponse(['success' => true, 'message' => 'Amostra ignorada (sampling rate)']);
+            }
+        }
         
-        if ($result) {
-            return $this->jsonResponse([
-                'success' => true, 
-                'message' => 'Manutenção concluída com sucesso',
-                'retention_days' => $daysToKeep
-            ]);
+        // Verificar se o caminho está na lista de exclusões
+        $pageUrl = isset($data['pageUrl']) ? $data['pageUrl'] : '';
+        $excludedPaths = $settings['excluded_paths'];
+        
+        foreach ($excludedPaths as $path) {
+            if (!empty($path) && strpos($pageUrl, $path) !== false) {
+                return $this->jsonResponse(['success' => true, 'message' => 'URL excluída da coleta']);
+            }
+        }
+        
+        // Salvar métricas no banco de dados
+        $saved = $this->model->saveProductionMetrics(
+            $pageUrl,
+            $metrics,
+            $userAgent,
+            $deviceType,
+            $clientIp,
+            $timestamp
+        );
+        
+        // Verificar se é necessário enviar alertas
+        if ($saved && $settings['email_alerts'] && !empty($settings['alert_email'])) {
+            $this->checkAndSendAlerts($pageUrl, $metrics, $settings);
+        }
+        
+        if ($saved) {
+            return $this->jsonResponse(['success' => true, 'message' => 'Métricas recebidas com sucesso']);
         } else {
-            return $this->jsonResponse(['error' => 'Erro ao executar manutenção'], 500);
+            return $this->jsonResponse(['error' => 'Erro ao salvar métricas'], 500);
         }
     }
     
     /**
-     * Processa métricas de página para visualização e análise
+     * Obtém métricas de performance em ambiente de produção
      * 
-     * @param array $metrics Métricas da página
-     * @return array Métricas processadas
+     * @param int $period Período em dias
+     * @return array Métricas formatadas
      */
-    private function processPageMetrics($metrics) {
-        if (empty($metrics)) {
-            return [];
+    private function getProductionMetrics($period = 30) {
+        try {
+            // Obter métricas básicas
+            $metrics = $this->model->getProductionMetricsSummary($period);
+            
+            // Obter métricas ao longo do tempo
+            $metrics['metrics_over_time'] = $this->model->getMetricsOverTime($period);
+            
+            // Obter distribuição de dispositivos
+            $metrics['device_breakdown'] = $this->model->getDeviceBreakdown($period);
+            
+            // Obter páginas mais lentas
+            $metrics['slowest_pages'] = $this->model->getSlowestPages($period, 10);
+            
+            // Obter páginas mais acessadas
+            $metrics['top_pages'] = $this->model->getTopPages($period, 10);
+            
+            return $metrics;
+        } catch (Exception $e) {
+            error_log("Erro ao obter métricas de produção: " . $e->getMessage());
+            return [
+                'error' => true,
+                'message' => 'Erro ao obter métricas de produção'
+            ];
         }
-        
-        // Inicializar estatísticas
-        $stats = [
-            'count' => count($metrics),
-            'averages' => [
-                'loadTime' => 0,
-                'ttfb' => 0,
-                'fcp' => 0,
-                'lcp' => 0,
-                'cls' => 0,
-                'fid' => 0,
-                'tbt' => 0
-            ],
-            'percentiles' => [
-                'loadTime' => [],
-                'ttfb' => [],
-                'fcp' => [],
-                'lcp' => [],
-                'cls' => [],
-                'fid' => [],
-                'tbt' => []
-            ],
-            'trends' => [
-                'dates' => [],
-                'loadTime' => [],
-                'lcp' => []
-            ]
-        ];
-        
-        // Extrair valores para análise
-        $values = [
-            'loadTime' => [],
-            'ttfb' => [],
-            'fcp' => [],
-            'lcp' => [],
-            'cls' => [],
-            'fid' => [],
-            'tbt' => []
-        ];
-        
-        // Agrupar por data para tendências
-        $byDate = [];
-        
-        foreach ($metrics as $metric) {
-            $metricData = isset($metric['metrics']) ? $metric['metrics'] : [];
-            $date = substr($metric['timestamp'], 0, 10);
-            
-            // Coletar valores para estatísticas
-            foreach ($values as $key => $val) {
-                if (isset($metricData[$key])) {
-                    $values[$key][] = $metricData[$key];
-                }
-            }
-            
-            // Agrupar por data
-            if (!isset($byDate[$date])) {
-                $byDate[$date] = [
-                    'count' => 0,
-                    'loadTime' => 0,
-                    'lcp' => 0
-                ];
-            }
-            
-            $byDate[$date]['count']++;
-            
-            if (isset($metricData['loadTime'])) {
-                $byDate[$date]['loadTime'] += $metricData['loadTime'];
-            }
-            
-            if (isset($metricData['lcp'])) {
-                $byDate[$date]['lcp'] += $metricData['lcp'];
-            }
-        }
-        
-        // Calcular médias para cada data
-        foreach ($byDate as $date => $data) {
-            if ($data['count'] > 0) {
-                $stats['trends']['dates'][] = $date;
-                $stats['trends']['loadTime'][] = round($data['loadTime'] / $data['count'], 2);
-                $stats['trends']['lcp'][] = round($data['lcp'] / $data['count'], 2);
-            }
-        }
-        
-        // Calcular médias gerais
-        foreach ($values as $key => $vals) {
-            if (!empty($vals)) {
-                $stats['averages'][$key] = round(array_sum($vals) / count($vals), 2);
-                
-                // Ordenar para percentis
-                sort($vals);
-                $count = count($vals);
-                
-                // Calcular percentis relevantes (p50, p75, p90, p95)
-                $stats['percentiles'][$key] = [
-                    'p50' => $vals[floor($count * 0.5)],
-                    'p75' => $vals[floor($count * 0.75)],
-                    'p90' => $vals[floor($count * 0.9)],
-                    'p95' => $vals[floor($count * 0.95)]
-                ];
-            }
-        }
-        
-        return $stats;
     }
     
     /**
-     * Determina se a página deve ser monitorada com base nas configurações
+     * Obtém métricas específicas de uma página
      * 
      * @param string $pageUrl URL da página
-     * @param array $enabledPages Lista de padrões de URL habilitados
-     * @return bool True se a página deve ser monitorada
+     * @param int $period Período em dias
+     * @return array Métricas da página
      */
-    private function isPageEnabled($pageUrl, $enabledPages) {
-        if (empty($enabledPages)) {
-            return true; // Se não houver configuração, monitorar todas
+    private function getPageMetrics($pageUrl, $period = 30) {
+        try {
+            return $this->model->getPageMetrics($pageUrl, $period);
+        } catch (Exception $e) {
+            error_log("Erro ao obter métricas da página: " . $e->getMessage());
+            return [
+                'error' => true,
+                'message' => 'Erro ao obter métricas da página'
+            ];
         }
-        
-        // Verificar padrões exatos e com wildcards
-        foreach ($enabledPages as $pattern) {
-            // Converter padrão para expressão regular
-            if (strpos($pattern, '*') !== false) {
-                $regexPattern = str_replace(['/', '*'], ['\/', '.*'], $pattern);
-                $regexPattern = '/^' . $regexPattern . '$/';
-                
-                if (preg_match($regexPattern, $pageUrl)) {
-                    return true;
-                }
-            } else {
-                // Comparação exata
-                if ($pattern === $pageUrl) {
-                    return true;
+    }
+    
+    /**
+     * Obtém tendências de uma página ao longo do tempo
+     * 
+     * @param string $pageUrl URL da página
+     * @param int $period Período em dias
+     * @return array Tendências da página
+     */
+    private function getPageTrends($pageUrl, $period = 30) {
+        try {
+            return $this->model->getPageTrends($pageUrl, $period);
+        } catch (Exception $e) {
+            error_log("Erro ao obter tendências da página: " . $e->getMessage());
+            return [
+                'error' => true,
+                'message' => 'Erro ao obter tendências da página'
+            ];
+        }
+    }
+    
+    /**
+     * Verifica se há deterioração na performance
+     * 
+     * @param int $period Período em dias
+     * @return array Informações sobre deterioração de performance
+     */
+    private function checkPerformanceDegradation($period = 30) {
+        try {
+            // Configurações para verificação
+            $settings = $this->getSettings();
+            $thresholdPercentage = $settings['alert_thresholds']['change_percentage'];
+            
+            // Dividir o período em duas partes para comparação
+            $halfPeriod = ceil($period / 2);
+            
+            // Obter métricas médias para a primeira metade do período
+            $oldMetrics = $this->model->getAverageMetricsForPeriod($period - $halfPeriod, $period);
+            
+            // Obter métricas médias para a segunda metade do período
+            $newMetrics = $this->model->getAverageMetricsForPeriod(0, $halfPeriod);
+            
+            // Se não houver dados suficientes, retornar vazio
+            if (empty($oldMetrics) || empty($newMetrics)) {
+                return [
+                    'alerts' => [],
+                    'has_alerts' => false
+                ];
+            }
+            
+            // Comparar métricas e identificar deteriorações significativas
+            $alerts = [];
+            $metricsToCheck = [
+                'avg_load_time' => 'Tempo de carregamento',
+                'avg_lcp' => 'Largest Contentful Paint',
+                'avg_fid' => 'First Input Delay',
+                'avg_cls' => 'Cumulative Layout Shift'
+            ];
+            
+            foreach ($metricsToCheck as $metric => $label) {
+                if (isset($oldMetrics[$metric]) && isset($newMetrics[$metric]) && 
+                    $oldMetrics[$metric] > 0 && $newMetrics[$metric] > 0) {
+                    
+                    // Calcular a mudança percentual
+                    $change = (($newMetrics[$metric] - $oldMetrics[$metric]) / $oldMetrics[$metric]) * 100;
+                    
+                    // Se a mudança for significativa (pior), adicionar alerta
+                    if (abs($change) >= $thresholdPercentage) {
+                        $alerts[] = [
+                            'metric' => $metric,
+                            'label' => $label,
+                            'previous' => $oldMetrics[$metric],
+                            'recent' => $newMetrics[$metric],
+                            'change' => $change,
+                            'percent_change' => round($change, 1),
+                            'direction' => $change > 0 ? 'worse' : 'better'
+                        ];
+                    }
                 }
             }
+            
+            return [
+                'alerts' => $alerts,
+                'has_alerts' => count($alerts) > 0,
+                'old_metrics' => $oldMetrics,
+                'new_metrics' => $newMetrics
+            ];
+        } catch (Exception $e) {
+            error_log("Erro ao verificar degradação de performance: " . $e->getMessage());
+            return [
+                'error' => true,
+                'message' => 'Erro ao verificar degradação de performance'
+            ];
+        }
+    }
+    
+    /**
+     * Obtém todos os alertas de performance
+     * 
+     * @param int $period Período em dias
+     * @return array Lista de alertas
+     */
+    private function getAllPerformanceAlerts($period = 30) {
+        try {
+            // Obter configurações
+            $settings = $this->getSettings();
+            $thresholds = $settings['alert_thresholds'];
+            
+            // Obter métricas por página
+            $pageMetrics = $this->model->getAllPagesMetrics($period);
+            
+            // Analisar métricas e gerar alertas
+            $alerts = [];
+            
+            foreach ($pageMetrics as $page) {
+                // Verificar tempo de carregamento
+                if (isset($page['avg_load_time']) && $page['avg_load_time'] > $thresholds['load_time']) {
+                    $alerts[] = [
+                        'type' => 'threshold',
+                        'metric' => 'load_time',
+                        'label' => 'Tempo de carregamento',
+                        'value' => $page['avg_load_time'],
+                        'threshold' => $thresholds['load_time'],
+                        'page_url' => $page['page_url'],
+                        'views' => $page['count'],
+                        'severity' => $this->calculateSeverity($page['avg_load_time'], $thresholds['load_time'])
+                    ];
+                }
+                
+                // Verificar LCP
+                if (isset($page['avg_lcp']) && $page['avg_lcp'] > $thresholds['lcp']) {
+                    $alerts[] = [
+                        'type' => 'threshold',
+                        'metric' => 'lcp',
+                        'label' => 'Largest Contentful Paint',
+                        'value' => $page['avg_lcp'],
+                        'threshold' => $thresholds['lcp'],
+                        'page_url' => $page['page_url'],
+                        'views' => $page['count'],
+                        'severity' => $this->calculateSeverity($page['avg_lcp'], $thresholds['lcp'])
+                    ];
+                }
+                
+                // Verificar CLS
+                if (isset($page['avg_cls']) && $page['avg_cls'] > $thresholds['cls']) {
+                    $alerts[] = [
+                        'type' => 'threshold',
+                        'metric' => 'cls',
+                        'label' => 'Cumulative Layout Shift',
+                        'value' => $page['avg_cls'],
+                        'threshold' => $thresholds['cls'],
+                        'page_url' => $page['page_url'],
+                        'views' => $page['count'],
+                        'severity' => $this->calculateSeverity($page['avg_cls'] / $thresholds['cls'], 1) // Normalizado
+                    ];
+                }
+            }
+            
+            // Adicionar alertas de tendência
+            $degradation = $this->checkPerformanceDegradation($period);
+            if (!empty($degradation['alerts'])) {
+                foreach ($degradation['alerts'] as $alert) {
+                    if ($alert['direction'] === 'worse') {
+                        $alerts[] = [
+                            'type' => 'trend',
+                            'metric' => $alert['metric'],
+                            'label' => $alert['label'],
+                            'previous' => $alert['previous'],
+                            'recent' => $alert['recent'],
+                            'percent_change' => $alert['percent_change'],
+                            'severity' => $this->calculateSeverityFromChange($alert['percent_change'])
+                        ];
+                    }
+                }
+            }
+            
+            // Ordenar alertas por severidade (decrescente)
+            usort($alerts, function($a, $b) {
+                return $b['severity'] - $a['severity'];
+            });
+            
+            return $alerts;
+        } catch (Exception $e) {
+            error_log("Erro ao obter alertas de performance: " . $e->getMessage());
+            return [
+                'error' => true,
+                'message' => 'Erro ao obter alertas de performance'
+            ];
+        }
+    }
+    
+    /**
+     * Verifica se há alertas graves e envia e-mail se necessário
+     * 
+     * @param string $pageUrl URL da página
+     * @param array $metrics Métricas coletadas
+     * @param array $settings Configurações
+     * @return bool True se os alertas foram verificados com sucesso
+     */
+    private function checkAndSendAlerts($pageUrl, $metrics, $settings) {
+        try {
+            // Verificar se há métricas relevantes
+            if (!isset($metrics['navigation']) && !isset($metrics['paint']) && !isset($metrics['largestPaint'])) {
+                return false;
+            }
+            
+            // Extrair métricas importantes
+            $loadTime = isset($metrics['navigation']['loadEvent']) ? $metrics['navigation']['loadEvent'] : null;
+            $lcp = isset($metrics['largestPaint']['startTime']) ? $metrics['largestPaint']['startTime'] : null;
+            $cls = isset($metrics['layoutShift']['value']) ? $metrics['layoutShift']['value'] : null;
+            
+            // Verificar se alguma métrica excede o limiar por uma margem significativa (50% acima)
+            $thresholds = $settings['alert_thresholds'];
+            $alertsToSend = [];
+            
+            if ($loadTime !== null && $loadTime > $thresholds['load_time'] * 1.5) {
+                $alertsToSend[] = [
+                    'metric' => 'Tempo de carregamento',
+                    'value' => round($loadTime, 1) . ' ms',
+                    'threshold' => $thresholds['load_time'] . ' ms',
+                    'exceedBy' => round(($loadTime / $thresholds['load_time'] - 1) * 100, 1) . '%'
+                ];
+            }
+            
+            if ($lcp !== null && $lcp > $thresholds['lcp'] * 1.5) {
+                $alertsToSend[] = [
+                    'metric' => 'Largest Contentful Paint',
+                    'value' => round($lcp, 1) . ' ms',
+                    'threshold' => $thresholds['lcp'] . ' ms',
+                    'exceedBy' => round(($lcp / $thresholds['lcp'] - 1) * 100, 1) . '%'
+                ];
+            }
+            
+            if ($cls !== null && $cls > $thresholds['cls'] * 1.5) {
+                $alertsToSend[] = [
+                    'metric' => 'Cumulative Layout Shift',
+                    'value' => round($cls, 3),
+                    'threshold' => $thresholds['cls'],
+                    'exceedBy' => round(($cls / $thresholds['cls'] - 1) * 100, 1) . '%'
+                ];
+            }
+            
+            // Se houver alertas para enviar, montar e enviar e-mail
+            if (!empty($alertsToSend)) {
+                $subject = 'Alerta de Performance - Taverna da Impressão 3D';
+                
+                $body = "<h2>Alerta de Performance Crítica</h2>";
+                $body .= "<p><strong>URL:</strong> " . htmlspecialchars($pageUrl) . "</p>";
+                $body .= "<p><strong>Data/Hora:</strong> " . date('d/m/Y H:i:s') . "</p>";
+                $body .= "<p>As seguintes métricas excederam significativamente os limiares estabelecidos:</p>";
+                $body .= "<ul>";
+                
+                foreach ($alertsToSend as $alert) {
+                    $body .= "<li><strong>{$alert['metric']}:</strong> {$alert['value']} (limite: {$alert['threshold']}, excedido em {$alert['exceedBy']})</li>";
+                }
+                
+                $body .= "</ul>";
+                $body .= "<p>Recomendamos verificar a página para otimizações de performance.</p>";
+                $body .= "<p><a href='" . BASE_URL . "admin/performance_monitor'>Acesse o painel de monitoramento</a></p>";
+                
+                // Enviar e-mail
+                return $this->sendEmail($settings['alert_email'], $subject, $body);
+            }
+            
+            return true;
+        } catch (Exception $e) {
+            error_log("Erro ao verificar alertas: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Calcula a severidade de um alerta com base em quanto o valor excede o limiar
+     * 
+     * @param float $value Valor atual
+     * @param float $threshold Limiar para comparação
+     * @return int Severidade (1-10)
+     */
+    private function calculateSeverity($value, $threshold) {
+        if ($value <= $threshold) return 0;
+        
+        // Calcular o quanto o valor excede o limiar (%)
+        $exceedPercent = ($value / $threshold - 1) * 100;
+        
+        // Mapear para uma escala de 1-10
+        if ($exceedPercent <= 10) return 1;
+        if ($exceedPercent <= 25) return 3;
+        if ($exceedPercent <= 50) return 5;
+        if ($exceedPercent <= 100) return 7;
+        return 10;
+    }
+    
+    /**
+     * Calcula a severidade com base na mudança percentual
+     * 
+     * @param float $percentChange Mudança percentual
+     * @return int Severidade (1-10)
+     */
+    private function calculateSeverityFromChange($percentChange) {
+        $absChange = abs($percentChange);
+        
+        if ($absChange <= 20) return 1;
+        if ($absChange <= 30) return 3;
+        if ($absChange <= 50) return 5;
+        if ($absChange <= 100) return 7;
+        return 10;
+    }
+    
+    /**
+     * Envia um e-mail
+     * 
+     * @param string $to Destinatário
+     * @param string $subject Assunto
+     * @param string $body Corpo da mensagem (HTML)
+     * @return bool True se o e-mail foi enviado com sucesso
+     */
+    private function sendEmail($to, $subject, $body) {
+        // Implementação básica de envio de e-mail
+        $headers = "MIME-Version: 1.0\r\n";
+        $headers .= "Content-type: text/html; charset=UTF-8\r\n";
+        $headers .= "From: Taverna da Impressão 3D <no-reply@tavernaimpressao3d.com.br>\r\n";
+        
+        return mail($to, $subject, $body, $headers);
+    }
+    
+    /**
+     * Obtém o endereço IP do cliente, levando em conta proxies
+     * 
+     * @return string Endereço IP
+     */
+    private function getClientIp() {
+        $ip = '';
+        
+        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
+            $ip = $_SERVER['HTTP_CLIENT_IP'];
+        } elseif (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } elseif (isset($_SERVER['REMOTE_ADDR'])) {
+            $ip = $_SERVER['REMOTE_ADDR'];
         }
         
-        return false;
+        // Sanitizar IP
+        return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '';
     }
     
     /**
      * Detecta o tipo de dispositivo com base no User Agent
      * 
-     * @param string $userAgent String do User Agent
-     * @return string Tipo de dispositivo (desktop, tablet, mobile)
+     * @param string $userAgent User Agent do cliente
+     * @return string Tipo de dispositivo (desktop, mobile, tablet)
      */
     private function detectDeviceType($userAgent) {
         $userAgent = strtolower($userAgent);
         
-        // Verificar se é um dispositivo móvel
-        if (
-            strpos($userAgent, 'mobile') !== false || 
-            strpos($userAgent, 'android') !== false ||
-            strpos($userAgent, 'iphone') !== false
-        ) {
-            // Verificar se é um tablet
-            if (
-                strpos($userAgent, 'ipad') !== false || 
-                strpos($userAgent, 'tablet') !== false
-            ) {
+        $mobileKeywords = ['mobile', 'android', 'iphone', 'ipod', 'windows phone'];
+        $tabletKeywords = ['ipad', 'tablet', 'android 3.0', 'xoom'];
+        
+        // Verificar se é um tablet
+        foreach ($tabletKeywords as $keyword) {
+            if (strpos($userAgent, $keyword) !== false) {
                 return 'tablet';
             }
-            
-            return 'mobile';
         }
         
+        // Verificar se é um dispositivo móvel
+        foreach ($mobileKeywords as $keyword) {
+            if (strpos($userAgent, $keyword) !== false) {
+                return 'mobile';
+            }
+        }
+        
+        // Caso contrário, considerar desktop
         return 'desktop';
     }
     
     /**
-     * Obtém a distribuição de tipos de dispositivos
+     * Converte texto de várias linhas em uma array
      * 
-     * @param array $metrics Métricas coletadas
-     * @return array Distribuição de dispositivos
+     * @param string $input Texto com múltiplas linhas
+     * @return array Linhas individuais em uma array
      */
-    private function getDeviceDistribution($metrics) {
-        $devices = [
-            'desktop' => 0,
-            'tablet' => 0,
-            'mobile' => 0
-        ];
+    private function parseMultilineInput($input) {
+        $lines = explode("\n", str_replace("\r", "", $input));
+        $result = [];
         
-        if (empty($metrics)) {
-            return $devices;
-        }
-        
-        foreach ($metrics as $metric) {
-            if (isset($metric['device_type'])) {
-                $deviceType = $metric['device_type'];
-                if (isset($devices[$deviceType])) {
-                    $devices[$deviceType]++;
-                }
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if (!empty($trimmed)) {
+                $result[] = $trimmed;
             }
         }
         
-        return $devices;
+        return $result;
     }
     
     /**
-     * Obtém o título amigável para uma URL de página
+     * Obtém as configurações do monitor de performance
      * 
-     * @param string $pageUrl URL da página
-     * @return string Título amigável
+     * @return array Configurações
      */
-    private function getPageTitle($pageUrl) {
-        // Remover domínio se presente
-        $path = parse_url($pageUrl, PHP_URL_PATH);
-        if (!$path) {
-            $path = $pageUrl;
-        }
-        
-        // Sanitizar e formatar
-        $path = trim($path, '/');
-        if (empty($path)) {
-            return 'Página Inicial';
-        }
-        
-        // Verificar rotas comuns
-        $routes = [
-            'products' => 'Listagem de Produtos',
-            'product' => 'Página de Produto',
-            'cart' => 'Carrinho de Compras',
-            'checkout' => 'Checkout',
-            'categories' => 'Categorias',
-            'search' => 'Busca de Produtos',
-            'user' => 'Perfil do Usuário',
-            'orders' => 'Histórico de Pedidos',
-            'customization' => 'Customização 3D'
-        ];
-        
-        foreach ($routes as $route => $title) {
-            if (strpos($path, $route) === 0) {
-                return $title;
+    private function getSettings() {
+        try {
+            $settings = $this->model->getPerformanceMonitorSettings();
+            
+            // Se não houver configurações, retornar valores padrão
+            if (empty($settings)) {
+                return [
+                    'metrics_to_collect' => ['navigation', 'resource', 'paint', 'memory', 'layout', 'firstInput', 'largestPaint'],
+                    'alert_thresholds' => [
+                        'load_time' => 2000,
+                        'lcp' => 2500,
+                        'cls' => 0.1,
+                        'change_percentage' => 20
+                    ],
+                    'sampling_rate' => 100,
+                    'excluded_paths' => ['/admin/', '/api/'],
+                    'email_alerts' => false,
+                    'alert_email' => '',
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
+                ];
             }
+            
+            return $settings;
+        } catch (Exception $e) {
+            error_log("Erro ao obter configurações: " . $e->getMessage());
+            
+            // Retornar configurações padrão em caso de erro
+            return [
+                'metrics_to_collect' => ['navigation', 'resource', 'paint', 'memory', 'layout', 'firstInput', 'largestPaint'],
+                'alert_thresholds' => [
+                    'load_time' => 2000,
+                    'lcp' => 2500,
+                    'cls' => 0.1,
+                    'change_percentage' => 20
+                ],
+                'sampling_rate' => 100,
+                'excluded_paths' => ['/admin/', '/api/'],
+                'email_alerts' => false,
+                'alert_email' => '',
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s')
+            ];
         }
-        
-        // Formatar outros caminhos
-        return ucfirst(str_replace(['-', '_', '/'], ' ', $path));
     }
     
     /**
-     * Obtém uma lista de páginas disponíveis para monitoramento
+     * Salva as configurações do monitor de performance
      * 
-     * @return array Lista de páginas
+     * @param array $settings Configurações a serem salvas
+     * @return bool True se salvas com sucesso
      */
-    private function getAvailablePages() {
-        return [
-            '/' => 'Página Inicial',
-            '/products' => 'Listagem de Produtos',
-            '/product/*' => 'Páginas de Produto (todas)',
-            '/cart' => 'Carrinho de Compras',
-            '/checkout' => 'Checkout',
-            '/categories' => 'Categorias',
-            '/category/*' => 'Páginas de Categoria (todas)',
-            '/search' => 'Busca de Produtos',
-            '/user/*' => 'Área do Usuário',
-            '/orders' => 'Histórico de Pedidos',
-            '/customization/*' => 'Customização 3D'
-        ];
+    private function saveSettings($settings) {
+        try {
+            return $this->model->savePerformanceMonitorSettings($settings);
+        } catch (Exception $e) {
+            error_log("Erro ao salvar configurações: " . $e->getMessage());
+            return false;
+        }
     }
     
     /**
