@@ -187,15 +187,9 @@ class ProductModel extends Model {
                 $availabilityFilter = " AND (p.is_tested = 0 OR p.stock = 0)";
             }
             
-            // Contar total
-            $countSql = "SELECT COUNT(*) as total 
-                        FROM {$this->table} p 
-                        WHERE p.category_id = :category_id AND p.is_active = 1" . $availabilityFilter;
-            $countResult = $this->db()->select($countSql, $params);
-            $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
-            
+            // Otimização: Usar SQL_CALC_FOUND_ROWS para evitar consulta COUNT(*) separada
             // Buscar produtos
-            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+            $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
                            pi.image,
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
@@ -208,6 +202,10 @@ class ProductModel extends Model {
             $params['limit'] = $limit;
             
             $items = $this->db()->select($sql, $params);
+            
+            // Obter o total de registros encontrados
+            $totalResult = $this->db()->select("SELECT FOUND_ROWS() as total");
+            $total = isset($totalResult[0]['total']) ? $totalResult[0]['total'] : 0;
             
             return [
                 'items' => $items,
