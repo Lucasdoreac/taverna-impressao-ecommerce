@@ -49,8 +49,7 @@ if (!defined('CURRENCY')) {
     define('CURRENCY', 'BRL');
 }
 
-// Corrigir problema com a constante CURRENCY_SYMBOL sendo exibida como número
-// Garantir que a constante seja sempre tratada como string
+// Definir constante de símbolo de moeda de forma literal para evitar problemas de tipo
 if (!defined('CURRENCY_SYMBOL')) {
     define('CURRENCY_SYMBOL', 'R$');
 }
@@ -71,13 +70,16 @@ if (ENVIRONMENT === 'development') {
     error_log("Verificação CURRENCY_SYMBOL_STR: " . CURRENCY_SYMBOL_STR);
 }
 
-// Função para obter o símbolo da moeda de forma segura
+/**
+ * Função para obter o símbolo da moeda de forma segura
+ * Sempre retorna a string 'R$' para contornar o problema de conversão de tipo
+ * 
+ * @return string Símbolo da moeda
+ */
 function getCurrencySymbol() {
-    // Se a constante CURRENCY_SYMBOL não for 'R$', retorna a alternativa
-    if (CURRENCY_SYMBOL !== 'R$') {
-        return CURRENCY_SYMBOL_STR;
-    }
-    return CURRENCY_SYMBOL;
+    // Retornar diretamente a string 'R$' em vez de usar a constante
+    // para garantir que o símbolo correto seja sempre exibido
+    return 'R$';
 }
 
 // Configurações adicionais
