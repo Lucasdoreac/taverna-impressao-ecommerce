@@ -81,19 +81,80 @@ class CategoryController {
                 error_log("Aviso: Categoria sem subcategorias ou não é array");
             }
             
-            // Obter produtos da categoria com paginação usando método getCategoryWithProducts
+            // Obter parâmetros de paginação, ordenação e filtragem dos query params
+            $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+            $limit = isset($_GET['limit']) ? min(48, max(4, intval($_GET['limit']))) : 12;
+            
+            // Processar inclusão de subcategorias
+            $includeSubcategories = isset($_GET['include_subcategories']) ? 
+                                    filter_var($_GET['include_subcategories'], FILTER_VALIDATE_BOOLEAN) : 
+                                    true;
+            
+            // Processar ordenação
+            $validOrderBy = [
+                'name_asc' => 'name ASC',
+                'name_desc' => 'name DESC',
+                'price_asc' => 'price ASC',
+                'price_desc' => 'price DESC',
+                'newest' => 'newest DESC',
+                'availability' => 'availability DESC',
+                'default' => 'p.is_tested DESC, p.name ASC'
+            ];
+            
+            $orderBy = isset($_GET['order_by']) && isset($validOrderBy[$_GET['order_by']]) ? 
+                       $validOrderBy[$_GET['order_by']] : 
+                       $validOrderBy['default'];
+            
+            // Processar filtros
+            $filters = [];
+            
+            // Filtro de preço
+            if (isset($_GET['price_min']) && is_numeric($_GET['price_min'])) {
+                $filters['price_min'] = floatval($_GET['price_min']);
+            }
+            
+            if (isset($_GET['price_max']) && is_numeric($_GET['price_max'])) {
+                $filters['price_max'] = floatval($_GET['price_max']);
+            }
+            
+            // Filtro de disponibilidade
+            if (isset($_GET['availability']) && in_array($_GET['availability'], ['all', 'in_stock', 'custom_order'])) {
+                $filters['availability'] = $_GET['availability'];
+            }
+            
+            // Filtro para produtos personalizáveis
+            if (isset($_GET['customizable'])) {
+                $filters['customizable'] = filter_var($_GET['customizable'], FILTER_VALIDATE_BOOLEAN);
+            }
+            
+            // Filtro para produtos em oferta
+            if (isset($_GET['on_sale'])) {
+                $filters['on_sale'] = filter_var($_GET['on_sale'], FILTER_VALIDATE_BOOLEAN);
+            }
+            
+            // Log dos parâmetros de filtragem para debug
+            if (ENVIRONMENT === 'development') {
+                error_log("Parâmetros de filtragem: " . json_encode([
+                    'page' => $page, 
+                    'limit' => $limit, 
+                    'orderBy' => $orderBy, 
+                    'includeSubcategories' => $includeSubcategories,
+                    'filters' => $filters
+                ]));
+            }
+            
+            // Obter produtos da categoria com paginação, ordenação e filtragem
             try {
-                $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-                $limit = 12; // produtos por página
-                
-                // Obter valor do parâmetro para incluir produtos das subcategorias
-                $includeSubcategories = isset($_GET['include_subcategories']) ? 
-                                        filter_var($_GET['include_subcategories'], FILTER_VALIDATE_BOOLEAN) : 
-                                        true;
-                
-                // Verificar se a categoria já tem produtos carregados (adicionados pelo método getCategoryWithProducts)
+                // Verificar se a categoria já tem produtos carregados
                 if (!isset($category['products']) || !is_array($category['products'])) {
-                    $categoryWithProducts = $this->categoryModel->getCategoryWithProducts($slug, $page, $limit, $includeSubcategories);
+                    $categoryWithProducts = $this->categoryModel->getCategoryWithProducts(
+                        $slug, 
+                        $page, 
+                        $limit, 
+                        $includeSubcategories,
+                        $orderBy,
+                        $filters
+                    );
                     
                     if ($categoryWithProducts && isset($categoryWithProducts['products']) && is_array($categoryWithProducts['products'])) {
                         $products = $categoryWithProducts['products'];
@@ -132,8 +193,21 @@ class CategoryController {
                     $products['lastPage'] = ceil($products['total'] / $limit);
                 }
                 
-                // Adicionar flag para informar se estamos incluindo produtos das subcategorias
+                // Adicionar informações de ordenação e filtragem para uso na view
+                $products['orderBy'] = $orderBy;
+                $products['filters'] = $filters;
                 $products['includeSubcategories'] = $includeSubcategories;
+                
+                // Preparar opções de ordenação para o select na view
+                $products['orderByOptions'] = [
+                    'default' => 'Relevância',
+                    'name_asc' => 'Nome (A-Z)',
+                    'name_desc' => 'Nome (Z-A)',
+                    'price_asc' => 'Preço (menor-maior)',
+                    'price_desc' => 'Preço (maior-menor)',
+                    'newest' => 'Mais recentes',
+                    'availability' => 'Disponibilidade'
+                ];
                 
                 // Adicionar produtos à categoria para uso na view
                 $category['products'] = $products;
@@ -148,7 +222,37 @@ class CategoryController {
                     'currentPage' => $page,
                     'perPage' => $limit,
                     'lastPage' => 1,
-                    'includeSubcategories' => $includeSubcategories
+                    'orderBy' => $orderBy,
+                    'filters' => $filters,
+                    'includeSubcategories' => $includeSubcategories,
+                    'orderByOptions' => [
+                        'default' => 'Relevância',
+                        'name_asc' => 'Nome (A-Z)',
+                        'name_desc' => 'Nome (Z-A)',
+                        'price_asc' => 'Preço (menor-maior)',
+                        'price_desc' => 'Preço (maior-menor)',
+                        'newest' => 'Mais recentes',
+                        'availability' => 'Disponibilidade'
+                    ]
+                ];
+            }
+            
+            // Adicionar faixas de preço para o filtro de preço
+            try {
+                $priceRanges = $this->getPriceRangesForCategory($category['id'], $includeSubcategories);
+                $category['priceRanges'] = $priceRanges;
+            } catch (Exception $e) {
+                error_log("Erro ao obter faixas de preço: " . $e->getMessage());
+                $category['priceRanges'] = [
+                    'min' => 0,
+                    'max' => 1000,
+                    'ranges' => [
+                        ['min' => 0, 'max' => 50],
+                        ['min' => 50, 'max' => 100],
+                        ['min' => 100, 'max' => 200],
+                        ['min' => 200, 'max' => 500],
+                        ['min' => 500, 'max' => 1000]
+                    ]
                 ];
             }
             
@@ -170,6 +274,133 @@ class CategoryController {
             require_once VIEWS_PATH . '/category.php';
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao exibir categoria");
+        }
+    }
+    
+    /**
+     * Obtém as faixas de preço para o filtro de preço
+     * 
+     * @param int $categoryId ID da categoria
+     * @param bool $includeSubcategories Se deve incluir subcategorias
+     * @return array Faixas de preço
+     */
+    private function getPriceRangesForCategory($categoryId, $includeSubcategories = true) {
+        try {
+            $productModel = new ProductModel();
+            $categoryModel = new CategoryModel();
+            
+            // Obter IDs de subcategorias se necessário
+            $categoryIds = [$categoryId];
+            
+            if ($includeSubcategories) {
+                // Obter categoria para acessar left_value e right_value
+                $category = $categoryModel->find($categoryId);
+                
+                if ($category && isset($category['left_value']) && isset($category['right_value'])) {
+                    // Usar Nested Sets para obter todas as subcategorias de forma eficiente
+                    $sql = "SELECT id FROM {$categoryModel->getTable()} 
+                            WHERE left_value > :left_value AND right_value < :right_value AND is_active = 1";
+                    
+                    $subcategoryRows = $this->db()->select($sql, [
+                        'left_value' => $category['left_value'],
+                        'right_value' => $category['right_value']
+                    ]);
+                    
+                    if (!empty($subcategoryRows)) {
+                        foreach ($subcategoryRows as $row) {
+                            $categoryIds[] = $row['id'];
+                        }
+                    }
+                } else {
+                    // Método alternativo: obter subcategorias recursivas
+                    $subcategories = $categoryModel->getSubcategoriesRecursive($categoryId);
+                    $this->collectSubcategoryIds($subcategories, $categoryIds);
+                }
+            }
+            
+            // Criar placeholders para os IDs
+            $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+            
+            // Obter preço mínimo e máximo
+            $sql = "SELECT 
+                    MIN(CASE WHEN sale_price > 0 THEN sale_price ELSE price END) as min_price,
+                    MAX(CASE WHEN sale_price > 0 THEN sale_price ELSE price END) as max_price
+                    FROM {$productModel->getTable()}
+                    WHERE category_id IN ({$placeholders}) AND is_active = 1";
+            
+            $result = $this->db()->select($sql, $categoryIds);
+            
+            $minPrice = isset($result[0]['min_price']) ? floor($result[0]['min_price']) : 0;
+            $maxPrice = isset($result[0]['max_price']) ? ceil($result[0]['max_price']) : 1000;
+            
+            // Criar faixas de preço dinâmicas
+            $ranges = [];
+            
+            // Se a diferença de preço for pequena, criar faixas menores
+            if ($maxPrice - $minPrice <= 100) {
+                $step = 20;
+            } elseif ($maxPrice - $minPrice <= 500) {
+                $step = 50;
+            } elseif ($maxPrice - $minPrice <= 1000) {
+                $step = 100;
+            } elseif ($maxPrice - $minPrice <= 5000) {
+                $step = 500;
+            } else {
+                $step = 1000;
+            }
+            
+            // Arredondar o preço mínimo para o múltiplo de step inferior
+            $minPrice = floor($minPrice / $step) * $step;
+            
+            // Arredondar o preço máximo para o múltiplo de step superior
+            $maxPrice = ceil($maxPrice / $step) * $step;
+            
+            // Criar as faixas
+            for ($i = $minPrice; $i < $maxPrice; $i += $step) {
+                $ranges[] = [
+                    'min' => $i, 
+                    'max' => $i + $step
+                ];
+            }
+            
+            return [
+                'min' => $minPrice,
+                'max' => $maxPrice,
+                'ranges' => $ranges
+            ];
+        } catch (Exception $e) {
+            error_log("Erro ao calcular faixas de preço: " . $e->getMessage());
+            
+            // Retornar faixas padrão em caso de erro
+            return [
+                'min' => 0,
+                'max' => 1000,
+                'ranges' => [
+                    ['min' => 0, 'max' => 50],
+                    ['min' => 50, 'max' => 100],
+                    ['min' => 100, 'max' => 200],
+                    ['min' => 200, 'max' => 500],
+                    ['min' => 500, 'max' => 1000]
+                ]
+            ];
+        }
+    }
+    
+    /**
+     * Coleta IDs de subcategorias recursivamente (método auxiliar)
+     * 
+     * @param array $subcategories Lista de subcategorias
+     * @param array &$categoryIds Array para armazenar os IDs
+     */
+    private function collectSubcategoryIds($subcategories, &$categoryIds) {
+        foreach ($subcategories as $subcategory) {
+            if (isset($subcategory['id'])) {
+                $categoryIds[] = $subcategory['id'];
+            }
+            
+            if (isset($subcategory['subcategories']) && is_array($subcategory['subcategories'])) {
+                $this->collectSubcategoryIds($subcategory['subcategories'], $categoryIds);
+            }
         }
     }
     
