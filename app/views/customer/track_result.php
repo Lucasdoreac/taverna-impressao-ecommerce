@@ -71,7 +71,7 @@
                                 <?php endif; ?>
                                 <tr>
                                     <th>Valor Total:</th>
-                                    <td><?php echo CURRENCY_SYMBOL . ' ' . number_format($order['total'], 2, ',', '.'); ?></td>
+                                    <td><?php echo getCurrencySymbol() . ' ' . number_format($order['total'], 2, ',', '.'); ?></td>
                                 </tr>
                             </table>
                         </div>
