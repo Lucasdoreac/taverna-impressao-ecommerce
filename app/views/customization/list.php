@@ -76,10 +76,10 @@
                     <div class="d-flex justify-content-between align-items-center mt-3">
                         <div>
                             <?php if (isset($product['sale_price']) && $product['sale_price'] && $product['sale_price'] < $product['price']): ?>
-                            <span class="text-decoration-line-through text-muted small"><?= CURRENCY_SYMBOL ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
-                            <span class="ms-1 text-danger fw-bold"><?= CURRENCY_SYMBOL ?> <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
+                            <span class="text-decoration-line-through text-muted small"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
+                            <span class="ms-1 text-danger fw-bold"><?= getCurrencySymbol() ?> <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
                             <?php else: ?>
-                            <span class="fw-bold"><?= CURRENCY_SYMBOL ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
+                            <span class="fw-bold"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
                             <?php endif; ?>
                         </div>
                         <div>
