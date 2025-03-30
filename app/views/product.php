@@ -1,4 +1,11 @@
 <?php require_once VIEWS_PATH . '/partials/header.php'; ?>
+<?php 
+// Incluir o helper do visualizador 3D
+require_once APP_PATH . '/helpers/ModelViewerHelper.php'; 
+?>
+
+<?= ModelViewerHelper::getViewerCSS() ?>
+<?= ModelViewerHelper::includeThreeJs() ?>
 
 <div class="container py-4">
     <!-- Breadcrumb -->
@@ -11,34 +18,84 @@
     </nav>
     
     <div class="row">
-        <!-- Galeria de Imagens -->
+        <!-- Galeria de Imagens e Visualizador 3D -->
         <div class="col-md-6 mb-4">
             <div class="product-gallery">
-                <!-- Imagem Principal -->
-                <div class="main-image mb-3">
-                    <?php if (!empty($product['images']) && file_exists(UPLOADS_PATH . '/products/' . $product['images'][0]['image'])): ?>
-                    <img id="main-product-image" src="<?= BASE_URL ?>uploads/products/<?= $product['images'][0]['image'] ?>" 
-                         class="img-fluid rounded" alt="<?= $product['name'] ?>">
-                    <?php else: ?>
-                    <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
-                    <?php endif; ?>
-                </div>
+                <!-- Abas para alternar entre imagens e visualizador 3D -->
+                <ul class="nav nav-tabs mb-3" id="productVisualTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="images-tab" data-bs-toggle="tab" data-bs-target="#images-tab-content" 
+                                type="button" role="tab" aria-controls="images-tab-content" aria-selected="true">
+                            <i class="fas fa-images me-1"></i> Imagens
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="model-3d-tab" data-bs-toggle="tab" data-bs-target="#model-3d-tab-content" 
+                                type="button" role="tab" aria-controls="model-3d-tab-content" aria-selected="false">
+                            <i class="fas fa-cube me-1"></i> Modelo 3D
+                        </button>
+                    </li>
+                </ul>
                 
-                <!-- Thumbnails -->
-                <?php if (!empty($product['images']) && count($product['images']) > 1): ?>
-                <div class="thumbnails d-flex flex-wrap">
-                    <?php foreach ($product['images'] as $index => $image): ?>
-                    <?php if (file_exists(UPLOADS_PATH . '/products/' . $image['image'])): ?>
-                    <div class="thumbnail-item me-2 mb-2">
-                        <img src="<?= BASE_URL ?>uploads/products/<?= $image['image'] ?>" 
-                             class="img-thumbnail thumbnail-image <?= $index === 0 ? 'active' : '' ?>" 
-                             alt="<?= $product['name'] ?> - Imagem <?= $index + 1 ?>"
-                             data-image="<?= BASE_URL ?>uploads/products/<?= $image['image'] ?>">
+                <div class="tab-content" id="productVisualTabContent">
+                    <!-- Aba de Imagens -->
+                    <div class="tab-pane fade show active" id="images-tab-content" role="tabpanel" aria-labelledby="images-tab">
+                        <!-- Imagem Principal -->
+                        <div class="main-image mb-3">
+                            <?php if (!empty($product['images']) && file_exists(UPLOADS_PATH . '/products/' . $product['images'][0]['image'])): ?>
+                            <img id="main-product-image" src="<?= BASE_URL ?>uploads/products/<?= $product['images'][0]['image'] ?>" 
+                                 class="img-fluid rounded" alt="<?= $product['name'] ?>">
+                            <?php else: ?>
+                            <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <!-- Thumbnails -->
+                        <?php if (!empty($product['images']) && count($product['images']) > 1): ?>
+                        <div class="thumbnails d-flex flex-wrap">
+                            <?php foreach ($product['images'] as $index => $image): ?>
+                            <?php if (file_exists(UPLOADS_PATH . '/products/' . $image['image'])): ?>
+                            <div class="thumbnail-item me-2 mb-2">
+                                <img src="<?= BASE_URL ?>uploads/products/<?= $image['image'] ?>" 
+                                     class="img-thumbnail thumbnail-image <?= $index === 0 ? 'active' : '' ?>" 
+                                     alt="<?= $product['name'] ?> - Imagem <?= $index + 1 ?>"
+                                     data-image="<?= BASE_URL ?>uploads/products/<?= $image['image'] ?>">
+                            </div>
+                            <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
-                    <?php endif; ?>
-                    <?php endforeach; ?>
+                    
+                    <!-- Aba de Modelo 3D -->
+                    <div class="tab-pane fade" id="model-3d-tab-content" role="tabpanel" aria-labelledby="model-3d-tab">
+                        <!-- Visualizador 3D -->
+                        <?php 
+                        if (isset($product['model_file']) && !empty($product['model_file'])): 
+                            echo ModelViewerHelper::createProductModelViewer($product, [
+                                'height' => '400px',
+                                'backgroundColor' => '#ffffff',
+                                'modelColor' => '#5a5a5a',
+                                'showGrid' => true,
+                                'showControls' => true,
+                                'autoRotate' => true
+                            ]);
+                        else:
+                        ?>
+                            <div class="card">
+                                <div class="card-body text-center py-5">
+                                    <i class="fas fa-cube fa-3x mb-3 text-muted"></i>
+                                    <h4>Visualização 3D não disponível</h4>
+                                    <p class="text-muted">Este produto não possui um modelo 3D para visualização.</p>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <div class="mt-2 text-center text-muted small">
+                            <i class="fas fa-hand-pointer me-1"></i> Você pode rotacionar, aproximar e examinar o modelo de todos os ângulos
+                        </div>
+                    </div>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
         
