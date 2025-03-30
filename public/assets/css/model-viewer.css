@@ -1,0 +1,222 @@
+/**
+ * model-viewer.css - Estilos para o visualizador de modelos 3D
+ */
+
+/* Container principal */
+.model-viewer {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    min-height: 300px;
+}
+
+/* Variações específicas */
+.customer-model-viewer {
+    border: 1px solid #ddd;
+}
+
+.product-model-viewer {
+    margin-bottom: 1.5rem;
+}
+
+/* Canvas do Three.js */
+.model-viewer canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    outline: none;
+}
+
+/* Controles para interação */
+.model-viewer-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    gap: 5px;
+    z-index: 100;
+    transition: opacity 0.3s ease;
+}
+
+/* Versão com botões maiores para dispositivos de toque */
+.model-viewer-controls-touch {
+    gap: 10px;
+}
+
+/* Botões de controle */
+.model-viewer-control-btn {
+    background-color: rgba(255, 255, 255, 0.7);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    outline: none;
+}
+
+/* Botões maiores para toque em dispositivos móveis */
+.model-viewer-control-btn-large {
+    width: 46px;
+    height: 46px;
+}
+
+.model-viewer-control-btn:hover {
+    background-color: rgba(255, 255, 255, 0.9);
+    transform: scale(1.1);
+}
+
+.model-viewer-control-btn:active {
+    transform: scale(0.95);
+}
+
+.model-viewer-control-btn.active {
+    background-color: rgba(30, 144, 255, 0.7);
+}
+
+.model-viewer-control-btn.active i {
+    color: white;
+}
+
+.model-viewer-control-btn i {
+    font-size: 18px;
+    color: #333;
+}
+
+.model-viewer-control-btn-large i {
+    font-size: 22px;
+}
+
+/* Loading spinner */
+.model-viewer-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(248, 249, 250, 0.8);
+    z-index: 50;
+}
+
+.model-viewer-loading-spinner {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: model-viewer-spin 1s linear infinite;
+}
+
+.model-viewer-loading-progress {
+    margin-top: 10px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: #333;
+    font-weight: bold;
+}
+
+@keyframes model-viewer-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Estilos responsivos */
+@media (max-width: 768px) {
+    .model-viewer {
+        min-height: 250px;
+        border-radius: 6px;
+    }
+    
+    .model-viewer-controls {
+        bottom: 8px;
+        right: 8px;
+    }
+    
+    .model-viewer-loading-spinner {
+        width: 40px;
+        height: 40px;
+        border-width: 4px;
+    }
+    
+    .model-viewer-loading-progress {
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .model-viewer {
+        min-height: 200px;
+        border-radius: 4px;
+    }
+    
+    /* Fade controles quando não estiver interagindo */
+    .model-viewer-controls {
+        opacity: 0.6;
+    }
+    
+    .model-viewer:hover .model-viewer-controls,
+    .model-viewer:active .model-viewer-controls,
+    .model-viewer:focus .model-viewer-controls {
+        opacity: 1;
+    }
+}
+
+/* Estilos para suporte ao modo escuro */
+@media (prefers-color-scheme: dark) {
+    .model-viewer-control-btn {
+        background-color: rgba(40, 40, 40, 0.7);
+    }
+    
+    .model-viewer-control-btn:hover {
+        background-color: rgba(60, 60, 60, 0.9);
+    }
+    
+    .model-viewer-control-btn i {
+        color: #ddd;
+    }
+    
+    .model-viewer-control-btn.active {
+        background-color: rgba(30, 144, 255, 0.7);
+    }
+    
+    .model-viewer-loading {
+        background-color: rgba(30, 30, 30, 0.8);
+    }
+    
+    .model-viewer-loading-progress {
+        color: #ddd;
+    }
+    
+    .model-viewer-loading-spinner {
+        border-color: #444;
+        border-top-color: #3498db;
+    }
+}
+
+/* Classes de utilidade para ajustar altura do visualizador */
+.model-viewer-height-sm {
+    height: 250px;
+}
+
+.model-viewer-height-md {
+    height: 350px;
+}
+
+.model-viewer-height-lg {
+    height: 450px;
+}
+
+/* Suporte a orientação em dispositivos móveis */
+@media (orientation: landscape) and (max-width: 900px) {
+    .model-viewer {
+        height: 70vh;
+    }
+}
