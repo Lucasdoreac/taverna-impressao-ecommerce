@@ -6,23 +6,79 @@
     <title><?= STORE_NAME ?> - Materiais impressos para RPG</title>
     <meta name="description" content="Loja especializada em materiais impressos para RPG, incluindo fichas, mapas, livros e acessórios para jogadores e mestres.">
     
-    <!-- Fontes -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <?php
+    // Adicionar preconexões com domínios externos
+    if (class_exists('ResourceOptimizerHelper')) {
+        echo ResourceOptimizerHelper::generatePreconnectTags();
+    } else {
+        // Fallback para tags de preconnect padrão
+        echo '<link rel="preconnect" href="https://fonts.googleapis.com">' . PHP_EOL;
+        echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' . PHP_EOL;
+        echo '<link rel="preconnect" href="https://cdnjs.cloudflare.com">' . PHP_EOL;
+    }
+    ?>
     
-    <!-- Ícones -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <?php
+    // Adicionar preload para recursos críticos
+    if (class_exists('ResourceOptimizerHelper')) {
+        echo ResourceOptimizerHelper::generatePreloadTags();
+    }
+    ?>
+    
+    <?php
+    // Inserir CSS crítico inline
+    if (class_exists('ResourceOptimizerHelper')) {
+        $criticalCSS = ResourceOptimizerHelper::getCriticalCSS();
+        if (!empty($criticalCSS)) {
+            echo '<style id="critical-css">' . PHP_EOL;
+            echo $criticalCSS;
+            echo PHP_EOL . '</style>' . PHP_EOL;
+        }
+    }
+    ?>
+    
+    <!-- Fontes otimizadas -->
+    <?php
+    if (class_exists('ResourceOptimizerHelper')) {
+        echo ResourceOptimizerHelper::optimizeFontLoad(
+            'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap',
+            true
+        );
+    } else {
+        // Fallback para carregamento padrão
+        echo '<link rel="preconnect" href="https://fonts.googleapis.com">' . PHP_EOL;
+        echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' . PHP_EOL;
+        echo '<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">' . PHP_EOL;
+    }
+    ?>
+    
+    <!-- Ícones otimizados -->
+    <?php
+    if (class_exists('ResourceOptimizerHelper')) {
+        // Usar versão local se disponível ou otimizar a versão CDN
+        echo optimizeExternalResource('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css', 'css');
+    } else {
+        // Fallback para o método convencional
+        echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' . PHP_EOL;
+    }
+    ?>
     
     <!-- CSS Otimizado -->
     <?php
     // Verificar se o AssetOptimizerHelper está carregado
     if (class_exists('AssetOptimizerHelper')) {
-        echo AssetOptimizerHelper::css(['style.css', 'placeholders.css']);
+        echo AssetOptimizerHelper::css(['style.css', 'placeholders.css'], true);
     } else {
         // Fallback para o método convencional
-        echo '<link rel="stylesheet" href="'.BASE_URL.'assets/css/style.css">';
-        echo '<link rel="stylesheet" href="'.BASE_URL.'assets/css/placeholders.css">';
+        echo '<link rel="stylesheet" href="'.BASE_URL.'assets/css/style.css">' . PHP_EOL;
+        echo '<link rel="stylesheet" href="'.BASE_URL.'assets/css/placeholders.css">' . PHP_EOL;
+    }
+    ?>
+    
+    <!-- Configuração para carregamento condicional de Three.js -->
+    <?php
+    if (class_exists('ResourceOptimizerHelper')) {
+        echo ResourceOptimizerHelper::loadThreeJSOnDemand();
     }
     ?>
     
@@ -84,7 +140,7 @@
                         <a href="<?= BASE_URL ?>produtos">Produtos</a>
                     </li>
                     <li>
-                        <a href="#">Categorias <i class="fas fa-chevron-down"></i></a>
+                        <a href="#" aria-haspopup="true">Categorias <i class="fas fa-chevron-down"></i></a>
                         <ul class="dropdown">
                             <li><a href="<?= BASE_URL ?>categoria/fichas-de-personagem">Fichas de Personagem</a></li>
                             <li><a href="<?= BASE_URL ?>categoria/mapas-de-aventura">Mapas de Aventura</a></li>
