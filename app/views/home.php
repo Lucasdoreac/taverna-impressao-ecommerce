@@ -2,6 +2,10 @@
 
 <div class="main-banner">
   <?php if (file_exists(UPLOADS_PATH . '/banners/main-banner.jpg')): ?>
+  <?php 
+  // Mantemos o carregamento imediato para a imagem do banner principal,
+  // pois é a primeira coisa que o usuário vê (above the fold)
+  ?>
   <div class="banner-image" style="background-image: url('<?= BASE_URL ?>uploads/banners/main-banner.jpg');"></div>
   <?php else: ?>
   <div class="placeholder-banner"></div>
@@ -21,7 +25,18 @@
       <?php foreach ($mainCategories as $category): ?>
       <a href="<?= BASE_URL ?>categoria/<?= $category['slug'] ?>" class="category-card">
         <?php if (!empty($category['image']) && file_exists(UPLOADS_PATH . '/categories/' . $category['image'])): ?>
+        <?php 
+        // Implementar lazy loading para imagens de categorias
+        if (class_exists('AssetOptimizerHelper')) {
+            echo AssetOptimizerHelper::lazyBackgroundImage(
+                BASE_URL . 'uploads/categories/' . $category['image'], 
+                'category-image', 
+                ['aria-label' => htmlspecialchars($category['name'])]
+            );
+        } else {
+        ?>
         <div class="category-image" style="background-image: url('<?= BASE_URL ?>uploads/categories/<?= $category['image'] ?>');"></div>
+        <?php } ?>
         <?php else: ?>
         <div class="placeholder-category" role="img" aria-label="<?= htmlspecialchars($category['name']) ?>"></div>
         <?php endif; ?>
@@ -39,7 +54,18 @@
         <?php foreach ($featuredProducts as $index => $product): ?>
       <div class="product-card">
         <?php if (!empty($product['image']) && file_exists(UPLOADS_PATH . '/products/' . $product['image'])): ?>
-        <div class="product-image" style="background-image: url('<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>');">
+        <?php 
+        // Implementar lazy loading para imagens de produtos em destaque
+        if (class_exists('AssetOptimizerHelper')) {
+            echo AssetOptimizerHelper::lazyBackgroundImage(
+                BASE_URL . 'uploads/products/' . $product['image'], 
+                'product-image', 
+                ['aria-label' => htmlspecialchars($product['name'])]
+            );
+        } else {
+        ?>
+        <div class="product-image" style="background-image: url('<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>');"></div>
+        <?php } ?>
         <?php else: ?>
         <div class="product-image">
           <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
@@ -58,10 +84,10 @@
           <h3 class="product-title"><?= $product['name'] ?></h3>
           <div class="product-price">
             <?php if ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
-            <span class="original-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
-            <span class="current-price discount-price">R$ <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
+            <span class="original-price"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <span class="current-price discount-price"><?= getCurrencySymbol() ?> <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
             <?php else: ?>
-            <span class="current-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <span class="current-price"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
             <?php endif; ?>
           </div>
           <p><?= mb_strimwidth($product['short_description'] ?? '', 0, 60, '...') ?></p>
@@ -100,7 +126,18 @@
       <?php foreach ($testedProducts as $product): ?>
       <div class="product-card">
         <?php if (!empty($product['image']) && file_exists(UPLOADS_PATH . '/products/' . $product['image'])): ?>
-        <div class="product-image" style="background-image: url('<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>');">
+        <?php 
+        // Implementar lazy loading para imagens de produtos testados
+        if (class_exists('AssetOptimizerHelper')) {
+            echo AssetOptimizerHelper::lazyBackgroundImage(
+                BASE_URL . 'uploads/products/' . $product['image'], 
+                'product-image', 
+                ['aria-label' => htmlspecialchars($product['name'])]
+            );
+        } else {
+        ?>
+        <div class="product-image" style="background-image: url('<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>');"></div>
+        <?php } ?>
         <?php else: ?>
         <div class="product-image">
           <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
@@ -111,10 +148,10 @@
           <h3 class="product-title"><?= $product['name'] ?></h3>
           <div class="product-price">
             <?php if ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
-            <span class="original-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
-            <span class="current-price discount-price">R$ <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
+            <span class="original-price"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <span class="current-price discount-price"><?= getCurrencySymbol() ?> <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
             <?php else: ?>
-            <span class="current-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <span class="current-price"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
             <?php endif; ?>
           </div>
           <div class="product-meta">
@@ -137,7 +174,7 @@
     </div>
     
     <div class="text-center" style="margin-top: 2rem;">
-      <a href="<?= BASE_URL ?>produtos?availability=tested" class="btn">Ver Todos Produtos em Pronta Entrega</a>
+      <a href="<?= BASE_URL ?>produtos?disponibilidade=tested" class="btn">Ver Todos Produtos em Pronta Entrega</a>
     </div>
   </section>
   <?php endif; ?>
@@ -154,7 +191,18 @@
       <?php foreach ($customProducts as $product): ?>
       <div class="product-card">
         <?php if (!empty($product['image']) && file_exists(UPLOADS_PATH . '/products/' . $product['image'])): ?>
-        <div class="product-image" style="background-image: url('<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>');">
+        <?php 
+        // Implementar lazy loading para imagens de produtos sob encomenda
+        if (class_exists('AssetOptimizerHelper')) {
+            echo AssetOptimizerHelper::lazyBackgroundImage(
+                BASE_URL . 'uploads/products/' . $product['image'], 
+                'product-image', 
+                ['aria-label' => htmlspecialchars($product['name'])]
+            );
+        } else {
+        ?>
+        <div class="product-image" style="background-image: url('<?= BASE_URL ?>uploads/products/<?= $product['image'] ?>');"></div>
+        <?php } ?>
         <?php else: ?>
         <div class="product-image">
           <div class="placeholder-product" role="img" aria-label="<?= htmlspecialchars($product['name']) ?>"></div>
@@ -165,10 +213,10 @@
           <h3 class="product-title"><?= $product['name'] ?></h3>
           <div class="product-price">
             <?php if ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
-            <span class="original-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
-            <span class="current-price discount-price">R$ <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
+            <span class="original-price"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <span class="current-price discount-price"><?= getCurrencySymbol() ?> <?= number_format($product['sale_price'], 2, ',', '.') ?></span>
             <?php else: ?>
-            <span class="current-price">R$ <?= number_format($product['price'], 2, ',', '.') ?></span>
+            <span class="current-price"><?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?></span>
             <?php endif; ?>
           </div>
           <div class="product-meta">
@@ -191,7 +239,7 @@
     </div>
     
     <div class="text-center" style="margin-top: 2rem;">
-      <a href="<?= BASE_URL ?>produtos?availability=custom" class="btn">Ver Todos Produtos Sob Encomenda</a>
+      <a href="<?= BASE_URL ?>produtos?disponibilidade=custom" class="btn">Ver Todos Produtos Sob Encomenda</a>
     </div>
   </section>
   <?php endif; ?>
