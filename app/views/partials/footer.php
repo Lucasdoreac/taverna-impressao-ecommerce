@@ -54,13 +54,32 @@
             <!-- Footer Bottom -->
             <div class="footer-bottom">
                 <p>&copy; <?= date('Y') ?> TAVERNA DA IMPRESSÃO - Todos os direitos reservados. Desenvolvido com <i class="fas fa-heart"></i></p>
-                <img src="<?= BASE_URL ?>assets/images/payment-methods.png" alt="Formas de Pagamento" class="payment-methods">
+                
+                <!-- Usar lazy loading para imagem de formas de pagamento -->
+                <?php
+                if (class_exists('AssetOptimizerHelper')) {
+                    echo AssetOptimizerHelper::lazyImage('payment-methods.png', 'Formas de Pagamento', 'payment-methods');
+                } else {
+                    echo '<img src="' . BASE_URL . 'assets/images/payment-methods.png" alt="Formas de Pagamento" class="payment-methods">';
+                }
+                ?>
             </div>
         </div>
     </footer>
     
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="<?= BASE_URL ?>assets/js/script.js"></script>
+    
+    <?php
+    // Carregar scripts otimizados
+    if (class_exists('AssetOptimizerHelper')) {
+        // Carregar script.js e lazy-loading.js otimizados
+        echo AssetOptimizerHelper::js(['script.js', 'lazy-loading.js']);
+    } else {
+        // Fallback para o método convencional
+        echo '<script src="' . BASE_URL . 'assets/js/script.js"></script>';
+        echo '<script src="' . BASE_URL . 'assets/js/lazy-loading.js"></script>';
+    }
+    ?>
 </body>
 </html>
