@@ -61,6 +61,13 @@ $routes = [
     '/admin/relatorios/clientes' => ['AdminDashboardController', 'customersReport'],
     '/admin/relatorios/categorias' => ['AdminDashboardController', 'categoriesReport'],
     
+    // Admin - Monitoramento de Performance
+    '/admin/performance/reports' => ['PerformanceMonitoringController', 'reports'],
+    
+    // API para Monitoramento de Performance
+    '/api/performance/collect' => ['PerformanceMonitoringController', 'collect'],
+    '/api/performance/finalize' => ['PerformanceMonitoringController', 'finalize'],
+    
     // Sistema de Fila de Impressão 3D - Admin
     '/admin/print_queue' => ['PrintQueueController', 'index'],
     '/admin/print_queue/details/:id' => ['PrintQueueController', 'details'],
