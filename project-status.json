@@ -2,20 +2,20 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO 3D E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-30T01:20:00Z",
+    "lastUpdated": "2025-03-30T01:47:00Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
-    "currentFile": "public/assets/js/model-viewer.js",
-    "currentComponent": "Otimização Avançada do Visualizador 3D",
+    "currentFile": "app/models/ProductModel.php",
+    "currentComponent": "Correções de Erros de Funcionalidade Críticos",
     "inProgress": {
-      "type": "optimizacao",
-      "description": "Otimização avançada do visualizador 3D para dispositivos móveis com suporte a Web Workers e LOD dinâmico",
+      "type": "bugfix",
+      "description": "Correção de erros críticos que estão impactando a funcionalidade básica do site",
       "remainingTasks": [
-        "Testar a performance em diferentes dispositivos móveis",
-        "Verificar compatibilidade com navegadores mais antigos",
-        "Adicionar detecção de capacidades WebGL e fallbacks",
-        "Monitorar utilização de memória em dispositivos de capacidade limitada"
+        "Corrigir erros 'Undefined array key' no ProductModel.php (linhas 242, 243 e 268)",
+        "Corrigir CURRENCY_SYMBOL exibindo '262145' ao invés de 'R$'",
+        "Implementar página /personalizados que está retornando 404",
+        "Verificar e corrigir o visualizador 3D que não está exibindo modelos"
       ]
     }
   },
@@ -56,7 +56,8 @@
     "inProgress": [
       "Categorias",
       "Dashboard Administrativo de Integração",
-      "Testes do Visualizador 3D em Dispositivos Móveis"
+      "Testes do Visualizador 3D em Dispositivos Móveis",
+      "Correção de Bugs Críticos"
     ],
     "pending": [
       "Painel Administrativo Completo",
@@ -65,18 +66,18 @@
     ]
   },
   "context": {
-    "lastThought": "Implementei otimizações avançadas para o visualizador 3D com foco em dispositivos móveis. Adicionei suporte a Web Workers para processamento assíncrono, nível de detalhe (LOD) dinâmico, monitoramento de desempenho em tempo real e ajuste automático de qualidade. Essas melhorias permitem que modelos 3D complexos sejam visualizados em uma variedade maior de dispositivos móveis sem comprometer a experiência do usuário.",
+    "lastThought": "Analisei o código e identifiquei quatro problemas principais: 1) Erros 'Undefined array key' nas linhas 242, 243 e 268 do ProductModel.php, onde o código tenta acessar as chaves 'is_tested' e 'filament_type' sem verificar se existem; 2) A constante CURRENCY_SYMBOL está mostrando '262145' em vez de 'R$'; 3) A rota '/personalizados' não está definida no routes.php, resultando em erro 404; 4) O visualizador 3D não está exibindo modelos nas páginas de produto. Vou implementar soluções para cada um desses problemas, começando com as correções no ProductModel.php.",
     "nextSteps": [
-      "Testar o visualizador 3D otimizado em diferentes dispositivos móveis",
-      "Adicionar detecção de capacidades WebGL e fallbacks para dispositivos não suportados",
-      "Verificar compatibilidade com navegadores mais antigos",
-      "Atualizar AdminController com métodos para o dashboard de integração",
-      "Melhorar o sistema de categorias específicas para produtos 3D"
+      "Corrigir erros 'Undefined array key' no ProductModel.php adicionando verificações com isset()",
+      "Investigar e corrigir o problema com a constante CURRENCY_SYMBOL",
+      "Adicionar a rota /personalizados e implementar o método list() no CustomizationController",
+      "Verificar o visualizador 3D e adicionar diagnóstico para identificar por que não exibe os modelos"
     ],
     "lastEditedFiles": [
-      "public/assets/js/model-loader-worker.js",
-      "public/assets/js/model-viewer.js",
-      "public/assets/css/model-viewer.css",
+      "app/models/ProductModel.php",
+      "app/config/config.php",
+      "app/config/routes.php",
+      "app/controllers/CustomizationController.php",
       "project-status.json"
     ],
     "onlineTestResults": {
@@ -272,6 +273,46 @@
       ],
       "solution": "Implementadas otimizações avançadas com Web Workers, LOD dinâmico e adaptação automática de qualidade",
       "timestamp": "2025-03-30T01:16:23Z"
+    },
+    "productModelUndefinedKeys": {
+      "status": "pending",
+      "description": "Erros 'Undefined array key' em ProductModel.php nas linhas 242, 243 e 268",
+      "files": [
+        "app/models/ProductModel.php"
+      ],
+      "solution": "Adicionar verificações para as chaves 'is_tested' e 'filament_type' antes de acessá-las",
+      "timestamp": "2025-03-30T01:47:00Z"
+    },
+    "currencySymbolWrongValue": {
+      "status": "pending",
+      "description": "CURRENCY_SYMBOL exibindo '262145' ao invés de 'R$'",
+      "files": [
+        "app/config/config.php"
+      ],
+      "solution": "Corrigir a definição da constante CURRENCY_SYMBOL para exibir 'R$'",
+      "timestamp": "2025-03-30T01:47:00Z"
+    },
+    "personalizadosPage404": {
+      "status": "pending",
+      "description": "Página /personalizados retornando erro 404",
+      "files": [
+        "app/controllers/CustomizationController.php",
+        "app/config/routes.php",
+        "app/views/customization/list.php"
+      ],
+      "solution": "Implementar a rota e o método list() no CustomizationController para exibir produtos personalizáveis",
+      "timestamp": "2025-03-30T01:47:00Z"
+    },
+    "visualizador3DNaoFuncional": {
+      "status": "pending",
+      "description": "Visualizador 3D não está exibindo modelos nas páginas de produto",
+      "files": [
+        "app/views/product.php",
+        "app/helpers/ModelViewerHelper.php",
+        "app/controllers/ProductController.php"
+      ],
+      "solution": "Verificar a integração entre o visualizador e as páginas de produto, adicionar diagnóstico para identificar o problema",
+      "timestamp": "2025-03-30T01:47:00Z"
     }
   },
   "implementations": {
@@ -761,15 +802,28 @@
         "Monitoramento de consumo de bateria"
       ],
       "timestamp": "2025-03-30T01:20:00Z"
+    },
+    "criticalBugsAnalysis": {
+      "status": "completed",
+      "description": "Análise de bugs críticos identificados nos testes automatizados",
+      "findings": [
+        "Erros 'Undefined array key' no ProductModel.php causados por acesso a chaves sem verificação",
+        "Constante CURRENCY_SYMBOL exibindo valor numérico em vez de 'R$'",
+        "Rota /personalizados inexistente causando erro 404",
+        "Visualizador 3D não exibindo modelos devido a problemas de integração"
+      ],
+      "timestamp": "2025-03-30T01:47:00Z"
     }
   },
   "roadmap": {
     "shortTerm": [
+      "Correção dos erros 'Undefined array key' no ProductModel.php",
+      "Correção da constante CURRENCY_SYMBOL",
+      "Implementação da página /personalizados",
+      "Verificação e correção do visualizador 3D",
       "Testar o visualizador 3D otimizado em diferentes dispositivos móveis",
       "Adicionar detecção de capacidades WebGL e fallbacks para dispositivos não suportados",
-      "Completar a integração do dashboard administrativo ao sistema existente",
-      "Atualizar OrderController e PrintQueueController para usar o sistema de logs",
-      "Melhorar o sistema de categorias específicas para produtos 3D"
+      "Verificar compatibilidade com navegadores mais antigos"
     ],
     "mediumTerm": [
       "Implementar dashboard visual para métricas gerais de produção",
