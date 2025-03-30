@@ -4,7 +4,6 @@
 require_once APP_PATH . '/helpers/ModelViewerHelper.php'; 
 ?>
 
-<?= ModelViewerHelper::getViewerCSS() ?>
 <?= ModelViewerHelper::includeThreeJs() ?>
 
 <div class="container py-4">
@@ -72,13 +71,16 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
                         <!-- Visualizador 3D -->
                         <?php 
                         if (isset($product['model_file']) && !empty($product['model_file'])): 
+                            // Configurar para ser responsivo em dispositivos móveis
                             echo ModelViewerHelper::createProductModelViewer($product, [
-                                'height' => '400px',
+                                'height' => 'model-viewer-height-md',
                                 'backgroundColor' => '#ffffff',
                                 'modelColor' => '#5a5a5a',
                                 'showGrid' => true,
                                 'showControls' => true,
-                                'autoRotate' => true
+                                'autoRotate' => true,
+                                'optimizeForMobile' => true,
+                                'progressiveLoading' => true
                             ]);
                         else:
                         ?>
@@ -201,6 +203,7 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
                                 id="color_<?= $color['id'] ?>" 
                                 value="<?= $color['id'] ?>"
                                 <?= $index === 0 ? 'checked' : '' ?>
+                                data-color-hex="<?= $color['hex_code'] ?>"
                             >
                             <label class="form-check-label d-flex align-items-center" for="color_<?= $color['id'] ?>">
                                 <span class="color-swatch me-1" style="background-color: <?= $color['hex_code'] ?>; width: 20px; height: 20px; display: inline-block; border-radius: 4px; border: 1px solid #ddd;"></span>
@@ -553,7 +556,7 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
 }
 </style>
 
-<!-- Script para galeria de imagens e outros elementos interativos -->
+<!-- Script para galeria de imagens, visualizador 3D e outros elementos interativos -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Script para thumbnails de imagem
@@ -592,7 +595,44 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Script para integração de cores de filamento com o visualizador 3D
+    const colorInputs = document.querySelectorAll('input[name="selected_color"]');
+    const model3dTab = document.getElementById('model-3d-tab');
+    
+    if (colorInputs.length > 0 && model3dTab && window.modelViewers) {
+        // Função para atualizar cor do modelo
+        const updateModelColor = (colorHex) => {
+            const viewerId = 'product-model-viewer-<?= $product['id'] ?>';
+            if (window.modelViewers && window.modelViewers[viewerId]) {
+                window.modelViewers[viewerId].updateModelColor(colorHex);
+            }
+        };
+        
+        // Evento de mudança para inputs de cor
+        colorInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                const colorHex = this.getAttribute('data-color-hex');
+                if (colorHex) {
+                    updateModelColor(colorHex);
+                }
+            });
+        });
+        
+        // Atualizar cor quando mudar para a aba 3D
+        model3dTab.addEventListener('shown.bs.tab', function() {
+            const checkedColor = document.querySelector('input[name="selected_color"]:checked');
+            if (checkedColor) {
+                const colorHex = checkedColor.getAttribute('data-color-hex');
+                if (colorHex) {
+                    updateModelColor(colorHex);
+                }
+            }
+        });
+    }
 });
 </script>
+
+<?= ModelViewerHelper::getResponsiveOrientationScript() ?>
 
 <?php require_once VIEWS_PATH . '/partials/footer.php'; ?>
