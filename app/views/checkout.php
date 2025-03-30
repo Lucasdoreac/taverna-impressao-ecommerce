@@ -279,7 +279,7 @@
                                 <input class="form-check-input shipping-method" type="radio" name="shipping_method" id="shipping-<?= $method['name'] ?>" value="<?= $method['name'] ?>" data-price="<?= $method['price'] ?>" required>
                                 <label class="form-check-label d-flex justify-content-between align-items-center" for="shipping-<?= $method['name'] ?>">
                                     <span><?= $method['name'] ?></span>
-                                    <span class="fw-semibold"><?= CURRENCY_SYMBOL ?> <?= number_format($method['price'], 2, ',', '.') ?></span>
+                                    <span class="fw-semibold"><?= getCurrencySymbol() ?> <?= number_format($method['price'], 2, ',', '.') ?></span>
                                 </label>
                             </div>
                             <?php endforeach; ?>
@@ -334,9 +334,9 @@
                                         <div class="col-12">
                                             <label for="card_installments" class="form-label">Parcelas</label>
                                             <select class="form-select" id="card_installments" name="card_installments">
-                                                <option value="1">1x de <?= CURRENCY_SYMBOL ?> <?= number_format($total, 2, ',', '.') ?> sem juros</option>
+                                                <option value="1">1x de <?= getCurrencySymbol() ?> <?= number_format($total, 2, ',', '.') ?> sem juros</option>
                                                 <?php for ($i = 2; $i <= 6; $i++): ?>
-                                                <option value="<?= $i ?>"><?= $i ?>x de <?= CURRENCY_SYMBOL ?> <?= number_format($total / $i, 2, ',', '.') ?> sem juros</option>
+                                                <option value="<?= $i ?>"><?= $i ?>x de <?= getCurrencySymbol() ?> <?= number_format($total / $i, 2, ',', '.') ?> sem juros</option>
                                                 <?php endfor; ?>
                                             </select>
                                         </div>
@@ -376,12 +376,12 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between mb-2">
                             <span>Subtotal (<?= count($cartItems) ?> <?= count($cartItems) > 1 ? 'itens' : 'item' ?>)</span>
-                            <span><?= CURRENCY_SYMBOL ?> <?= number_format($subtotal, 2, ',', '.') ?></span>
+                            <span><?= getCurrencySymbol() ?> <?= number_format($subtotal, 2, ',', '.') ?></span>
                         </div>
                         
                         <div class="d-flex justify-content-between mb-2">
                             <span>Frete</span>
-                            <span id="shipping-display"><?= CURRENCY_SYMBOL ?> 0,00</span>
+                            <span id="shipping-display"><?= getCurrencySymbol() ?> 0,00</span>
                         </div>
                         
                         <?php if ($has_custom_order && $print_time > 0): ?>
@@ -406,7 +406,7 @@
                         
                         <div class="d-flex justify-content-between mb-4">
                             <span class="h5">Total</span>
-                            <span class="h5" id="total-display"><?= CURRENCY_SYMBOL ?> <?= number_format($subtotal, 2, ',', '.') ?></span>
+                            <span class="h5" id="total-display"><?= getCurrencySymbol() ?> <?= number_format($subtotal, 2, ',', '.') ?></span>
                         </div>
                         
                         <button type="submit" class="btn btn-primary w-100" id="place-order-btn">
@@ -477,7 +477,7 @@
                                         </p>
                                         <?php endif; ?>
                                         
-                                        <span class="fw-semibold"><?= CURRENCY_SYMBOL ?> <?= number_format($item['price'] * $item['quantity'], 2, ',', '.') ?></span>
+                                        <span class="fw-semibold"><?= getCurrencySymbol() ?> <?= number_format($item['price'] * $item['quantity'], 2, ',', '.') ?></span>
                                     </div>
                                 </div>
                             </li>
