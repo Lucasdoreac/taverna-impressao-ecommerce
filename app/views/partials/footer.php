@@ -68,18 +68,76 @@
     </footer>
     
     <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    
     <?php
+    // Carregar jQuery otimizado
+    if (class_exists('ResourceOptimizerHelper')) {
+        echo optimizeExternalResource('https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js', 'js', ['defer' => false]);
+    } else {
+        echo '<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>' . PHP_EOL;
+    }
+    
     // Carregar scripts otimizados
     if (class_exists('AssetOptimizerHelper')) {
         // Carregar script.js e lazy-loading.js otimizados
-        echo AssetOptimizerHelper::js(['script.js', 'lazy-loading.js']);
+        echo AssetOptimizerHelper::js(['script.js', 'lazy-loading.js'], true, true);
     } else {
         // Fallback para o método convencional
-        echo '<script src="' . BASE_URL . 'assets/js/script.js"></script>';
-        echo '<script src="' . BASE_URL . 'assets/js/lazy-loading.js"></script>';
+        echo '<script src="' . BASE_URL . 'assets/js/script.js" defer></script>' . PHP_EOL;
+        echo '<script src="' . BASE_URL . 'assets/js/lazy-loading.js" defer></script>' . PHP_EOL;
     }
     ?>
+    
+    <!-- Análise de carregamento para desenvolvimento -->
+    <?php if (defined('ENVIRONMENT') && ENVIRONMENT === 'development' && isset($_GET['analyze_loading'])): ?>
+    <script>
+        // Script para medir desempenho de carregamento
+        document.addEventListener('DOMContentLoaded', function() {
+            // Coletar métricas do navegador
+            const navigationTiming = performance.getEntriesByType('navigation')[0];
+            const resourceTiming = performance.getEntriesByType('resource');
+            
+            // Calcular métricas
+            const pageLoadTime = navigationTiming.loadEventEnd - navigationTiming.navigationStart;
+            const domContentLoaded = navigationTiming.domContentLoadedEventEnd - navigationTiming.navigationStart;
+            const firstPaint = performance.getEntriesByName('first-paint')[0]?.startTime || 'N/A';
+            
+            // Calcular estatísticas de recursos
+            const totalResourcesSize = resourceTiming.reduce((sum, resource) => sum + resource.transferSize, 0) / 1024;
+            const externalResources = resourceTiming.filter(resource => !resource.name.includes(window.location.host));
+            const externalResourcesSize = externalResources.reduce((sum, resource) => sum + resource.transferSize, 0) / 1024;
+            
+            // Mostrar resultado
+            const performanceResults = document.createElement('div');
+            performanceResults.style.position = 'fixed';
+            performanceResults.style.bottom = '0';
+            performanceResults.style.left = '0';
+            performanceResults.style.right = '0';
+            performanceResults.style.padding = '10px';
+            performanceResults.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            performanceResults.style.color = '#fff';
+            performanceResults.style.fontFamily = 'monospace';
+            performanceResults.style.fontSize = '12px';
+            performanceResults.style.zIndex = '9999';
+            
+            performanceResults.innerHTML = `
+                <div style="max-width: 800px; margin: 0 auto;">
+                    <h3 style="color: #fff; margin: 0 0 10px;">Métricas de Performance</h3>
+                    <ul style="list-style: none; padding: 0; margin: 0;">
+                        <li>⏰ Tempo de Carregamento Total: ${pageLoadTime.toFixed(0)}ms</li>
+                        <li>🎯 DOMContentLoaded: ${domContentLoaded.toFixed(0)}ms</li>
+                        <li>🎨 First Paint: ${typeof firstPaint === 'number' ? firstPaint.toFixed(0) + 'ms' : firstPaint}</li>
+                        <li>📦 Tamanho Total de Recursos: ${totalResourcesSize.toFixed(2)}KB</li>
+                        <li>🌐 Recursos Externos: ${externalResources.length} (${externalResourcesSize.toFixed(2)}KB)</li>
+                    </ul>
+                    <div style="margin-top: 10px; text-align: right;">
+                        <button onclick="this.parentNode.parentNode.parentNode.remove()" style="background: #333; color: #fff; border: none; padding: 5px 10px; cursor: pointer;">Fechar</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(performanceResults);
+        });
+    </script>
+    <?php endif; ?>
 </body>
 </html>
