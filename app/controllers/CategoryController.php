@@ -38,8 +38,8 @@ class CategoryController {
                 error_log("Buscando categoria com slug: " . $slug);
             }
             
-            // Obter categoria pelo slug
-            $category = $this->categoryModel->getBySlug($slug);
+            // Obter categoria pelo slug com subcategorias recursivas
+            $category = $this->categoryModel->getBySlug($slug, true);
             
             // Debug do resultado para rastreamento
             if (ENVIRONMENT === 'development') {
@@ -86,9 +86,14 @@ class CategoryController {
                 $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
                 $limit = 12; // produtos por página
                 
+                // Obter valor do parâmetro para incluir produtos das subcategorias
+                $includeSubcategories = isset($_GET['include_subcategories']) ? 
+                                        filter_var($_GET['include_subcategories'], FILTER_VALIDATE_BOOLEAN) : 
+                                        true;
+                
                 // Verificar se a categoria já tem produtos carregados (adicionados pelo método getCategoryWithProducts)
                 if (!isset($category['products']) || !is_array($category['products'])) {
-                    $categoryWithProducts = $this->categoryModel->getCategoryWithProducts($slug, $page, $limit);
+                    $categoryWithProducts = $this->categoryModel->getCategoryWithProducts($slug, $page, $limit, $includeSubcategories);
                     
                     if ($categoryWithProducts && isset($categoryWithProducts['products']) && is_array($categoryWithProducts['products'])) {
                         $products = $categoryWithProducts['products'];
@@ -127,6 +132,9 @@ class CategoryController {
                     $products['lastPage'] = ceil($products['total'] / $limit);
                 }
                 
+                // Adicionar flag para informar se estamos incluindo produtos das subcategorias
+                $products['includeSubcategories'] = $includeSubcategories;
+                
                 // Adicionar produtos à categoria para uso na view
                 $category['products'] = $products;
             } catch (Exception $e) {
@@ -139,8 +147,18 @@ class CategoryController {
                     'total' => 0,
                     'currentPage' => $page,
                     'perPage' => $limit,
-                    'lastPage' => 1
+                    'lastPage' => 1,
+                    'includeSubcategories' => $includeSubcategories
                 ];
+            }
+            
+            // Obter caminho/breadcrumb da categoria atual
+            try {
+                $breadcrumb = $this->categoryModel->getBreadcrumb($category['id']);
+                $category['breadcrumb'] = $breadcrumb;
+            } catch (Exception $e) {
+                error_log("Erro ao obter breadcrumb: " . $e->getMessage());
+                $category['breadcrumb'] = [];
             }
             
             // Verificar se a view existe
@@ -165,8 +183,8 @@ class CategoryController {
                 error_log("Executando CategoryController::index()");
             }
             
-            // Obter todas as categorias principais
-            $categories = $this->categoryModel->getMainCategories();
+            // Obter todas as categorias principais com subcategorias
+            $categories = $this->categoryModel->getMainCategories(true);
             
             // CORREÇÃO: Validar resultado
             if (!is_array($categories)) {
@@ -215,8 +233,8 @@ class CategoryController {
                 error_log("Buscando categoria para subcategorias com slug: " . $slug);
             }
             
-            // Obter categoria principal pelo slug
-            $category = $this->categoryModel->getBySlug($slug);
+            // Obter categoria principal pelo slug com subcategorias recursivas
+            $category = $this->categoryModel->getBySlug($slug, true);
             
             if (!$category) {
                 // Log do erro
@@ -234,35 +252,21 @@ class CategoryController {
                 throw new Exception("Dados de categoria inválidos");
             }
             
-            // Obter subcategorias
-            try {
-                // CORREÇÃO: Garantir que category['id'] existe
-                if (!isset($category['id'])) {
-                    error_log("Categoria sem ID definido");
-                    throw new Exception("Categoria sem ID");
-                }
-                
-                $subcategories = $this->categoryModel->getSubcategories($category['id']);
-                
-                // CORREÇÃO: Validar o formato de subcategorias
-                if (!is_array($subcategories)) {
-                    error_log("getSubcategories não retornou um array válido");
-                    $subcategories = [];
-                }
-                
-                if (ENVIRONMENT === 'development') {
-                    error_log("Subcategorias encontradas: " . count($subcategories));
-                }
-            } catch (Exception $e) {
-                error_log("Erro ao obter subcategorias: " . $e->getMessage());
-                $subcategories = [];
-            }
-            
-            if (empty($subcategories)) {
+            // Verificar subcategorias
+            if (!isset($category['subcategories']) || !is_array($category['subcategories']) || empty($category['subcategories'])) {
                 // Se não houver subcategorias, redirecionar direto para produtos da categoria
                 error_log("Nenhuma subcategoria encontrada para " . $slug . ", redirecionando para página de categoria");
                 header('Location: ' . BASE_URL . 'categoria/' . $slug);
                 exit;
+            }
+            
+            // Obter caminho/breadcrumb da categoria atual
+            try {
+                $breadcrumb = $this->categoryModel->getBreadcrumb($category['id']);
+                $category['breadcrumb'] = $breadcrumb;
+            } catch (Exception $e) {
+                error_log("Erro ao obter breadcrumb: " . $e->getMessage());
+                $category['breadcrumb'] = [];
             }
             
             // Verificar se a view existe
@@ -274,6 +278,140 @@ class CategoryController {
             require_once VIEWS_PATH . '/subcategories.php';
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao exibir subcategorias");
+        }
+    }
+    
+    /**
+     * Retorna a hierarquia de categorias em formato JSON
+     * Útil para APIs e ajax
+     */
+    public function hierarchy() {
+        try {
+            // Definir cabeçalho JSON
+            header('Content-Type: application/json');
+            
+            // Obter hierarquia completa
+            $hierarchy = $this->categoryModel->getFullHierarchy();
+            
+            // Retornar hierarquia em formato JSON
+            echo json_encode([
+                'success' => true,
+                'data' => $hierarchy
+            ]);
+        } catch (Exception $e) {
+            // Retornar erro em formato JSON
+            header('Content-Type: application/json');
+            http_response_code(500);
+            
+            echo json_encode([
+                'success' => false,
+                'error' => ENVIRONMENT === 'development' ? $e->getMessage() : 'Erro ao obter hierarquia de categorias'
+            ]);
+        }
+    }
+    
+    /**
+     * Exibe um menu completo de categorias
+     */
+    public function menu() {
+        try {
+            // Log para rastreamento
+            if (ENVIRONMENT === 'development') {
+                error_log("Executando CategoryController::menu()");
+            }
+            
+            // Obter hierarquia completa de categorias
+            $categories = $this->categoryModel->getFullHierarchy();
+            
+            // CORREÇÃO: Validar resultado
+            if (!is_array($categories)) {
+                error_log("getFullHierarchy não retornou um array válido");
+                $categories = [];
+            }
+            
+            // Verificar se a view existe
+            if (!file_exists(VIEWS_PATH . '/partials/category_menu.php')) {
+                throw new Exception("View partials/category_menu.php não encontrada em " . VIEWS_PATH);
+            }
+            
+            // Renderizar view de menu de categorias
+            require_once VIEWS_PATH . '/partials/category_menu.php';
+        } catch (Exception $e) {
+            $this->handleError($e, "Erro ao exibir menu de categorias");
+        }
+    }
+    
+    /**
+     * Retorna a estrutura de breadcrumb para uma categoria 
+     * Útil para componentes de interface que precisam do breadcrumb
+     */
+    public function breadcrumb($params) {
+        try {
+            $id = isset($params['id']) ? intval($params['id']) : 0;
+            $slug = isset($params['slug']) ? trim($params['slug']) : '';
+            
+            if ($id <= 0 && empty($slug)) {
+                // Sem identificador válido
+                header("HTTP/1.0 400 Bad Request");
+                
+                if (ENVIRONMENT === 'development') {
+                    echo "Erro: ID ou slug de categoria não fornecido";
+                }
+                
+                exit;
+            }
+            
+            // Se temos slug mas não ID, buscar a categoria pelo slug
+            if (empty($id) && !empty($slug)) {
+                $category = $this->categoryModel->getBySlug($slug);
+                if (!$category || !isset($category['id'])) {
+                    header("HTTP/1.0 404 Not Found");
+                    
+                    if (ENVIRONMENT === 'development') {
+                        echo "Categoria não encontrada para o slug: " . $slug;
+                    }
+                    
+                    exit;
+                }
+                
+                $id = $category['id'];
+            }
+            
+            // Obter breadcrumb
+            $breadcrumb = $this->categoryModel->getBreadcrumb($id);
+            
+            // Verificar se a resposta foi solicitada como JSON
+            $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            $wantsJson = $isAjax || (isset($_GET['format']) && $_GET['format'] === 'json');
+            
+            if ($wantsJson) {
+                // Retornar como JSON
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => true,
+                    'data' => $breadcrumb
+                ]);
+            } else {
+                // Renderizar como HTML
+                if (!file_exists(VIEWS_PATH . '/partials/breadcrumb.php')) {
+                    throw new Exception("View partials/breadcrumb.php não encontrada em " . VIEWS_PATH);
+                }
+                
+                require_once VIEWS_PATH . '/partials/breadcrumb.php';
+            }
+        } catch (Exception $e) {
+            if (isset($wantsJson) && $wantsJson) {
+                // Retornar erro como JSON
+                header('Content-Type: application/json');
+                http_response_code(500);
+                
+                echo json_encode([
+                    'success' => false,
+                    'error' => ENVIRONMENT === 'development' ? $e->getMessage() : 'Erro ao obter breadcrumb'
+                ]);
+            } else {
+                $this->handleError($e, "Erro ao obter breadcrumb");
+            }
         }
     }
     
