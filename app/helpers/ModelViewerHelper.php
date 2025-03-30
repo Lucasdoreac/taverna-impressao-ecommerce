@@ -9,10 +9,11 @@ class ModelViewerHelper {
     /**
      * Retorna o código HTML para incluir a biblioteca Three.js e extensões necessárias
      * 
+     * @param bool $includeOptimizations Se deve incluir os arquivos de otimização
      * @return string Código HTML para incluir as bibliotecas
      */
-    public static function includeThreeJs() {
-        return '
+    public static function includeThreeJs($includeOptimizations = true) {
+        $baseCode = '
         <!-- Three.js e extensões -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
@@ -22,6 +23,18 @@ class ModelViewerHelper {
         <script src="' . BASE_URL . 'assets/js/model-viewer.js"></script>
         <link rel="stylesheet" href="' . BASE_URL . 'assets/css/model-viewer.css">
         ';
+        
+        // Adicionar arquivos de otimização
+        if ($includeOptimizations) {
+            $baseCode .= '
+            <!-- Otimizações do Visualizador 3D -->
+            <script src="' . BASE_URL . 'assets/js/model-viewer-enhancement.js"></script>
+            <script src="' . BASE_URL . 'assets/js/model-viewer-integration.js"></script>
+            <link rel="stylesheet" href="' . BASE_URL . 'assets/css/model-viewer-advanced.css">
+            ';
+        }
+        
+        return $baseCode;
     }
     
     /**
@@ -31,9 +44,10 @@ class ModelViewerHelper {
      * @param string $filePath Caminho para o arquivo 3D
      * @param string $fileType Tipo de arquivo (stl ou obj)
      * @param array $options Opções adicionais para o visualizador
+     * @param bool $useOptimizedViewer Se deve usar o visualizador otimizado
      * @return string Código HTML para o visualizador
      */
-    public static function createViewer($id, $filePath, $fileType, $options = []) {
+    public static function createViewer($id, $filePath, $fileType, $options = [], $useOptimizedViewer = true) {
         // Definir opções padrão
         $defaultOptions = [
             'width' => '100%',
@@ -50,6 +64,8 @@ class ModelViewerHelper {
             'class' => 'model-viewer',
             'optimizeForMobile' => true,
             'progressiveLoading' => true,
+            'adaptiveQuality' => true,
+            'showAdvancedOptions' => true
         ];
         
         // Mesclar opções fornecidas com padrões
@@ -97,39 +113,99 @@ class ModelViewerHelper {
                          "></div>";
         
         // Gerar código JavaScript para inicializar o visualizador
-        $initScript = "
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Inicializar o visualizador quando o DOM estiver pronto
-            if (typeof ModelViewer !== 'undefined') {
-                const viewer = new ModelViewer({
-                    containerId: '{$id}',
-                    filePath: '{$filePath}',
-                    fileType: '{$fileType}',
-                    modelColor: '{$options['modelColor']}',
-                    backgroundColor: '{$options['backgroundColor']}',
-                    autoRotate: " . ($options['autoRotate'] ? 'true' : 'false') . ",
-                    showGrid: " . ($options['showGrid'] ? 'true' : 'false') . ",
-                    showAxes: " . ($options['showAxes'] ? 'true' : 'false') . ",
-                    showControls: " . ($options['showControls'] ? 'true' : 'false') . ",
-                    showStats: " . ($options['showStats'] ? 'true' : 'false') . ",
-                    enableZoom: " . ($options['enableZoom'] ? 'true' : 'false') . ",
-                    enablePan: " . ($options['enablePan'] ? 'true' : 'false') . ",
-                    optimizeForMobile: " . ($options['optimizeForMobile'] ? 'true' : 'false') . ",
-                    progressiveLoading: " . ($options['progressiveLoading'] ? 'true' : 'false') . "
-                });
-                
-                // Salvar instância do viewer no escopo global para acesso posterior
-                if (!window.modelViewers) {
-                    window.modelViewers = {};
+        if ($useOptimizedViewer) {
+            // Usar o visualizador otimizado
+            $initScript = "
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Inicializar o visualizador otimizado quando o DOM estiver pronto
+                if (typeof initOptimizedViewer !== 'undefined') {
+                    const viewer = initOptimizedViewer('{$id}', {
+                        filePath: '{$filePath}',
+                        fileType: '{$fileType}',
+                        modelColor: '{$options['modelColor']}',
+                        backgroundColor: '{$options['backgroundColor']}',
+                        autoRotate: " . ($options['autoRotate'] ? 'true' : 'false') . ",
+                        showGrid: " . ($options['showGrid'] ? 'true' : 'false') . ",
+                        showAxes: " . ($options['showAxes'] ? 'true' : 'false') . ",
+                        showControls: " . ($options['showControls'] ? 'true' : 'false') . ",
+                        showStats: " . ($options['showStats'] ? 'true' : 'false') . ",
+                        enableZoom: " . ($options['enableZoom'] ? 'true' : 'false') . ",
+                        enablePan: " . ($options['enablePan'] ? 'true' : 'false') . ",
+                        optimizeForMobile: " . ($options['optimizeForMobile'] ? 'true' : 'false') . ",
+                        progressiveLoading: " . ($options['progressiveLoading'] ? 'true' : 'false') . ",
+                        adaptiveQuality: " . ($options['adaptiveQuality'] ? 'true' : 'false') . ",
+                        showAdvancedOptions: " . ($options['showAdvancedOptions'] ? 'true' : 'false') . "
+                    });
+                } else {
+                    // Fallback para o visualizador padrão
+                    console.warn('Visualizador otimizado não encontrado. Usando visualizador padrão.');
+                    if (typeof ModelViewer !== 'undefined') {
+                        const viewer = new ModelViewer({
+                            containerId: '{$id}',
+                            filePath: '{$filePath}',
+                            fileType: '{$fileType}',
+                            modelColor: '{$options['modelColor']}',
+                            backgroundColor: '{$options['backgroundColor']}',
+                            autoRotate: " . ($options['autoRotate'] ? 'true' : 'false') . ",
+                            showGrid: " . ($options['showGrid'] ? 'true' : 'false') . ",
+                            showAxes: " . ($options['showAxes'] ? 'true' : 'false') . ",
+                            showControls: " . ($options['showControls'] ? 'true' : 'false') . ",
+                            showStats: " . ($options['showStats'] ? 'true' : 'false') . ",
+                            enableZoom: " . ($options['enableZoom'] ? 'true' : 'false') . ",
+                            enablePan: " . ($options['enablePan'] ? 'true' : 'false') . ",
+                            optimizeForMobile: " . ($options['optimizeForMobile'] ? 'true' : 'false') . ",
+                            progressiveLoading: " . ($options['progressiveLoading'] ? 'true' : 'false') . "
+                        });
+                        
+                        // Salvar instância do viewer no escopo global para acesso posterior
+                        if (!window.modelViewers) {
+                            window.modelViewers = {};
+                        }
+                        window.modelViewers['{$id}'] = viewer;
+                    } else {
+                        console.error('ModelViewer não está definido. Verifique se o script model-viewer.js foi carregado corretamente.');
+                    }
                 }
-                window.modelViewers['{$id}'] = viewer;
-            } else {
-                console.error('ModelViewer não está definido. Verifique se o script model-viewer.js foi carregado corretamente.');
-            }
-        });
-        </script>
-        ";
+            });
+            </script>
+            ";
+        } else {
+            // Usar o visualizador original
+            $initScript = "
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Inicializar o visualizador quando o DOM estiver pronto
+                if (typeof ModelViewer !== 'undefined') {
+                    const viewer = new ModelViewer({
+                        containerId: '{$id}',
+                        filePath: '{$filePath}',
+                        fileType: '{$fileType}',
+                        modelColor: '{$options['modelColor']}',
+                        backgroundColor: '{$options['backgroundColor']}',
+                        autoRotate: " . ($options['autoRotate'] ? 'true' : 'false') . ",
+                        showGrid: " . ($options['showGrid'] ? 'true' : 'false') . ",
+                        showAxes: " . ($options['showAxes'] ? 'true' : 'false') . ",
+                        showControls: " . ($options['showControls'] ? 'true' : 'false') . ",
+                        showStats: " . ($options['showStats'] ? 'true' : 'false') . ",
+                        enableZoom: " . ($options['enableZoom'] ? 'true' : 'false') . ",
+                        enablePan: " . ($options['enablePan'] ? 'true' : 'false') . ",
+                        optimizeForMobile: " . ($options['optimizeForMobile'] ? 'true' : 'false') . ",
+                        progressiveLoading: " . ($options['progressiveLoading'] ? 'true' : 'false') . "
+                    });
+                    
+                    // Salvar instância do viewer no escopo global para acesso posterior
+                    if (!window.modelViewers) {
+                        window.modelViewers = {};
+                    }
+                    window.modelViewers['{$id}'] = viewer;
+                } else {
+                    console.error('ModelViewer não está definido. Verifique se o script model-viewer.js foi carregado corretamente.');
+                }
+            });
+            </script>
+            ";
+        }
         
         // Retornar HTML final
         return $containerHtml . $initScript;
@@ -140,9 +216,10 @@ class ModelViewerHelper {
      * 
      * @param array $model Dados do modelo do cliente
      * @param array $options Opções adicionais para o visualizador
+     * @param bool $useOptimizedViewer Se deve usar o visualizador otimizado
      * @return string Código HTML para o visualizador
      */
-    public static function createCustomerModelViewer($model, $options = []) {
+    public static function createCustomerModelViewer($model, $options = [], $useOptimizedViewer = true) {
         // Verificar se o modelo é válido
         if (!isset($model['id']) || !isset($model['file_name']) || !isset($model['file_type'])) {
             return '<div class="alert alert-warning">Informações do modelo incompletas para visualização 3D.</div>';
@@ -161,6 +238,8 @@ class ModelViewerHelper {
             'class' => 'customer-model-viewer',
             'optimizeForMobile' => true,
             'progressiveLoading' => true,
+            'adaptiveQuality' => true,
+            'showAdvancedOptions' => true
         ];
         
         // Mesclar com opções fornecidas
@@ -170,7 +249,7 @@ class ModelViewerHelper {
         $id = 'customer-model-viewer-' . $model['id'];
         
         // Obter visualizador
-        return self::createViewer($id, $filePath, $model['file_type'], $options);
+        return self::createViewer($id, $filePath, $model['file_type'], $options, $useOptimizedViewer);
     }
     
     /**
@@ -178,9 +257,10 @@ class ModelViewerHelper {
      * 
      * @param array $product Dados do produto
      * @param array $options Opções adicionais para o visualizador
+     * @param bool $useOptimizedViewer Se deve usar o visualizador otimizado
      * @return string Código HTML para o visualizador
      */
-    public static function createProductModelViewer($product, $options = []) {
+    public static function createProductModelViewer($product, $options = [], $useOptimizedViewer = true) {
         // Verificar se o produto tem arquivo de modelo
         if (!isset($product['model_file']) || empty($product['model_file'])) {
             return '<div class="alert alert-info">Este produto não possui um modelo 3D para visualização.</div>';
@@ -206,6 +286,8 @@ class ModelViewerHelper {
             'class' => 'product-model-viewer',
             'optimizeForMobile' => true,
             'progressiveLoading' => true,
+            'adaptiveQuality' => true,
+            'showAdvancedOptions' => true
         ];
         
         // Mesclar com opções fornecidas
@@ -215,7 +297,7 @@ class ModelViewerHelper {
         $id = 'product-model-viewer-' . $product['id'];
         
         // Obter visualizador
-        return self::createViewer($id, $filePath, $fileType, $options);
+        return self::createViewer($id, $filePath, $fileType, $options, $useOptimizedViewer);
     }
     
     /**
@@ -270,6 +352,60 @@ class ModelViewerHelper {
             // Observar mudanças de orientação
             window.addEventListener("orientationchange", adjustModelViewersForOrientation);
             window.addEventListener("resize", adjustModelViewersForOrientation);
+        })();
+        </script>
+        ';
+    }
+    
+    /**
+     * Retorna código para script de otimização do visualizador
+     * 
+     * @return string Código JavaScript
+     */
+    public static function getOptimizationScript() {
+        return '
+        <script>
+        // Script para otimização do visualizador 3D
+        (function() {
+            // Verifica se as otimizações estão habilitadas no localStorage
+            function areOptimizationsEnabled() {
+                return localStorage.getItem("tavernaOptimizerEnabled") !== "false";
+            }
+            
+            // Ativa/desativa as otimizações
+            function toggleOptimizations(enable) {
+                localStorage.setItem("tavernaOptimizerEnabled", enable ? "true" : "false");
+                // Recarregar a página para aplicar a configuração
+                window.location.reload();
+            }
+            
+            // Exibe um botão de controle de otimizações no canto inferior direito (apenas em desenvolvimento)
+            function addOptimizationToggle() {
+                if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+                    const toggleBtn = document.createElement("button");
+                    toggleBtn.innerHTML = areOptimizationsEnabled() ? "Desativar Otimizações 3D" : "Ativar Otimizações 3D";
+                    toggleBtn.style.position = "fixed";
+                    toggleBtn.style.bottom = "10px";
+                    toggleBtn.style.right = "10px";
+                    toggleBtn.style.zIndex = "9999";
+                    toggleBtn.style.padding = "5px 10px";
+                    toggleBtn.style.background = areOptimizationsEnabled() ? "#4CAF50" : "#f44336";
+                    toggleBtn.style.color = "white";
+                    toggleBtn.style.border = "none";
+                    toggleBtn.style.borderRadius = "4px";
+                    toggleBtn.style.cursor = "pointer";
+                    toggleBtn.style.fontSize = "12px";
+                    
+                    toggleBtn.addEventListener("click", function() {
+                        toggleOptimizations(!areOptimizationsEnabled());
+                    });
+                    
+                    document.body.appendChild(toggleBtn);
+                }
+            }
+            
+            // Adicionar toggle ao carregar a página (apenas em desenvolvimento)
+            window.addEventListener("DOMContentLoaded", addOptimizationToggle);
         })();
         </script>
         ';
