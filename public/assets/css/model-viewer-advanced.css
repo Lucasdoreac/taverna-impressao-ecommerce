@@ -1,0 +1,305 @@
+/**
+ * Estilos para a interface de configurações avançadas do visualizador 3D
+ */
+
+/* Container principal */
+.model-viewer-config {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 12px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    z-index: 1000;
+    width: 240px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    max-height: 80%;
+    overflow-y: auto;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: Arial, sans-serif;
+}
+
+/* Título */
+.model-viewer-config h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Grupos de configuração */
+.config-group {
+    margin-bottom: 16px;
+}
+
+.config-group:last-child {
+    margin-bottom: 0;
+}
+
+.config-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+/* Controles */
+.model-viewer-config select,
+.model-viewer-config input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.model-viewer-config select option {
+    background-color: #333;
+    color: #fff;
+}
+
+/* Checkboxes */
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.checkbox-wrapper label {
+    margin-bottom: 0;
+    font-weight: normal;
+    opacity: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Botão de configurações */
+.model-viewer-settings-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1001;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.2s ease;
+}
+
+.model-viewer-settings-btn:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.model-viewer-settings-btn i {
+    font-size: 16px;
+}
+
+/* Seção de estatísticas */
+.viewer-stats {
+    margin-top: 16px;
+    font-size: 11px;
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    border-radius: 4px;
+    border-left: 3px solid rgba(0, 120, 255, 0.7);
+}
+
+.viewer-stats div {
+    margin-bottom: 4px;
+}
+
+.viewer-stats div:last-child {
+    margin-bottom: 0;
+}
+
+.viewer-stats .stat-label {
+    opacity: 0.8;
+    display: inline-block;
+    width: 70px;
+}
+
+/* Customização específica para diferentes perfis de hardware */
+.profile-high-end .model-viewer-config {
+    border-left: 3px solid rgba(0, 255, 0, 0.7);
+}
+
+.profile-mid-range .model-viewer-config {
+    border-left: 3px solid rgba(255, 255, 0, 0.7);
+}
+
+.profile-low-end .model-viewer-config {
+    border-left: 3px solid rgba(255, 165, 0, 0.7);
+}
+
+.profile-very-low-end .model-viewer-config,
+.profile-webgl1-only .model-viewer-config {
+    border-left: 3px solid rgba(255, 0, 0, 0.7);
+}
+
+/* Botões de ação */
+.config-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 16px;
+    gap: 8px;
+}
+
+.config-btn {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    transition: background-color 0.2s ease;
+}
+
+.config-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.config-btn.save {
+    background-color: rgba(0, 120, 255, 0.5);
+}
+
+.config-btn.save:hover {
+    background-color: rgba(0, 120, 255, 0.7);
+}
+
+.config-btn.reset {
+    background-color: rgba(255, 0, 0, 0.5);
+}
+
+.config-btn.reset:hover {
+    background-color: rgba(255, 0, 0, 0.7);
+}
+
+/* Tooltip para informações */
+.info-tooltip {
+    position: relative;
+    display: inline-block;
+    margin-left: 4px;
+    width: 14px;
+    height: 14px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    text-align: center;
+    line-height: 14px;
+    font-size: 10px;
+    cursor: help;
+}
+
+.info-tooltip:hover::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: -5px;
+    left: 20px;
+    width: 200px;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+    z-index: 1002;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transform: translateY(-100%);
+    pointer-events: none;
+}
+
+/* Responsividade para dispositivos móveis */
+@media screen and (max-width: 768px) {
+    .model-viewer-config {
+        width: 200px;
+        max-height: 70%;
+        font-size: 11px;
+    }
+    
+    .model-viewer-config h4 {
+        font-size: 13px;
+    }
+    
+    .config-group label {
+        font-size: 11px;
+    }
+    
+    .model-viewer-config select,
+    .model-viewer-config input[type="number"] {
+        font-size: 11px;
+        padding: 5px 6px;
+    }
+    
+    .model-viewer-settings-btn {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .model-viewer-settings-btn i {
+        font-size: 14px;
+    }
+}
+
+/* Animações */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.model-viewer-config {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+/* Indicador de Qualidade */
+.quality-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
+.quality-very-high .quality-indicator {
+    background-color: #00ff00;
+}
+
+.quality-high .quality-indicator {
+    background-color: #aaff00;
+}
+
+.quality-medium .quality-indicator {
+    background-color: #ffff00;
+}
+
+.quality-low .quality-indicator {
+    background-color: #ffaa00;
+}
+
+.quality-very-low .quality-indicator {
+    background-color: #ff5500;
+}
+
+.quality-minimal .quality-indicator {
+    background-color: #ff0000;
+}
