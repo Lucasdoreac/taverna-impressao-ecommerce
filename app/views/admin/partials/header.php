@@ -91,6 +91,22 @@
                         </li>
                         <!-- Fim - Menu de Impressão 3D -->
                         
+                        <!-- Início - Menu de Performance e Otimização -->
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/performance') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/performance">
+                                <i class="bi bi-speedometer me-2"></i>
+                                Performance SQL
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/performance/recentOptimizations') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/performance/recentOptimizations">
+                                <i class="bi bi-lightning-charge-fill me-2"></i>
+                                <span>Otimizações Recentes</span>
+                                <span class="badge bg-success ms-1">Novo</span>
+                            </a>
+                        </li>
+                        <!-- Fim - Menu de Performance e Otimização -->
+                        
                         <li class="nav-item">
                             <a class="nav-link <?= strpos($_SERVER['REQUEST_URI'], '/admin/usuarios') !== false ? 'active' : '' ?>" href="<?= BASE_URL ?>admin/usuarios">
                                 <i class="bi bi-people me-2"></i>
