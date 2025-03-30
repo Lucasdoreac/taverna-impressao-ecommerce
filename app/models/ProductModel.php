@@ -22,8 +22,8 @@ class ProductModel extends Model {
      */
     public function getFeatured($limit = 8) {
         try {
-            $sql = "SELECT p.*, pi.image, 
-                           p.is_tested, 
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, 
+                           pi.image, 
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
@@ -46,7 +46,8 @@ class ProductModel extends Model {
      */
     public function getTestedProducts($limit = 12) {
         try {
-            $sql = "SELECT p.*, pi.image,
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
+                           pi.image,
                            'Pronta Entrega' as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
@@ -69,15 +70,35 @@ class ProductModel extends Model {
      */
     public function getCustomProducts($limit = 12) {
         try {
-            $sql = "SELECT p.*, pi.image,
+            // Dividir em duas consultas para melhorar a performance (evitar OR)
+            $sql1 = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
+                           pi.image,
                            'Sob Encomenda' as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                    WHERE (p.is_tested = 0 OR p.stock = 0) AND p.is_active = 1
+                    WHERE p.is_tested = 0 AND p.is_active = 1
                     ORDER BY p.created_at DESC
                     LIMIT :limit";
+                    
+            $sql2 = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
+                           pi.image,
+                           'Sob Encomenda' as availability
+                    FROM {$this->table} p
+                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                    WHERE p.stock = 0 AND p.is_tested = 1 AND p.is_active = 1
+                    ORDER BY p.created_at DESC
+                    LIMIT :limit";
+                    
+            $result1 = $this->db()->select($sql1, ['limit' => $limit]);
+            $result2 = $this->db()->select($sql2, ['limit' => $limit]);
             
-            return $this->db()->select($sql, ['limit' => $limit]);
+            // Combinar resultados e limitar ao número solicitado
+            $combined = array_merge($result1, $result2);
+            usort($combined, function($a, $b) {
+                return strtotime($b['created_at']) - strtotime($a['created_at']);
+            });
+            
+            return array_slice($combined, 0, $limit);
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos sob encomenda: " . $e->getMessage());
             return [];
@@ -95,7 +116,7 @@ class ProductModel extends Model {
      * @param string $orderBy Ordem dos resultados
      * @return array Produtos e informações de paginação
      */
-    public function paginate($page = 1, $limit = 10, $conditions = '1=1', $params = [], $availability = 'all', $orderBy = 'created_at DESC') {
+    public function paginate($page = 1, $limit = 10, $conditions = '1=1', $params = [], $availability = 'all', $orderBy = "created_at DESC") {
         try {
             $offset = ($page - 1) * $limit;
             
@@ -115,8 +136,8 @@ class ProductModel extends Model {
             $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
             
             // Buscar registros paginados com imagens e dados de disponibilidade
-            $sql = "SELECT p.*, pi.image,
-                           p.is_tested, p.stock,
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                           pi.image,
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
@@ -182,8 +203,8 @@ class ProductModel extends Model {
             $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
             
             // Buscar produtos
-            $sql = "SELECT p.*, pi.image,
-                           p.is_tested, p.stock,
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                           pi.image,
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
@@ -225,7 +246,12 @@ class ProductModel extends Model {
      */
     public function getBySlug($slug) {
         try {
-            $sql = "SELECT p.*, c.name as category_name, c.slug as category_slug
+            $sql = "SELECT p.id, p.name, p.slug, p.description, p.short_description, 
+                           p.price, p.sale_price, p.stock, p.dimensions, p.sku, 
+                           p.is_featured, p.is_active, p.is_customizable, 
+                           p.print_time_hours, p.filament_type, p.filament_usage_grams, 
+                           p.scale, p.model_file, p.is_tested, 
+                           c.name as category_name, c.slug as category_slug
                     FROM {$this->table} p
                     LEFT JOIN categories c ON p.category_id = c.id
                     WHERE p.slug = :slug AND p.is_active = 1";
@@ -239,13 +265,15 @@ class ProductModel extends Model {
             $product = $result[0];
             
             // Definir disponibilidade
-            // Correção linha 242-243: Verificar se exists('is_tested') antes de acessar
             $product['availability'] = (isset($product['is_tested']) && $product['is_tested'] && $product['stock'] > 0) ? 'Pronta Entrega' : 'Sob Encomenda';
             $product['estimated_delivery'] = (isset($product['is_tested']) && $product['is_tested'] && $product['stock'] > 0) ? '2 a 5 dias úteis' : '7 a 15 dias úteis';
             
             // Buscar imagens
             try {
-                $sql = "SELECT * FROM product_images WHERE product_id = :id ORDER BY is_main DESC, display_order ASC";
+                $sql = "SELECT id, product_id, image, is_main, display_order 
+                        FROM product_images 
+                        WHERE product_id = :id 
+                        ORDER BY is_main DESC, display_order ASC";
                 $product['images'] = $this->db()->select($sql, ['id' => $product['id']]);
             } catch (Exception $e) {
                 error_log("Erro ao buscar imagens do produto: " . $e->getMessage());
@@ -255,7 +283,9 @@ class ProductModel extends Model {
             // Buscar opções de personalização
             if (isset($product['is_customizable']) && $product['is_customizable']) {
                 try {
-                    $sql = "SELECT * FROM customization_options WHERE product_id = :id";
+                    $sql = "SELECT id, product_id, name, description, required, type, options_json  
+                            FROM customization_options 
+                            WHERE product_id = :id";
                     $product['customization_options'] = $this->db()->select($sql, ['id' => $product['id']]);
                 } catch (Exception $e) {
                     error_log("Erro ao buscar opções de personalização: " . $e->getMessage());
@@ -266,7 +296,6 @@ class ProductModel extends Model {
             // Obter cores de filamento disponíveis para este tipo de produto
             try {
                 $filamentModel = new FilamentModel();
-                // Correção linha 268: Verificar se filament_type existe antes de acessar
                 $filamentType = isset($product['filament_type']) ? $product['filament_type'] : 'PLA';
                 $product['filament_colors'] = $filamentModel->getColors($filamentType);
             } catch (Exception $e) {
@@ -304,23 +333,55 @@ class ProductModel extends Model {
                 $availabilityFilter = " AND (p.is_tested = 0 OR p.stock = 0)";
             }
             
+            // Verificar se temos um índice FULLTEXT
+            $hasFulltext = false;
+            try {
+                $showIndexSql = "SHOW INDEX FROM {$this->table} WHERE Key_name = 'ft_products_search'";
+                $indexResult = $this->db()->select($showIndexSql);
+                $hasFulltext = !empty($indexResult);
+            } catch (Exception $e) {
+                // Se ocorrer erro, assumir que não tem FULLTEXT
+                $hasFulltext = false;
+            }
+            
             // Contar total
-            $countSql = "SELECT COUNT(*) as total 
-                        FROM {$this->table} p
-                        WHERE (p.name LIKE :term OR p.description LIKE :term) AND p.is_active = 1" . $availabilityFilter;
+            $countSql = null;
+            if ($hasFulltext) {
+                $countSql = "SELECT COUNT(*) as total 
+                            FROM {$this->table} p
+                            WHERE MATCH(p.name, p.description) AGAINST(:term IN BOOLEAN MODE) 
+                            AND p.is_active = 1" . $availabilityFilter;
+            } else {
+                $countSql = "SELECT COUNT(*) as total 
+                            FROM {$this->table} p
+                            WHERE (p.name LIKE :term OR p.description LIKE :term) AND p.is_active = 1" . $availabilityFilter;
+            }
+            
             $countResult = $this->db()->select($countSql, $params);
             $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
             
             // Buscar produtos
-            $sql = "SELECT p.*, pi.image,
-                           p.is_tested, p.stock,
-                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
-                    FROM {$this->table} p
-                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                    WHERE (p.name LIKE :term OR p.description LIKE :term) AND p.is_active = 1" . $availabilityFilter . "
-                    GROUP BY p.id
-                    ORDER BY p.is_tested DESC, p.name ASC
-                    LIMIT :offset, :limit";
+            $sql = null;
+            if ($hasFulltext) {
+                $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                               pi.image,
+                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                        FROM {$this->table} p
+                        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                        WHERE MATCH(p.name, p.description) AGAINST(:term IN BOOLEAN MODE) 
+                        AND p.is_active = 1" . $availabilityFilter . "
+                        ORDER BY p.is_tested DESC, p.name ASC
+                        LIMIT :offset, :limit";
+            } else {
+                $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                               pi.image,
+                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                        FROM {$this->table} p
+                        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                        WHERE (p.name LIKE :term OR p.description LIKE :term) AND p.is_active = 1" . $availabilityFilter . "
+                        ORDER BY p.is_tested DESC, p.name ASC
+                        LIMIT :offset, :limit";
+            }
             
             $params['offset'] = $offset;
             $params['limit'] = $limit;
@@ -360,21 +421,29 @@ class ProductModel extends Model {
      */
     public function getRelated($productId, $categoryId, $limit = 4) {
         try {
-            $sql = "SELECT p.*, pi.image,
-                          p.is_tested, p.stock,
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                          pi.image,
                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                    FROM {$this->table} p
                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                    WHERE p.id != :product_id AND p.category_id = :category_id AND p.is_active = 1
-                   GROUP BY p.id
-                   ORDER BY p.is_tested DESC, RAND()
+                   ORDER BY p.is_tested DESC, p.id DESC
                    LIMIT :limit";
             
-            return $this->db()->select($sql, [
+            // Obter produtos relacionados
+            $result = $this->db()->select($sql, [
                 'product_id' => $productId,
                 'category_id' => $categoryId,
-                'limit' => $limit
+                'limit' => $limit * 2 // Buscar mais produtos para escolher aleatoriamente
             ]);
+            
+            // Selecionar aleatoriamente alguns dos produtos encontrados
+            if (count($result) > $limit) {
+                shuffle($result);
+                $result = array_slice($result, 0, $limit);
+            }
+            
+            return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos relacionados: " . $e->getMessage());
             return [];
@@ -462,7 +531,8 @@ class ProductModel extends Model {
      */
     public function getCustomizableProducts($limit = 12) {
         try {
-            $sql = "SELECT p.*, pi.image,
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
+                           pi.image,
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
