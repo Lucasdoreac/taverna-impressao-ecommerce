@@ -2,7 +2,7 @@
 /**
  * CategoryController - Controlador para páginas de categorias
  */
-class CategoryController {
+class CategoryController extends Controller {
     private $categoryModel;
     private $productModel;
     
