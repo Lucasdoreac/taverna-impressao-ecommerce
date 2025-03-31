@@ -28,9 +28,17 @@ class OrderModel extends Model {
     
     /**
      * Busca pedidos de um usuário
+     * 
+     * @param int $userId ID do usuário
+     * @return array Lista de pedidos
      */
     public function getOrdersByUser($userId) {
-        $sql = "SELECT * FROM {$this->table} WHERE user_id = :user_id ORDER BY created_at DESC";
+        // Otimização: Selecionar apenas colunas necessárias em vez de SELECT *
+        $sql = "SELECT id, order_number, status, payment_status, total, created_at 
+                FROM {$this->table} 
+                WHERE user_id = :user_id 
+                ORDER BY created_at DESC";
+                
         return $this->db()->select($sql, ['user_id' => $userId]);
     }
     
@@ -38,11 +46,14 @@ class OrderModel extends Model {
      * Busca pedidos recentes
      */
     public function getRecentOrders($limit = 5) {
-        $sql = "SELECT o.*, u.name as customer_name 
-                FROM {$this->table} o 
+        // Otimização: Selecionar apenas colunas necessárias e usar USE INDEX para forçar o uso de índice
+        $sql = "SELECT o.id, o.order_number, o.status, o.payment_status, o.total, o.created_at,
+                u.name as customer_name 
+                FROM {$this->table} o USE INDEX (idx_orders_created_at)
                 LEFT JOIN users u ON o.user_id = u.id 
                 ORDER BY o.created_at DESC 
                 LIMIT {$limit}";
+                
         return $this->db()->select($sql);
     }
     
@@ -50,11 +61,15 @@ class OrderModel extends Model {
      * Busca pedidos que precisam ser impressos
      */
     public function getPendingPrintOrders() {
-        $sql = "SELECT o.*, u.name as customer_name 
-                FROM {$this->table} o 
+        // Otimização: Selecionar apenas colunas necessárias e usar índice para status
+        $sql = "SELECT o.id, o.order_number, o.user_id, o.status, o.payment_status, 
+                o.total, o.created_at, o.estimated_print_time_hours,
+                u.name as customer_name 
+                FROM {$this->table} o USE INDEX (idx_orders_status)
                 LEFT JOIN users u ON o.user_id = u.id 
                 WHERE o.status = 'validating' 
                 ORDER BY o.created_at ASC";
+                
         return $this->db()->select($sql);
     }
     
@@ -62,13 +77,16 @@ class OrderModel extends Model {
      * Busca pedidos atualmente em impressão
      */
     public function getCurrentlyPrintingOrders() {
-        $sql = "SELECT o.*, u.name as customer_name,
+        // Otimização: Selecionar apenas colunas necessárias e usar índices adequados
+        $sql = "SELECT o.id, o.order_number, o.user_id, o.status, o.print_start_date, o.estimated_print_time_hours,
+                u.name as customer_name,
                 TIMEDIFF(NOW(), o.print_start_date) as elapsed_time,
                 o.estimated_print_time_hours * 3600 - TIME_TO_SEC(TIMEDIFF(NOW(), o.print_start_date)) as remaining_seconds
-                FROM {$this->table} o 
+                FROM {$this->table} o USE INDEX (idx_orders_status, idx_orders_print_start_date)
                 LEFT JOIN users u ON o.user_id = u.id 
                 WHERE o.status = 'printing' 
                 ORDER BY o.print_start_date ASC";
+                
         return $this->db()->select($sql);
     }
     
@@ -80,7 +98,7 @@ class OrderModel extends Model {
      */
     public function hasCustomItems($orderId) {
         $sql = "SELECT COUNT(*) as count 
-                FROM order_items 
+                FROM order_items USE INDEX (idx_order_items_order_id)
                 WHERE order_id = :order_id 
                 AND is_stock_item = 0";
         
@@ -96,7 +114,7 @@ class OrderModel extends Model {
      */
     public function hasOnlyStockItems($orderId) {
         $sql = "SELECT COUNT(*) as count 
-                FROM order_items 
+                FROM order_items USE INDEX (idx_order_items_order_id)
                 WHERE order_id = :order_id 
                 AND is_stock_item = 0";
         
@@ -194,7 +212,7 @@ class OrderModel extends Model {
      * Conta pedidos por status
      */
     public function countByStatus($status) {
-        $sql = "SELECT COUNT(*) as total FROM {$this->table} WHERE status = :status";
+        $sql = "SELECT COUNT(*) as total FROM {$this->table} USE INDEX (idx_orders_status) WHERE status = :status";
         $result = $this->db()->select($sql, ['status' => $status]);
         return $result[0]['total'];
     }
@@ -203,7 +221,8 @@ class OrderModel extends Model {
      * Calcula tempo total de impressão pendente
      */
     public function getTotalPendingPrintTime() {
-        $sql = "SELECT SUM(estimated_print_time_hours) as total FROM {$this->table} 
+        // Otimização: Usar índice para filtro por status
+        $sql = "SELECT SUM(estimated_print_time_hours) as total FROM {$this->table} USE INDEX (idx_orders_status)
                 WHERE status IN ('validating', 'printing')";
         $result = $this->db()->select($sql);
         return floatval($result[0]['total'] ?? 0);
@@ -225,7 +244,8 @@ class OrderModel extends Model {
             $whereClause .= " AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
         }
         
-        $sql = "SELECT SUM(total) as total FROM {$this->table} {$whereClause}";
+        // Otimização: Usar índices para filtros de pagamento e data
+        $sql = "SELECT SUM(total) as total FROM {$this->table} USE INDEX (idx_orders_payment_status, idx_orders_created_at) {$whereClause}";
         $result = $this->db()->select($sql, $params);
         
         return $result[0]['total'] ?: 0;
@@ -246,11 +266,12 @@ class OrderModel extends Model {
             $dateFormat = "YEAR(created_at)";
         }
         
+        // Otimização: Usar índices para filtros de data e pagamento
         $sql = "SELECT 
                     {$dateFormat} as date,
                     COUNT(*) as count,
                     SUM(total) as total
-                FROM {$this->table}
+                FROM {$this->table} USE INDEX (idx_orders_created_at, idx_orders_payment_status)
                 WHERE 
                     created_at BETWEEN :start_date AND :end_date
                     AND payment_status = 'paid'
@@ -267,14 +288,15 @@ class OrderModel extends Model {
      * Obtém vendas por categoria
      */
     public function getSalesByCategory() {
+        // Otimização: Substituir JOINs múltiplos e forçar uso de índices
         $sql = "SELECT 
                     c.name as category,
                     COUNT(oi.id) as count,
                     SUM(oi.price * oi.quantity) as total
-                FROM order_items oi
-                JOIN products p ON oi.product_id = p.id
-                JOIN categories c ON p.category_id = c.id
-                JOIN orders o ON oi.order_id = o.id
+                FROM order_items oi USE INDEX (idx_order_items_product_id)
+                JOIN products p USE INDEX (PRIMARY) ON oi.product_id = p.id
+                JOIN categories c USE INDEX (PRIMARY) ON p.category_id = c.id
+                JOIN orders o USE INDEX (idx_orders_payment_status) ON oi.order_id = o.id
                 WHERE o.payment_status = 'paid'
                 GROUP BY c.id
                 ORDER BY total DESC";
@@ -284,18 +306,27 @@ class OrderModel extends Model {
     
     /**
      * Obtém itens de um pedido
+     * 
+     * Otimização: Substituir subconsultas por JOINs para melhor desempenho
      */
     public function getOrderItems($orderId) {
         $sql = "SELECT oi.*, 
                 p.is_tested, 
                 p.stock,
-                (SELECT image FROM product_images WHERE product_id = oi.product_id AND is_main = 1 LIMIT 1) as image,
+                pi.image,
                 CASE WHEN oi.is_stock_item = 1 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability,
-                (SELECT name FROM filament_colors WHERE id = oi.selected_color) as color_name,
-                (SELECT hex_code FROM filament_colors WHERE id = oi.selected_color) as color_hex
-                FROM order_items oi
+                fc.name as color_name,
+                fc.hex_code as color_hex
+                FROM order_items oi USE INDEX (idx_order_items_order_id)
                 LEFT JOIN products p ON oi.product_id = p.id
+                LEFT JOIN (
+                    SELECT product_id, image 
+                    FROM product_images 
+                    WHERE is_main = 1
+                ) pi ON oi.product_id = pi.product_id
+                LEFT JOIN filament_colors fc ON oi.selected_color = fc.id
                 WHERE oi.order_id = :order_id";
+                
         return $this->db()->select($sql, ['order_id' => $orderId]);
     }
     
@@ -439,7 +470,7 @@ class OrderModel extends Model {
      */
     public function getTotalPrintTime($orderId) {
         $sql = "SELECT SUM(print_time_hours) as total_time 
-                FROM order_items 
+                FROM order_items USE INDEX (idx_order_items_order_id)
                 WHERE order_id = :order_id";
                 
         $result = $this->db()->select($sql, ['order_id' => $orderId]);
@@ -499,8 +530,11 @@ class OrderModel extends Model {
         
         $limitClause = $limit ? "LIMIT {$limit}" : "";
         
-        $sql = "SELECT o.*, u.name as customer_name 
-                FROM {$this->table} o 
+        // Otimização: Selecionar colunas específicas e usar índices adequados
+        $sql = "SELECT o.id, o.order_number, o.user_id, o.status, o.payment_status, o.total, 
+                o.created_at, o.estimated_print_time_hours, 
+                u.name as customer_name 
+                FROM {$this->table} o USE INDEX (idx_orders_status)
                 LEFT JOIN users u ON o.user_id = u.id 
                 {$whereClause}
                 ORDER BY o.created_at DESC
