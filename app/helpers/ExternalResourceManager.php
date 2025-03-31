@@ -203,8 +203,8 @@ class ExternalResourceManager {
         $externalCount = 0;
         $localizable = 0;
         
-        // Encontrar todos os scripts externos
-        preg_match_all('/<script[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $scriptMatches);
+        // Encontrar todos os scripts externos - CORREÇÃO DA REGEX
+        preg_match_all('/<script[^>]*src=["|\']([^"|\']*)["|\'][^>]*>/i', $html, $scriptMatches);
         if (!empty($scriptMatches[1])) {
             foreach ($scriptMatches[1] as $src) {
                 if (self::isExternalResource($src)) {
@@ -220,8 +220,8 @@ class ExternalResourceManager {
             }
         }
         
-        // Encontrar todos os links de CSS externos
-        preg_match_all('/<link[^>]*href=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $linkMatches);
+        // Encontrar todos os links de CSS externos - CORREÇÃO DA REGEX
+        preg_match_all('/<link[^>]*href=["|\']([^"|\']*)["|\'][^>]*>/i', $html, $linkMatches);
         if (!empty($linkMatches[1])) {
             foreach ($linkMatches[1] as $href) {
                 if (strpos($href, '.css') !== false && self::isExternalResource($href)) {
@@ -237,8 +237,8 @@ class ExternalResourceManager {
             }
         }
         
-        // Encontrar todos os iframes externos
-        preg_match_all('/<iframe[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $iframeMatches);
+        // Encontrar todos os iframes externos - CORREÇÃO DA REGEX
+        preg_match_all('/<iframe[^>]*src=["|\']([^"|\']*)["|\'][^>]*>/i', $html, $iframeMatches);
         if (!empty($iframeMatches[1])) {
             foreach ($iframeMatches[1] as $src) {
                 if (self::isExternalResource($src)) {
@@ -248,8 +248,8 @@ class ExternalResourceManager {
             }
         }
         
-        // Encontrar imagens externas
-        preg_match_all('/<img[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $imgMatches);
+        // Encontrar imagens externas - CORREÇÃO DA REGEX
+        preg_match_all('/<img[^>]*src=["|\']([^"|\']*)["|\'][^>]*>/i', $html, $imgMatches);
         if (!empty($imgMatches[1])) {
             foreach ($imgMatches[1] as $src) {
                 if (self::isExternalResource($src)) {
@@ -400,9 +400,9 @@ class ExternalResourceManager {
      * @return string HTML com recursos otimizados
      */
     public static function optimizeAllExternalResources($html) {
-        // Substituir scripts externos
+        // Substituir scripts externos - CORREÇÃO DA REGEX
         $html = preg_replace_callback(
-            '/<script[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*><\/script>/i',
+            '/<script[^>]*src=["|\']([^"|\']*)["|\'][^>]*><\/script>/i',
             function($matches) {
                 $url = $matches[1];
                 if (self::isExternalResource($url)) {
@@ -413,9 +413,9 @@ class ExternalResourceManager {
             $html
         );
         
-        // Substituir links CSS externos
+        // Substituir links CSS externos - CORREÇÃO DA REGEX
         $html = preg_replace_callback(
-            '/<link[^>]*href=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i',
+            '/<link[^>]*href=["|\']([^"|\']*)["|\'][^>]*>/i',
             function($matches) {
                 $url = $matches[1];
                 if (strpos($matches[0], 'stylesheet') !== false && self::isExternalResource($url)) {
