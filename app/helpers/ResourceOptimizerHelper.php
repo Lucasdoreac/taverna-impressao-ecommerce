@@ -39,6 +39,17 @@ class ResourceOptimizerHelper {
     // Tipos de modelos 3D suportados para cache
     private static $supportedModelFormats = ['stl', 'obj', 'mtl'];
     
+    // Configurações para cache de modelos 3D
+    private static $model3dCacheSettings = [
+        'preloadFrequentModels' => true,      // Pré-carregar modelos frequentemente acessados
+        'maxPreloadModels' => 5,              // Número máximo de modelos a pré-carregar
+        'prioritizeProductPage' => true,      // Priorizar cache em páginas de produto
+        'recordMetrics' => true,              // Registrar métricas de uso e performance
+        'prefetchThreshold' => 3,             // Limiar de acesso para pré-carregamento (# acessos)
+        'autoCleanThreshold' => 0.8,          // Limiar para limpeza automática (% do tamanho máximo)
+        'autoInvalidateAfterDays' => 14       // Invalidar cache automaticamente após X dias
+    ];
+    
     /**
      * Inicializa o helper
      */
@@ -105,6 +116,19 @@ class ResourceOptimizerHelper {
         if (class_exists('ModelCacheHelper')) {
             ModelCacheHelper::setVersion($version);
         }
+    }
+    
+    /**
+     * Define configurações específicas para o cache de modelos 3D
+     * 
+     * @param array $settings Configurações a serem atualizadas
+     */
+    public static function setModel3DCacheSettings($settings) {
+        if (!is_array($settings)) {
+            return;
+        }
+        
+        self::$model3dCacheSettings = array_merge(self::$model3dCacheSettings, $settings);
     }
     
     /**
@@ -507,7 +531,7 @@ class ResourceOptimizerHelper {
         $defaultOptions = [
             'debug' => !self::$productionMode,
             'maxCacheSize' => 50 * 1024 * 1024, // 50MB
-            'version' => ModelCacheHelper::getVersion()
+            'version' => class_exists('ModelCacheHelper') ? ModelCacheHelper::getVersion() : '1.0.0'
         ];
         
         // Mesclar opções
@@ -587,5 +611,383 @@ class ResourceOptimizerHelper {
         }
         
         return ModelCacheHelper::getCacheInfo();
+    }
+    
+    /**
+     * Prepara o modelo 3D para visualização com suporte a cache integrado
+     * 
+     * @param array $modelData Dados do modelo (path, type, etc.)
+     * @param array $options Opções de visualização
+     * @return array Dados processados para uso pelo visualizador
+     */
+    public static function prepareModel3DForViewer($modelData, $options = []) {
+        if (!is_array($modelData) || empty($modelData['path'])) {
+            return false;
+        }
+        
+        // Opções padrão
+        $defaultOptions = [
+            'useCache' => self::$model3dCacheEnabled,
+            'preload' => self::$model3dCacheSettings['preloadFrequentModels'],
+            'recordMetrics' => self::$model3dCacheSettings['recordMetrics']
+        ];
+        
+        // Mesclar opções
+        $options = array_merge($defaultOptions, $options);
+        
+        // Obter tipo do modelo
+        $modelType = isset($modelData['type']) ? $modelData['type'] : pathinfo($modelData['path'], PATHINFO_EXTENSION);
+        
+        // Otimizar URL com cache
+        $optimizedModel = self::optimize3DModelUrl($modelData['path'], $options['useCache']);
+        
+        // Registrar métricas de uso se configurado
+        if ($options['recordMetrics'] && $optimizedModel['modelId']) {
+            self::recordModel3DUsageMetrics($optimizedModel['modelId'], $modelType);
+        }
+        
+        // Adicionar dados ao resultado
+        $result = [
+            'url' => $optimizedModel['url'],
+            'modelId' => $optimizedModel['modelId'],
+            'cached' => $optimizedModel['cached'],
+            'type' => $modelType,
+            'options' => $options
+        ];
+        
+        // Gerar script de integração para o cliente, se necessário
+        if ($options['useCache'] && $optimizedModel['modelId']) {
+            $result['integrationScript'] = self::generateModel3DViewerIntegrationScript($optimizedModel['modelId'], $modelType);
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Registra métricas de uso para um modelo 3D
+     * 
+     * @param string $modelId ID do modelo
+     * @param string $modelType Tipo do modelo
+     * @return bool Sucesso da operação
+     */
+    private static function recordModel3DUsageMetrics($modelId, $modelType) {
+        if (!self::$model3dCacheEnabled || !class_exists('ModelCacheHelper')) {
+            return false;
+        }
+        
+        // Arquivo de métricas
+        $metricsFile = ROOT_PATH . '/public/cache/models/metrics.json';
+        
+        // Carregar dados existentes
+        $metrics = [];
+        if (file_exists($metricsFile)) {
+            $content = file_get_contents($metricsFile);
+            if (!empty($content)) {
+                $metrics = json_decode($content, true) ?: [];
+            }
+        }
+        
+        // Inicializar dados para este modelo se não existirem
+        if (!isset($metrics[$modelId])) {
+            $metrics[$modelId] = [
+                'modelId' => $modelId,
+                'modelType' => $modelType,
+                'accessCount' => 0,
+                'firstAccess' => time(),
+                'lastAccess' => time(),
+                'browsers' => [],
+                'devices' => []
+            ];
+        }
+        
+        // Atualizar métricas
+        $metrics[$modelId]['accessCount']++;
+        $metrics[$modelId]['lastAccess'] = time();
+        
+        // Capturar informações do navegador e dispositivo
+        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+        $isMobile = preg_match('/(android|iphone|ipad|mobile)/i', $userAgent) ? 'mobile' : 'desktop';
+        
+        // Registrar tipo de dispositivo
+        if (!isset($metrics[$modelId]['devices'][$isMobile])) {
+            $metrics[$modelId]['devices'][$isMobile] = 0;
+        }
+        $metrics[$modelId]['devices'][$isMobile]++;
+        
+        // Determinar navegador
+        $browser = 'other';
+        if (strpos($userAgent, 'Chrome') !== false) {
+            $browser = 'chrome';
+        } elseif (strpos($userAgent, 'Firefox') !== false) {
+            $browser = 'firefox';
+        } elseif (strpos($userAgent, 'Safari') !== false) {
+            $browser = 'safari';
+        } elseif (strpos($userAgent, 'Edge') !== false) {
+            $browser = 'edge';
+        }
+        
+        // Registrar navegador
+        if (!isset($metrics[$modelId]['browsers'][$browser])) {
+            $metrics[$modelId]['browsers'][$browser] = 0;
+        }
+        $metrics[$modelId]['browsers'][$browser]++;
+        
+        // Verificar se este modelo deve ser pré-carregado
+        if ($metrics[$modelId]['accessCount'] >= self::$model3dCacheSettings['prefetchThreshold']) {
+            $metrics[$modelId]['prefetch'] = true;
+        }
+        
+        // Salvar métricas
+        return file_put_contents($metricsFile, json_encode($metrics, JSON_PRETTY_PRINT)) !== false;
+    }
+    
+    /**
+     * Gera script de integração para o visualizador 3D usar o cache
+     * 
+     * @param string $modelId ID do modelo
+     * @param string $modelType Tipo do modelo
+     * @return string Script de integração
+     */
+    private static function generateModel3DViewerIntegrationScript($modelId, $modelType) {
+        // Script para integrar model-viewer.js com o cache
+        $script = "// Integração do ModelViewer com o sistema de cache\n";
+        $script .= "window.modelCacheIntegration = window.modelCacheIntegration || {};\n";
+        $script .= "window.modelCacheIntegration['{$modelId}'] = {\n";
+        $script .= "  modelId: '{$modelId}',\n";
+        $script .= "  modelType: '{$modelType}',\n";
+        $script .= "  timestamp: " . time() . "\n";
+        $script .= "};\n\n";
+        
+        // Adicionar hook para o ModelViewer usar o cache
+        $script .= "if (window.modelViewerInitHooks) {\n";
+        $script .= "  window.modelViewerInitHooks.push(function(viewer) {\n";
+        $script .= "    if (viewer && window.modelCacheManager && viewer.modelId === '{$modelId}') {\n";
+        $script .= "      viewer.setCacheManager(window.modelCacheManager);\n";
+        $script .= "    }\n";
+        $script .= "  });\n";
+        $script .= "} else {\n";
+        $script .= "  window.modelViewerInitHooks = [function(viewer) {\n";
+        $script .= "    if (viewer && window.modelCacheManager && viewer.modelId === '{$modelId}') {\n";
+        $script .= "      viewer.setCacheManager(window.modelCacheManager);\n";
+        $script .= "    }\n";
+        $script .= "  }];\n";
+        $script .= "}\n";
+        
+        return $script;
+    }
+    
+    /**
+     * Obtém os modelos 3D que devem ser pré-carregados com base em métricas de uso
+     * 
+     * @param int $limit Número máximo de modelos a retornar
+     * @return array Lista de modelos para pré-carregamento
+     */
+    public static function getModels3DForPreloading($limit = null) {
+        if (!self::$model3dCacheEnabled || !class_exists('ModelCacheHelper') || 
+            !self::$model3dCacheSettings['preloadFrequentModels']) {
+            return [];
+        }
+        
+        // Usar limite configurado se não especificado
+        $limit = $limit ?: self::$model3dCacheSettings['maxPreloadModels'];
+        
+        // Arquivo de métricas
+        $metricsFile = ROOT_PATH . '/public/cache/models/metrics.json';
+        
+        // Verificar se o arquivo existe
+        if (!file_exists($metricsFile)) {
+            return [];
+        }
+        
+        // Carregar métricas
+        $metrics = json_decode(file_get_contents($metricsFile), true);
+        if (!$metrics) {
+            return [];
+        }
+        
+        // Filtrar modelos marcados para pré-carregamento
+        $preloadModels = [];
+        foreach ($metrics as $modelId => $data) {
+            // Verificar se modelo deve ser pré-carregado e se está no cache
+            if (isset($data['prefetch']) && $data['prefetch'] && 
+                ModelCacheHelper::isModelCached($modelId)) {
+                
+                // Verificar idade do modelo
+                $age = time() - $data['lastAccess'];
+                $maxAge = self::$model3dCacheSettings['autoInvalidateAfterDays'] * 24 * 60 * 60;
+                
+                if ($age < $maxAge) {
+                    $preloadModels[$modelId] = [
+                        'modelId' => $modelId,
+                        'accessCount' => $data['accessCount'],
+                        'lastAccess' => $data['lastAccess'],
+                        'modelType' => $data['modelType'] ?? 'unknown'
+                    ];
+                }
+            }
+        }
+        
+        // Ordenar por contagem de acesso (mais acessados primeiro)
+        usort($preloadModels, function($a, $b) {
+            return $b['accessCount'] - $a['accessCount'];
+        });
+        
+        // Limitar número de modelos
+        $preloadModels = array_slice($preloadModels, 0, $limit);
+        
+        // Obter URLs para pré-carregamento
+        $result = [];
+        foreach ($preloadModels as $model) {
+            $cachedPath = ModelCacheHelper::getCachedModelPath($model['modelId']);
+            if ($cachedPath) {
+                $result[] = [
+                    'modelId' => $model['modelId'],
+                    'url' => BASE_URL . ltrim($cachedPath, '/'),
+                    'modelType' => $model['modelType'],
+                    'accessCount' => $model['accessCount']
+                ];
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Gera tags de preload para modelos 3D frequentemente acessados
+     * 
+     * @param int $limit Número máximo de modelos a pré-carregar
+     * @return string Tags HTML para pré-carregamento
+     */
+    public static function generateModel3DPreloadTags($limit = null) {
+        $models = self::getModels3DForPreloading($limit);
+        if (empty($models)) {
+            return '';
+        }
+        
+        $html = "<!-- Preload de modelos 3D frequentemente acessados -->\n";
+        foreach ($models as $model) {
+            $html .= "<link rel=\"prefetch\" href=\"{$model['url']}\" as=\"fetch\" crossorigin=\"anonymous\">\n";
+        }
+        
+        return $html;
+    }
+    
+    /**
+     * Verifica e realiza limpeza automática do cache de modelos 3D se necessário
+     * 
+     * @return bool Verdadeiro se a limpeza foi realizada
+     */
+    public static function checkAndCleanModel3DCache() {
+        if (!self::$model3dCacheEnabled || !class_exists('ModelCacheHelper')) {
+            return false;
+        }
+        
+        // Verificar última limpeza
+        $metadataFile = ROOT_PATH . '/public/cache/models/metadata.json';
+        if (!file_exists($metadataFile)) {
+            return false;
+        }
+        
+        $metadata = json_decode(file_get_contents($metadataFile), true);
+        if (!$metadata || !isset($metadata['lastCleaned'])) {
+            return false;
+        }
+        
+        // Verificar se precisa limpar (uma vez por dia)
+        $lastCleaned = $metadata['lastCleaned'] ?? 0;
+        $daysSinceLastClean = (time() - $lastCleaned) / (60 * 60 * 24);
+        if ($daysSinceLastClean < 1) {
+            return false;
+        }
+        
+        // Obter informações do cache
+        $cacheInfo = ModelCacheHelper::getCacheInfo();
+        if ($cacheInfo['enabled'] && 
+            isset($cacheInfo['usagePercent']) && 
+            $cacheInfo['usagePercent'] > (self::$model3dCacheSettings['autoCleanThreshold'] * 100)) {
+            
+            // Realizar limpeza
+            $targetSize = $cacheInfo['maxSize'] * 0.7; // 70% do tamanho máximo
+            ModelCacheHelper::cleanCache($targetSize);
+            
+            // Atualizar timestamp de limpeza
+            $metadata['lastCleaned'] = time();
+            file_put_contents($metadataFile, json_encode($metadata));
+            
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Retorna um objeto JavaScript contendo os modelos 3D em cache
+     * para utilização pelo cliente em pré-carregamento
+     * 
+     * @return string Script com informações de cache para o cliente
+     */
+    public static function getModel3DCacheInfoForClient() {
+        if (!self::$model3dCacheEnabled || !class_exists('ModelCacheHelper')) {
+            return "window.model3dCacheInfo = {enabled: false};";
+        }
+        
+        // Obter modelos para pré-carregamento
+        $preloadModels = self::getModels3DForPreloading();
+        
+        // Obter informações gerais do cache
+        $cacheInfo = ModelCacheHelper::getCacheInfo();
+        
+        // Criar objeto para o cliente
+        $clientInfo = [
+            'enabled' => $cacheInfo['enabled'],
+            'version' => $cacheInfo['version'],
+            'preloadModels' => $preloadModels,
+            'configuredForBrowser' => true
+        ];
+        
+        // Converter para JSON
+        $jsonInfo = json_encode($clientInfo);
+        
+        // Gerar script
+        return "window.model3dCacheInfo = {$jsonInfo};";
+    }
+    
+    /**
+     * Integra o visualizador 3D com o sistema de cache de modelos
+     * 
+     * @param string $modelFilePath Caminho para o arquivo do modelo
+     * @param array $options Opções de visualização
+     * @return array Dados para inicialização do visualizador com suporte a cache
+     */
+    public static function integrateModel3DViewerWithCache($modelFilePath, $options = []) {
+        // Preparar dados do modelo com suporte a cache
+        $modelData = self::prepareModel3DForViewer([
+            'path' => $modelFilePath,
+            'type' => pathinfo($modelFilePath, PATHINFO_EXTENSION)
+        ], $options);
+        
+        if (!$modelData) {
+            return [
+                'url' => $modelFilePath,
+                'useCache' => false,
+                'cacheSupported' => false
+            ];
+        }
+        
+        // Dados para retorno
+        $viewerData = [
+            'url' => $modelData['url'],
+            'modelId' => $modelData['modelId'],
+            'modelType' => $modelData['type'],
+            'cached' => $modelData['cached'],
+            'useCache' => $modelData['options']['useCache'],
+            'cacheSupported' => self::$model3dCacheEnabled && class_exists('ModelCacheHelper'),
+            'integrationScript' => $modelData['integrationScript'] ?? null
+        ];
+        
+        // Verificar e realizar limpeza automática do cache se necessário
+        self::checkAndCleanModel3DCache();
+        
+        return $viewerData;
     }
 }
