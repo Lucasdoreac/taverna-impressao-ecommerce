@@ -109,9 +109,9 @@ try {
             ];
         }
         
-        // Verificar se o método db() existe e retorna um objeto
+        // Verificar se o método getDb() existe e retorna um objeto
         try {
-            $db = $productModel->db();
+            $db = $productModel->getDb();
             $modelTest['db_method'] = $db ? 'OK' : 'FALHA (retornou null)';
         } catch (Exception $e) {
             $modelTest['db_method'] = 'FALHA: ' . $e->getMessage();
@@ -186,7 +186,7 @@ $recommendations = [];
 
 // Verificar problema com ProductModel
 if ($modelTest['class_exists'] == 'SIM' && isset($modelTest['db_method']) && $modelTest['db_method'] != 'OK') {
-    $recommendations[] = "Verifique se a classe ProductModel estende corretamente a classe Model e se o método db() está disponível.";
+    $recommendations[] = "Verifique se a classe ProductModel estende corretamente a classe Model e se o método getDb() está disponível.";
 }
 
 // Verificar problema com produtos retornados
@@ -403,7 +403,7 @@ $recommendations[] = "Verifique se a extensão PDO do PHP está ativada e funcio
                     </td>
                 </tr>
                 <tr>
-                    <td>Método db()</td>
+                    <td>Método getDb()</td>
                     <td class="<?php echo strpos($modelTest['db_method'] ?? '', 'OK') === 0 ? 'success' : 'error'; ?>">
                         <?php echo htmlspecialchars($modelTest['db_method'] ?? 'N/A'); ?>
                     </td>
