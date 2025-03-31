@@ -3,10 +3,16 @@
 // Incluir os helpers necessários
 require_once APP_PATH . '/helpers/ModelViewerHelper.php';
 require_once APP_PATH . '/helpers/WebGLDetector.php';
+require_once APP_PATH . '/helpers/ResourceOptimizerHelper.php';
+require_once APP_PATH . '/helpers/ModelCacheHelper.php';
+
+// Inicializar o cache se necessário
+ModelCacheHelper::init();
 ?>
 
 <?= ModelViewerHelper::includeThreeJs() ?>
 <?= WebGLDetector::include($product['name'], !empty($product['images']) ? BASE_URL . 'uploads/products/' . $product['images'][0]['image'] : '') ?>
+<?= ModelViewerHelper::getModelCacheScript(['debug' => ENVIRONMENT === 'development']) ?>
 
 <div class="container py-4">
     <!-- Breadcrumb -->
@@ -93,16 +99,17 @@ require_once APP_PATH . '/helpers/WebGLDetector.php';
                                 
                                 // Verificar se o arquivo existe fisicamente
                                 $modelPath = UPLOADS_PATH . '/products/models/' . $product['model_file'];
+                                $altModelPaths = [
+                                    UPLOADS_PATH . '/models/' . $product['model_file'],
+                                    ROOT_PATH . '/public/assets/models/' . $product['model_file']
+                                ];
+                                
                                 if (!file_exists($modelPath)) {
                                     // Tentar buscar em locais alternativos
-                                    $altPaths = [
-                                        UPLOADS_PATH . '/models/' . $product['model_file'],
-                                        ROOT_PATH . '/public/assets/models/' . $product['model_file']
-                                    ];
-                                    
                                     $hasModelFile = false;
-                                    foreach ($altPaths as $path) {
+                                    foreach ($altModelPaths as $path) {
                                         if (file_exists($path)) {
+                                            $modelPath = $path;
                                             $hasModelFile = true;
                                             break;
                                         }
@@ -119,6 +126,38 @@ require_once APP_PATH . '/helpers/WebGLDetector.php';
                             }
                             
                             if ($hasModelFile): 
+                                // Otimizar caminho do modelo para cache, se possível
+                                $optimizedModelPath = $modelPath;
+                                $optimizedModelUrl = BASE_URL . 'uploads/products/models/' . $product['model_file'];
+                                
+                                if (class_exists('ResourceOptimizerHelper') && class_exists('ModelCacheHelper')) {
+                                    // Integrar com o sistema de cache
+                                    $modelId = ModelCacheHelper::generateModelId($modelPath);
+                                    
+                                    if ($modelId) {
+                                        // Tentar obter o modelo do cache
+                                        if (!ModelCacheHelper::isModelCached($modelId)) {
+                                            // Cache o modelo se não estiver em cache
+                                            ModelCacheHelper::cacheModel($modelPath, $modelId);
+                                        }
+                                        
+                                        // Obter o caminho do cache
+                                        $cachedModelPath = ModelCacheHelper::getCachedModelPath($modelId);
+                                        if ($cachedModelPath) {
+                                            $optimizedModelUrl = BASE_URL . ltrim($cachedModelPath, '/') . 
+                                                           '?id=' . $modelId . 
+                                                           '&v=' . ModelCacheHelper::getVersion();
+                                        } else {
+                                            // Adicionar parâmetros para suporte a cache no cliente
+                                            $optimizedModelUrl .= '?id=' . $modelId . 
+                                                            '&v=' . ModelCacheHelper::getVersion();
+                                        }
+                                        
+                                        // Registrar acesso ao modelo
+                                        ModelCacheHelper::recordAccess($modelId);
+                                    }
+                                }
+                                
                                 // Configurar para ser responsivo em dispositivos móveis
                                 echo ModelViewerHelper::createProductModelViewer($product, [
                                     'height' => 'model-viewer-height-md',
@@ -128,7 +167,8 @@ require_once APP_PATH . '/helpers/WebGLDetector.php';
                                     'showControls' => true,
                                     'autoRotate' => true,
                                     'optimizeForMobile' => true,
-                                    'progressiveLoading' => true
+                                    'progressiveLoading' => true,
+                                    'useCache' => true
                                 ]);
                             else:
                             ?>
@@ -161,7 +201,7 @@ require_once APP_PATH . '/helpers/WebGLDetector.php';
             <div class="mb-3">
                 <?php if ($product['sale_price'] && $product['sale_price'] < $product['price']): ?>
                 <div class="d-flex align-items-center">
-                    <span class="text-decoration-line-through text-muted">
+                    <span class="text-decoration-line-through text-muted small">
                         <?= getCurrencySymbol() ?> <?= number_format($product['price'], 2, ',', '.') ?>
                     </span>
                     <span class="ms-2 h4 text-danger mb-0">
