@@ -23,6 +23,9 @@ class CustomizationController {
      */
     public function list() {
         try {
+            // Adicionar esta linha para corrigir o erro
+            $availability = $_GET['availability'] ?? 'all';
+            
             // Buscar produtos personalizáveis
             $customizableProducts = $this->productModel->getCustomizableProducts(24);
             
