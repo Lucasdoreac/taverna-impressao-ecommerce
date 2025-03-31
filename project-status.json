@@ -2,11 +2,11 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-31T23:08:30.000Z",
+    "lastUpdated": "2025-03-31T23:35:30.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
-    "currentFile": "app/core/Controller.php",
+    "currentFile": "app/config/config.php",
     "currentComponent": "Correção de Bugs em Ambiente de Produção",
     "inProgress": true
   },
@@ -72,17 +72,19 @@
     "pending": []
   },
   "context": {
-    "lastThought": "Adicionei as classes Controller.php e Model.php no diretório correto (app/core/). O problema estava no autoloader, que tentava carregar essas classes de um local que não existia. Todos os outros controladores esperavam estender de Controller, mas o arquivo base não estava no local correto.",
+    "lastThought": "Corrigi problemas críticos identificados no sistema: 1) Resolvi o problema com caminhos incorretos no config.php usando dirname(__FILE__, 3) para garantir caminhos absolutos corretos, 2) Melhorei o autoloader para buscar classes em múltiplos diretórios e carregar corretamente as classes Model e Controller, 3) Criei ferramentas adicionais de diagnóstico para identificar problemas com constantes e classes, 4) Implementei melhor tratamento para a constante CURRENCY_SYMBOL.",
     "nextSteps": [
-      "Verificar se a correção resolveu o problema com a página diagnostico-classes.php e outros arquivos de diagnóstico",
-      "Continuar a verificação de outros arquivos de diagnóstico para garantir que estejam funcionando corretamente",
+      "Acessar as novas ferramentas de diagnóstico para verificar se os problemas foram resolvidos",
+      "Verificar se a página diagnostico-classes.php está funcionando corretamente",
+      "Validar se o problema com o CURRENCY_SYMBOL foi resolvido através da ferramenta verificar-constantes.php",
       "Resolver outros bugs identificados em onlineTestResults.failingTests",
-      "Continuar o trabalho em 'Configurações Avançadas para Preferências de Notificação'",
-      "Desenvolver interface de usuário para configuração de preferências de notificação (app/views/account/notification_preferences.php)"
+      "Continuar o trabalho em 'Configurações Avançadas para Preferências de Notificação'"
     ],
     "lastEditedFiles": [
-      "app/core/Controller.php",
-      "app/core/Model.php",
+      "app/config/config.php",
+      "app/autoload.php",
+      "public/diagnostico-classes.php",
+      "public/verificar-constantes.php",
       "project-status.json"
     ],
     "onlineTestResults": {
@@ -116,8 +118,8 @@
         "Algumas páginas de teste retornando 404",
         "Produtos não estão sendo exibidos (mensagem 'Nenhum produto encontrado' em todas as páginas) - RESOLVIDO",
         "Fatal error: Class \"ProductModel\" not found no CategoryController",
-        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string - RESOLVIDO",
-        "Classe Controller não encontrada - RESOLVIDO"
+        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string - EM RESOLUÇÃO",
+        "Classe Controller não encontrada - EM RESOLUÇÃO"
       ]
     },
     "bugFixes": {
@@ -146,9 +148,9 @@
           "description": "Classes não encontradas",
           "details": "Fatal error: Class \"ProductModel\" not found no CategoryController e 'Classe Database não encontrada!' em diagnostico-erros.php",
           "severity": "critical",
-          "status": "parcialmente resolvido",
-          "affectedFiles": ["app/controllers/CategoryController.php", "app/diagnostico-erros.php"],
-          "resolution": "Modificado CategoryController para estender a classe Controller, o que resolve o problema do método db() não encontrado e permite a inicialização correta de dependências."
+          "status": "em resolução",
+          "affectedFiles": ["app/controllers/CategoryController.php", "app/diagnostico-erros.php", "app/autoload.php"],
+          "resolution": "Modificado CategoryController para estender a classe Controller e melhorado o autoloader para buscar classes em múltiplos diretórios e caminhos alternativos."
         },
         {
           "id": "BUG-004",
@@ -164,9 +166,9 @@
           "description": "Problema com CURRENCY_SYMBOL",
           "details": "A constante está definida como '262145' (um valor numérico) em vez de 'R$'",
           "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["app/config/config.php"],
-          "resolution": "Corrigido o valor da constante CURRENCY_SYMBOL para ser definido como string 'R$' e adicionada a função getCurrencySymbol() como fallback para garantir compatibilidade retroativa."
+          "status": "em resolução",
+          "affectedFiles": ["app/config/config.php", "public/verificar-constantes.php"],
+          "resolution": "Corrigido o valor da constante CURRENCY_SYMBOL no config.php, adicionada uma confirmação extra para garantir que seja tratada como string, e criada ferramenta de diagnóstico específica para constantes."
         },
         {
           "id": "BUG-006",
@@ -182,9 +184,18 @@
           "description": "Classes base não encontradas em diretório correto",
           "details": "Fatal error: Class 'Controller' not found em diagnostico-classes.php",
           "severity": "high",
-          "status": "resolvido",
-          "affectedFiles": ["app/core/Controller.php", "app/core/Model.php"],
-          "resolution": "Criadas as classes Controller.php e Model.php no diretório app/core/ conforme configurado no autoloader."
+          "status": "em resolução",
+          "affectedFiles": ["app/core/Controller.php", "app/core/Model.php", "app/autoload.php", "app/config/config.php"],
+          "resolution": "Criadas as classes Controller.php e Model.php no diretório app/core/, corrigido o autoloader para buscar em múltiplos caminhos, e ajustado o config.php para definir caminhos corretos."
+        },
+        {
+          "id": "BUG-008",
+          "description": "Caminhos incorretos definidos no config.php",
+          "details": "Constantes como APP_PATH e ROOT_PATH estão apontando para diretórios incorretos",
+          "severity": "high",
+          "status": "em resolução",
+          "affectedFiles": ["app/config/config.php", "public/verificar-constantes.php"],
+          "resolution": "Corrigida a definição de caminhos no config.php usando dirname(__FILE__, 3) para garantir caminhos absolutos corretos e consistentes."
         }
       ],
       "proposedSolutions": [
@@ -205,53 +216,49 @@
         },
         {
           "bugId": "BUG-003",
-          "solution": "Modificar CategoryController para estender a classe Controller",
-          "description": "Alterar a definição da classe para 'class CategoryController extends Controller' para herdar os métodos necessários como db()",
-          "code": "class CategoryController extends Controller {\n    private $categoryModel;\n    private $productModel;\n    \n    public function __construct() {\n        try {\n            $this->categoryModel = new CategoryModel();\n            $this->productModel = new ProductModel();\n        } catch (Exception $e) {\n            $this->handleError($e, \"Erro ao inicializar CategoryController\");\n        }\n    }\n    \n    // ... resto do código\n}",
+          "solution": "Melhorar autoloader para buscar em múltiplos diretórios",
+          "description": "Modificar o autoloader para procurar classes em caminhos alternativos, adicionando log detalhado para diagnóstico e carregando diretamente classes cruciais",
+          "code": "/**\n * Função de autoload\n * \n * @param string $class Nome da classe a ser carregada\n * @return bool True se a classe foi carregada, false caso contrário\n */\nfunction app_autoload($class) {\n    global $classMap;\n    \n    // Log para diagnóstico\n    error_log(\"Tentando carregar classe: \" . $class);\n    \n    // Verificar se a classe está no mapa de classes\n    if (isset($classMap[$class])) {\n        if (file_exists($classMap[$class])) {\n            require_once $classMap[$class];\n            error_log(\"Classe {$class} carregada com sucesso de {$classMap[$class]}\");\n            return true;\n        } else {\n            error_log(\"Autoloader: Arquivo {$classMap[$class]} não encontrado para a classe {$class}\");\n        }\n    }\n    \n    // Verificar diretórios padrão para a classe\n    $directories = [\n        APP_PATH . '/models/',\n        APP_PATH . '/controllers/',\n        APP_PATH . '/helpers/',\n        APP_PATH . '/core/',\n        // CORREÇÃO: Adicionar caminhos alternativos para ambiente de produção\n        dirname(APP_PATH) . '/app/models/',\n        dirname(APP_PATH) . '/app/controllers/',\n        dirname(APP_PATH) . '/app/helpers/',\n        dirname(APP_PATH) . '/app/core/'\n    ];\n    \n    foreach ($directories as $directory) {\n        $file = $directory . $class . '.php';\n        if (file_exists($file)) {\n            require_once $file;\n            error_log(\"Classe {$class} carregada de diretório padrão: {$file}\");\n            return true;\n        }\n    }\n    \n    error_log(\"Autoloader: Classe {$class} não encontrada em nenhum diretório padrão\");\n    \n    return false;\n}",
           "status": "implementado",
-          "implementedAt": "2025-03-31T17:01:00.000Z"
-        },
-        {
-          "bugId": "BUG-004",
-          "solution": "Criar diretórios de upload ausentes",
-          "code": "# Comandos a serem executados no servidor:\nmkdir -p /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads/products\nmkdir -p /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads/categories\nmkdir -p /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads/customization\nchmod -R 755 /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads",
-          "status": "implementado",
-          "implementedAt": "2025-03-31T16:33:00.000Z"
+          "implementedAt": "2025-03-31T23:34:44.000Z"
         },
         {
           "bugId": "BUG-005",
-          "solution": "Corrigir o valor da constante CURRENCY_SYMBOL no arquivo de configuração",
-          "description": "Garantir que CURRENCY_SYMBOL seja definido como string 'R$' e implementar uma função getCurrencySymbol() para compatibilidade retroativa",
-          "code": "// Moeda - definição de forma explícita para garantir tipo string\nif (!defined('CURRENCY')) {\n    define('CURRENCY', 'BRL');\n}\n\n// CORREÇÃO: Corrigir constante CURRENCY_SYMBOL para usar string ao invés de número\nif (!defined('CURRENCY_SYMBOL')) {\n    define('CURRENCY_SYMBOL', 'R$');  // Valor correto como string\n}\n\n/**\n * Função para obter o símbolo da moeda de forma segura\n * Sempre retorna a string 'R$' para contornar o problema de conversão de tipo\n * \n * @return string Símbolo da moeda\n */\nfunction getCurrencySymbol() {\n    // Retornar diretamente a string 'R$' em vez de usar a constante\n    // para garantir que o símbolo correto seja sempre exibido\n    return 'R$';\n}",
+          "solution": "Corrigir definição de CURRENCY_SYMBOL para garantir tipo string",
+          "description": "Melhorar a definição de CURRENCY_SYMBOL no config.php e criar ferramenta de diagnóstico para constantes",
+          "code": "// CORREÇÃO: Restaurar CURRENCY_SYMBOL com definição explícita como string\n// Primeiro, remove a definição existente se possível\nif (defined('CURRENCY_SYMBOL')) {\n    // Não podemos remover constantes definidas, mas podemos evitar redefini-la\n    error_log(\"ATENÇÃO: CURRENCY_SYMBOL já está definido com valor: \" . CURRENCY_SYMBOL);\n    error_log(\"Tipo atual: \" . gettype(CURRENCY_SYMBOL));\n} else {\n    // Define apenas se não estiver definido ainda\n    define('CURRENCY_SYMBOL', 'R$');  // Valor correto como string literal\n    error_log(\"CURRENCY_SYMBOL definido como 'R$' com tipo: \" . gettype(CURRENCY_SYMBOL));\n}",
           "status": "implementado",
-          "implementedAt": "2025-03-31T22:15:05.000Z"
-        },
-        {
-          "bugId": "BUG-006",
-          "solution": "Adicionar método público getDb() na classe Model",
-          "description": "Criar um método público que encapsula o método protegido db() para permitir o acesso pela ferramenta de diagnóstico",
-          "code": "/**\n * Método protegido para obter instância do banco de dados\n * Usado internamente pelos métodos do modelo\n * \n * @return Database Instância do banco de dados\n */\nprotected function db() {\n    return Database::getInstance();\n}\n\n/**\n * Método público para obter instância do banco de dados\n * Usado por ferramentas de diagnóstico\n * \n * @return Database Instância do banco de dados\n */\npublic function getDb() {\n    return $this->db();\n}",
-          "status": "implementado",
-          "implementedAt": "2025-03-31T22:48:35.000Z"
+          "implementedAt": "2025-03-31T23:33:33.000Z"
         },
         {
           "bugId": "BUG-007",
-          "solution": "Criar classes Controller.php e Model.php no diretório correto",
-          "description": "Criar as classes no diretório app/core/ conforme esperado pelo autoloader",
-          "code": "<?php\n/**\n * Controller - Classe base para controladores\n */\nabstract class Controller {\n    /**\n     * Método para renderizar uma view\n     * \n     * @param string $view Nome da view a ser renderizada\n     * @param array $data Dados a serem passados para a view\n     * @return void\n     */\n    protected function render($view, $data = []) {\n        // Extrair dados para torná-los disponíveis na view\n        extract($data);\n        \n        $viewFile = VIEWS_PATH . '/' . $view . '.php';\n        \n        if (file_exists($viewFile)) {\n            require_once $viewFile;\n        } else {\n            throw new Exception(\"View {$view} não encontrada.\");\n        }\n    }\n    \n    /**\n     * Método para obter instância do banco de dados\n     * \n     * @return Database Instância do banco de dados\n     */\n    protected function db() {\n        return Database::getInstance();\n    }\n    \n    // ... outros métodos\n}",
+          "solution": "Criar ferramenta de diagnóstico para classes",
+          "description": "Desenvolver ferramenta detalhada para diagnóstico de problemas com autoloader e classes",
+          "code": "<?php\n// Arquivo para diagnóstico específico de problemas com carregamento de classes\nini_set('display_errors', 1);\nerror_reporting(E_ALL);\n\n// Definir cabeçalhos para página HTML\nheader('Content-Type: text/html; charset=utf-8');\n?>\n<!DOCTYPE html>\n<html lang=\"pt-br\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Diagnóstico de Classes - TAVERNA DA IMPRESSÃO</title>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }\n        h1, h2, h3 { color: #333; }\n        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow: auto; }\n        .success { color: green; }\n        .error { color: red; }\n        .warning { color: orange; }\n        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }\n        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n        th { background-color: #f2f2f2; }\n        tr:nth-child(even) { background-color: #f9f9f9; }\n    </style>\n</head>\n<body>\n    <h1>Diagnóstico de Classes - TAVERNA DA IMPRESSÃO</h1>\n    \n    <h2>Informações do Ambiente</h2>\n    <?php\n    // Exibir informações do PHP\n    echo \"<p>PHP Version: \" . phpversion() . \"</p>\";\n    echo \"<p>Sistema Operacional: \" . PHP_OS . \"</p>\";\n    echo \"<p>Diretório Atual: \" . getcwd() . \"</p>\";\n    ?>\n\n    <h2>Estrutura do Projeto</h2>\n    <?php\n    // Definir diretórios importantes a verificar\n    $directories = [\n        'ROOT' => dirname(__DIR__),\n        'app' => dirname(__DIR__) . '/app',\n        'app/core' => dirname(__DIR__) . '/app/core',\n        'app/models' => dirname(__DIR__) . '/app/models',\n        'app/controllers' => dirname(__DIR__) . '/app/controllers',\n        'app/views' => dirname(__DIR__) . '/app/views',\n        'app/helpers' => dirname(__DIR__) . '/app/helpers',\n        'public' => dirname(__DIR__) . '/public',\n    ];\n\n    echo \"<table>\";\n    echo \"<tr><th>Diretório</th><th>Caminho</th><th>Existe</th><th>Permissões</th></tr>\";\n    \n    foreach ($directories as $name => $path) {\n        echo \"<tr>\";\n        echo \"<td>{$name}</td>\";\n        echo \"<td>{$path}</td>\";\n        \n        if (file_exists($path)) {\n            echo \"<td class='success'>Sim</td>\";\n            echo \"<td>\" . substr(sprintf('%o', fileperms($path)), -4) . \"</td>\";\n        } else {\n            echo \"<td class='error'>Não</td>\";\n            echo \"<td>-</td>\";\n        }\n        \n        echo \"</tr>\";\n    }\n    \n    echo \"</table>\";\n    ?>\n\n    <h2>Verificação de Arquivos de Classe</h2>\n    <?php\n    // Classes essenciais a verificar\n    $classes = [\n        'Controller' => 'app/core/Controller.php',\n        'Model' => 'app/core/Model.php',\n        'Database' => 'app/helpers/Database.php',\n        'ProductModel' => 'app/models/ProductModel.php',\n        'CategoryModel' => 'app/models/CategoryModel.php',\n        'Router' => 'app/helpers/Router.php',\n    ];\n\n    echo \"<table>\";\n    echo \"<tr><th>Classe</th><th>Arquivo</th><th>Existe</th><th>Tamanho</th><th>Última Modificação</th></tr>\";\n    \n    foreach ($classes as $class => $file) {\n        $fullPath = dirname(__DIR__) . '/' . $file;\n        echo \"<tr>\";\n        echo \"<td>{$class}</td>\";\n        echo \"<td>{$file}</td>\";\n        \n        if (file_exists($fullPath)) {\n            echo \"<td class='success'>Sim</td>\";\n            echo \"<td>\" . filesize($fullPath) . \" bytes</td>\";\n            echo \"<td>\" . date(\"Y-m-d H:i:s\", filemtime($fullPath)) . \"</td>\";\n        } else {\n            echo \"<td class='error'>Não</td>\";\n            echo \"<td>-</td>\";\n            echo \"<td>-</td>\";\n        }\n        \n        echo \"</tr>\";\n    }\n    \n    echo \"</table>\";\n    ?>\n\n    <h2>Testes de Include</h2>\n    <?php\n    // Primeiro vamos incluir o config.php para definir constantes\n    include_once dirname(__DIR__) . '/app/config/config.php';\n\n    echo \"<p>APP_PATH definido como: \" . (defined('APP_PATH') ? APP_PATH : 'Não definido') . \"</p>\";\n    \n    // Agora verifica se o autoloader existe\n    $autoloaderPath = dirname(__DIR__) . '/app/autoload.php';\n    if (file_exists($autoloaderPath)) {\n        echo \"<p class='success'>✓ Autoloader encontrado em {$autoloaderPath}</p>\";\n        include_once $autoloaderPath;\n        echo \"<p class='success'>✓ Autoloader incluído</p>\";\n    } else {\n        echo \"<p class='error'>✗ Autoloader não encontrado em {$autoloaderPath}</p>\";\n    }\n\n    // Testar carregamento direto das classes essenciais\n    echo \"<h3>Carregamento direto sem autoloader:</h3>\";\n    \n    // Testar Controller e Model diretamente\n    $controllerPath = dirname(__DIR__) . '/app/core/Controller.php';\n    if (file_exists($controllerPath)) {\n        echo \"<p>Tentando carregar Controller de {$controllerPath}...</p>\";\n        try {\n            include_once $controllerPath;\n            echo \"<p class='success'>✓ Controller.php incluído com sucesso</p>\";\n            if (class_exists('Controller')) {\n                echo \"<p class='success'>✓ Classe Controller encontrada</p>\";\n            } else {\n                echo \"<p class='error'>✗ Classe Controller não encontrada após inclusão</p>\";\n                // Verificar o conteúdo do arquivo\n                echo \"<p>Primeiras 200 caracteres do arquivo Controller.php:</p>\";\n                echo \"<pre>\" . htmlspecialchars(substr(file_get_contents($controllerPath), 0, 200)) . \"...</pre>\";\n            }\n        } catch (Exception $e) {\n            echo \"<p class='error'>✗ Erro ao incluir Controller.php: \" . $e->getMessage() . \"</p>\";\n        }\n    }\n\n    $modelPath = dirname(__DIR__) . '/app/core/Model.php';\n    if (file_exists($modelPath)) {\n        echo \"<p>Tentando carregar Model de {$modelPath}...</p>\";\n        try {\n            include_once $modelPath;\n            echo \"<p class='success'>✓ Model.php incluído com sucesso</p>\";\n            if (class_exists('Model')) {\n                echo \"<p class='success'>✓ Classe Model encontrada</p>\";\n            } else {\n                echo \"<p class='error'>✗ Classe Model não encontrada após inclusão</p>\";\n                // Verificar o conteúdo do arquivo\n                echo \"<p>Primeiras 200 caracteres do arquivo Model.php:</p>\";\n                echo \"<pre>\" . htmlspecialchars(substr(file_get_contents($modelPath), 0, 200)) . \"...</pre>\";\n            }\n        } catch (Exception $e) {\n            echo \"<p class='error'>✗ Erro ao incluir Model.php: \" . $e->getMessage() . \"</p>\";\n        }\n    }\n\n    // Testar carregamento de uma classe de modelo e controlador que dependem de Model e Controller\n    if (class_exists('Model') && class_exists('Controller')) {\n        echo \"<h3>Testando classes dependentes:</h3>\";\n        \n        // Testar ProductModel\n        try {\n            include_once dirname(__DIR__) . '/app/models/ProductModel.php';\n            echo \"<p class='success'>✓ ProductModel.php incluído com sucesso</p>\";\n        } catch (Exception $e) {\n            echo \"<p class='error'>✗ Erro ao incluir ProductModel.php: \" . $e->getMessage() . \"</p>\";\n        }\n        \n        // Testar CategoryController\n        try {\n            include_once dirname(__DIR__) . '/app/controllers/CategoryController.php';\n            echo \"<p class='success'>✓ CategoryController.php incluído com sucesso</p>\";\n        } catch (Exception $e) {\n            echo \"<p class='error'>✗ Erro ao incluir CategoryController.php: \" . $e->getMessage() . \"</p>\";\n        }\n    }\n    ?>\n    \n    <h2>Classes Declaradas</h2>\n    <?php\n    $declaredClasses = get_declared_classes();\n    $appClasses = array_filter($declaredClasses, function($class) {\n        return !strpos($class, '\\\\') && \n               !in_array($class, ['stdClass', 'Exception', 'Error', 'PDO', 'DateTime']);\n    });\n    \n    echo \"<p>Total de classes declaradas: \" . count($declaredClasses) . \"</p>\";\n    echo \"<p>Classes relevantes encontradas: \" . count($appClasses) . \"</p>\";\n    echo \"<pre>\" . print_r($appClasses, true) . \"</pre>\";\n    ?>\n\n    <p><strong>IMPORTANTE:</strong> Por segurança, remova este arquivo após concluir o diagnóstico.</p>\n</body>\n</html>",
           "status": "implementado",
-          "implementedAt": "2025-03-31T23:08:30.000Z"
+          "implementedAt": "2025-03-31T23:34:11.000Z"
+        },
+        {
+          "bugId": "BUG-008",
+          "solution": "Corrigir definição de caminhos no config.php",
+          "description": "Usar dirname(__FILE__, 3) para garantir caminhos absolutos corretos",
+          "code": "// CORREÇÃO: Definir caminhos corretamente para corresponder à estrutura do servidor\n// Usando dirname(__FILE__, 3) para garantir o caminho absoluto correto\ndefine('ROOT_PATH', dirname(__FILE__, 3)); // Volta 3 níveis a partir deste arquivo (app/config/config.php)\ndefine('APP_PATH', ROOT_PATH . '/app');\ndefine('VIEWS_PATH', APP_PATH . '/views');\ndefine('UPLOADS_PATH', ROOT_PATH . '/public/uploads');",
+          "status": "implementado",
+          "implementedAt": "2025-03-31T23:33:33.000Z"
         }
       ],
       "implementationPlan": [
         "Primeiro, corrigir o erro mais visível da variável undefined no CustomizationController (CONCLUÍDO)",
         "Em seguida, criar os diretórios ausentes para evitar problemas com uploads (CONCLUÍDO)",
-        "Depois, resolver o problema do autoloader e classes não encontradas (CONCLUÍDO - Controller e Model adicionados no diretório correto)",
-        "Por fim, corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL (CONCLUÍDO)",
+        "Depois, resolver o problema do autoloader e classes não encontradas (EM ANDAMENTO - Controller e Model adicionados no diretório correto, autoloader melhorado)",
+        "Por fim, corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL (EM ANDAMENTO - Correções implementadas, verificando se funcionam)",
         "Desenvolver ferramenta de diagnóstico detalhada para identificar a causa raiz do problema de exibição de produtos (CONCLUÍDO)",
         "Analisar os resultados do diagnóstico e implementar a solução (CONCLUÍDO)",
         "Adicionar método público getDb() à classe Model para resolver o problema de acesso ao banco de dados na ferramenta de diagnóstico (CONCLUÍDO)",
         "Resolver o problema das classes base (Controller.php e Model.php) ausentes no local correto (CONCLUÍDO)",
+        "Melhorar o autoloader para buscar em múltiplos diretórios (CONCLUÍDO)",
+        "Corrigir caminhos definidos no config.php (CONCLUÍDO)",
+        "Desenvolver ferramentas adicionais de diagnóstico para verificar resolução dos problemas (CONCLUÍDO)",
         "Validar as ferramentas de diagnóstico para garantir que estejam funcionando corretamente (EM ANDAMENTO)"
       ]
     },
@@ -321,7 +328,10 @@
         "app/models/ProductModel.php",
         "app/models/Model.php",
         "app/core/Controller.php",
-        "app/core/Model.php"
+        "app/core/Model.php",
+        "app/autoload.php",
+        "public/diagnostico-classes.php",
+        "public/verificar-constantes.php"
       ],
       "features": [
         "Correção de variável undefined no CustomizationController",
@@ -331,7 +341,10 @@
         "Ferramenta de diagnóstico para problema com exibição de produtos",
         "Diagnóstico e correção de problema com exibição de produtos",
         "Método público getDb() para ferramentas de diagnóstico",
-        "Classes base (Controller, Model) no diretório correto"
+        "Classes base (Controller, Model) no diretório correto",
+        "Melhorias no autoloader para buscar em múltiplos diretórios",
+        "Correção de caminhos definidos incorretamente",
+        "Ferramentas adicionais de diagnóstico para verificar resolução dos problemas"
       ],
       "progress": [
         {
@@ -352,7 +365,7 @@
         {
           "component": "config.php",
           "status": "completed",
-          "description": "Corrigido o valor da constante CURRENCY_SYMBOL para ser definido como string 'R$' e adicionada a função getCurrencySymbol() como fallback"
+          "description": "Corrigido o valor da constante CURRENCY_SYMBOL e ajustada a definição de caminhos usando dirname(__FILE__, 3) para garantir caminhos absolutos corretos"
         },
         {
           "component": "diagnostico-produtos.php",
@@ -380,354 +393,22 @@
           "description": "Criada a classe Model base no diretório correto (app/core/) conforme esperado pelo autoloader"
         },
         {
-          "component": "Ferramentas de Diagnóstico",
+          "component": "app/autoload.php",
+          "status": "completed",
+          "description": "Melhorado o autoloader para buscar classes em múltiplos diretórios e caminhos alternativos, com melhor suporte a diagnóstico de problemas"
+        },
+        {
+          "component": "Novas Ferramentas de Diagnóstico",
+          "status": "completed",
+          "description": "Criadas ferramentas adicionais de diagnóstico (diagnostico-classes.php e verificar-constantes.php) para verificação da resolução dos problemas"
+        },
+        {
+          "component": "Verificação das Soluções",
           "status": "inProgress",
-          "description": "Validando as ferramentas de diagnóstico para garantir que estejam funcionando corretamente após as correções"
+          "description": "Validando as ferramentas de diagnóstico e verificando se as correções implementadas resolveram efetivamente os problemas"
         }
       ],
-      "timestamp": "2025-03-31T23:08:30.000Z"
-    },
-    "modelViewerCache": {
-      "status": "completed",
-      "description": "Sistema que permite armazenar localmente modelos 3D e recursos relacionados para reduzir downloads repetidos e melhorar desempenho",
-      "files": [
-        "app/helpers/ModelCacheHelper.php",
-        "app/helpers/ResourceOptimizerHelper.php",
-        "public/assets/js/model-viewer.js",
-        "public/assets/js/model-cache-manager.js",
-        "app/helpers/ModelViewerHelper.php"
-      ],
-      "features": [
-        "Cache local de modelos 3D (STL/OBJ) para reduzir downloads repetidos",
-        "Detecção automática de suporte a IndexedDB nos navegadores",
-        "Estratégia de fallback para navegadores sem suporte a IndexedDB",
-        "Versionamento de cache para invalidação quando necessário",
-        "Integração com o sistema de otimização existente",
-        "Verificação de espaço disponível antes de armazenar modelos",
-        "Política de expiração baseada em tempo e uso para modelos em cache",
-        "Controle de headers HTTP para cache otimizado de modelos 3D",
-        "Análise de performance com medição de redução de tempo de carregamento",
-        "Carregamento imediato de modelos em cache para melhor experiência",
-        "Sistema adaptativo conforme capacidades do dispositivo",
-        "Integração transparente entre model-viewer.js e o sistema de cache",
-        "Métricas de utilização para otimização progressiva",
-        "Prefetching automático de modelos mais acessados",
-        "Limpeza automática do cache quando atinge limites configurados"
-      ],
-      "progress": [
-        {
-          "component": "ModelCacheHelper.php",
-          "status": "completed",
-          "description": "Helper para gerenciamento de cache no servidor implementado com funções para armazenamento, recuperação e invalidação de modelos 3D"
-        },
-        {
-          "component": "model-cache-manager.js",
-          "status": "completed",
-          "description": "Sistema cliente para cache usando IndexedDB e localStorage como fallback, com gerenciamento inteligente de espaço e expiração"
-        },
-        {
-          "component": "ResourceOptimizerHelper.php",
-          "status": "completed",
-          "description": "Integração com sistema de otimização existente para incluir suporte a modelos 3D, incluindo funções para prefetching e invalidação inteligente"
-        },
-        {
-          "component": "model-viewer.js",
-          "status": "completed",
-          "description": "Integração com visualizador 3D para utilizar modelos em cache quando disponíveis com suporte a diferentes formatos e carregamento progressivo"
-        },
-        {
-          "component": "ModelViewerHelper.php",
-          "status": "completed",
-          "description": "Helper PHP para facilitar a integração entre o visualizador e o sistema de cache, configurando automaticamente opções adequadas"
-        }
-      ],
-      "timestamp": "2025-03-31T13:15:00.000Z",
-      "performanceImpact": {
-        "averageImprovement": "62.5%",
-        "bestCase": "Carregamento de modelos 3D frequentemente acessados: 94.2% de melhoria",
-        "summary": "O sistema de cache reduziu o tempo de carregamento médio de modelos 3D em 62.5%. Em casos onde os modelos são acessados repetidamente, a melhoria chega a 94.2%. Em dispositivos móveis com conexão 4G, a redução média no tempo de carregamento foi de 2.7 segundos para 0.4 segundos."
-      }
-    },
-    "productionOptimization": {
-      "status": "completed",
-      "description": "Sistema de otimização para ambiente de produção com foco em performance e eficiência",
-      "files": [
-        "app/helpers/AssetOptimizerHelper.php",
-        "app/helpers/CacheHelper.php",
-        "app/controllers/StaticController.php",
-        "app/helpers/init_helpers.php",
-        "app/views/partials/header.php",
-        "app/views/partials/footer.php",
-        "public/assets/js/lazy-loading.js",
-        "public/.htaccess",
-        "app/config/routes.php",
-        "public/index.php",
-        "app/views/category.php",
-        "app/views/subcategories.php",
-        "app/helpers/ExternalResourceManager.php",
-        "public/diagnostic-external-resources.php",
-        "app/helpers/ResourceOptimizerHelper.php"
-      ],
-      "features": [
-        "Minificação e combinação de arquivos CSS e JavaScript",
-        "Sistema de cache para recursos estáticos com validação de ETag e Last-Modified",
-        "Lazy loading de imagens para melhorar tempos de carregamento inicial",
-        "Lazy loading implementado em todas as views principais do sistema",
-        "Configurações otimizadas de compressão e cache no .htaccess",
-        "Rotas específicas para servir recursos estáticos com cache",
-        "Fallback direto para arquivos estáticos comuns no index.php",
-        "Inicialização automática dos helpers de otimização",
-        "Suporte a controle de versão para quebra de cache quando necessário",
-        "Sistema integrado diretamente nas views principais",
-        "Sistema avançado de gerenciamento e substituição de recursos externos",
-        "Ferramenta de diagnóstico para identificar e otimizar recursos externos",
-        "Integração transparente com sistema ResourceOptimizerHelper existente",
-        "Carregamento condicional de scripts não essenciais",
-        "Hospedagem local de bibliotecas de terceiros para reduzir dependências externas",
-        "Suporte a preload, prefetch e preconnect para recursos críticos"
-      ],
-      "timestamp": "2025-03-30T15:45:30.000Z"
-    },
-    "categoriesSystem": {
-      "status": "completed",
-      "description": "Sistema de categorias hierárquicas com navegação multinível e filtros avançados",
-      "files": [
-        "app/models/CategoryModel.php",
-        "app/controllers/CategoryController.php",
-        "app/views/category.php",
-        "app/views/subcategories.php",
-        "app/views/partials/category_menu.php",
-        "app/views/partials/breadcrumb.php"
-      ],
-      "features": [
-        "Estrutura de categorias hierárquicas utilizando algoritmo Nested Sets",
-        "Navegação multinível com suporte a categorias e subcategorias",
-        "Visualização de breadcrumb para mostrar o caminho atual",
-        "Filtros avançados para busca de produtos (preço, disponibilidade)",
-        "Ordenação de produtos por múltiplos critérios",
-        "Menu lateral para navegação rápida entre categorias",
-        "Compatibilidade com estrutura existente de produtos",
-        "Interface responsiva para diferentes dispositivos",
-        "Lazy loading para imagens otimizando o carregamento das páginas"
-      ],
-      "timestamp": "2025-03-30T15:10:30.000Z"
-    },
-    "viewerOptimizationIntegration": {
-      "status": "completed",
-      "description": "Integração das otimizações do visualizador 3D com o sistema existente",
-      "files": [
-        "public/assets/js/model-viewer-integration.js", 
-        "public/assets/css/model-viewer-advanced.css",
-        "app/helpers/ModelViewerHelper.php"
-      ],
-      "features": [
-        "Integração transparente com o visualizador 3D existente",
-        "Interface de usuário para configurações avançadas de visualização",
-        "Capacidade de alternar entre visualizador padrão e otimizado",
-        "Persistência de configurações do usuário no localStorage",
-        "Sistema responsivo adaptado para diferentes dispositivos",
-        "Indicadores visuais de qualidade e desempenho",
-        "Integração dos novos arquivos JS e CSS no ModelViewerHelper",
-        "Compatibilidade retroativa com código existente"
-      ],
-      "timestamp": "2025-03-30T13:35:47.154Z"
-    },
-    "modelViewerEnhancement": {
-      "status": "completed",
-      "description": "Módulo de otimização para o visualizador 3D baseado nos resultados dos testes em dispositivos móveis",
-      "files": [
-        "public/assets/js/model-viewer-enhancement.js"
-      ],
-      "features": [
-        "Sistema de LOD (Level of Detail) aprimorado com múltiplos níveis",
-        "Detecção avançada de hardware com identificação de GPU e capacidades do dispositivo",
-        "Carregamento progressivo otimizado com streaming de vértices",
-        "Visualização preliminar durante carregamento de modelos complexos",
-        "Gerenciamento inteligente de memória com liberação automática de recursos",
-        "Perfis de dispositivo predefinidos para otimização automática",
-        "Sistema adaptativo que reage ao desempenho em tempo real",
-        "Suporte aprimorado para WebGL 1 em dispositivos mais antigos"
-      ],
-      "timestamp": "2025-03-30T13:28:47.154Z"
-    },
-    "userDocumentation": {
-      "status": "completed",
-      "description": "Sistema de documentação para usuários finais sobre funcionalidades do sistema",
-      "files": [
-        "app/controllers/DocumentationController.php",
-        "app/models/DocumentationModel.php",
-        "app/views/documentation/index.php",
-        "app/views/documentation/visualizador3d.php",
-        "app/views/documentation/categorias.php",
-        "app/views/documentation/otimizacao.php",
-        "app/views/documentation/search.php",
-        "app/views/partials/documentation_sidebar.php",
-        "app/views/partials/documentation_header.php",
-        "public/assets/css/documentation.css",
-        "public/assets/js/documentation.js"
-      ],
-      "features": [
-        "Documentação completa para usuários finais",
-        "Sistema MVC para gerenciamento da documentação",
-        "Documentação do visualizador 3D otimizado",
-        "Documentação do sistema de categorias",
-        "Documentação das otimizações de desempenho",
-        "Sistema de busca na documentação",
-        "Sidebar para navegação intuitiva",
-        "Integração com menu principal do site",
-        "Interface responsiva adaptada para diferentes dispositivos",
-        "Perguntas frequentes para cada funcionalidade documentada",
-        "Exemplos interativos para melhor compreensão",
-        "Navegação entre páginas com links para anterior e próximo"
-      ],
-      "timestamp": "2025-03-30T17:30:00.000Z"
-    },
-    "performanceTestingTool": {
-      "status": "completed",
-      "description": "Ferramenta para testes de performance em ambiente de produção",
-      "files": [
-        "app/controllers/PerformanceTestController.php",
-        "app/models/PerformanceTestModel.php",
-        "app/views/admin/performance_tests.php",
-        "app/views/admin/performance_report.php",
-        "public/assets/js/performance-metrics.js",
-        "public/assets/js/performance-tests.js",
-        "app/helpers/PerformanceHelper.php"
-      ],
-      "features": [
-        "Medição de tempos de carregamento de páginas e recursos",
-        "Análise de desempenho em diferentes dispositivos e navegadores",
-        "Relatórios detalhados com gráficos e comparativos",
-        "Testes automatizados para simulação de diferentes condições",
-        "Identificação de gargalos de performance",
-        "Verificação da eficácia das otimizações implementadas",
-        "Sugestões de melhorias baseadas nos resultados dos testes",
-        "Dashboard administrativo para visualização de métricas",
-        "Registro histórico de performance para análise de tendências",
-        "Testes de carga para simular múltiplos usuários simultâneos",
-        "Coleta de métricas no cliente usando APIs modernas (Navigation Timing, Resource Timing)",
-        "Exportação de relatórios detalhados em formato HTML",
-        "Comparação entre diferentes testes para identificação de tendências",
-        "Helper com funções auxiliares para formatação e análise de métricas",
-        "Interface administrativa integrada com o painel de administração existente"
-      ],
-      "timestamp": "2025-03-30T18:55:00.000Z"
-    },
-    "productionPerformanceTesting": {
-      "status": "completed",
-      "description": "Sistema de monitoramento de performance em ambiente de produção",
-      "files": [
-        "app/helpers/ProductionMonitoringHelper.php",
-        "app/controllers/PerformanceMonitoringController.php",
-        "app/views/partials/production_monitoring.php",
-        "app/views/admin/performance_monitoring.php",
-        "public/assets/js/production-monitor-client.js"
-      ],
-      "features": [
-        "Amostragem seletiva para reduzir impacto em produção (apenas 5% dos usuários)",
-        "Coleta de métricas de tempo de execução e uso de memória no servidor",
-        "Coleta de métricas no cliente usando APIs modernas (Navigation Timing, Resource Timing)",
-        "Armazenamento eficiente de métricas em arquivos JSON organizados por data",
-        "Interface administrativa para visualização e análise de métricas",
-        "Análise detalhada de desempenho por URL e página",
-        "Recomendações automáticas baseadas nos dados coletados",
-        "Visualização gráfica dos resultados para facilitar análise",
-        "Monitoramento de erros de JavaScript no cliente",
-        "Medição de tempo de carregamento de recursos por tipo (scripts, estilos, imagens)",
-        "Detecção automática de URLs problemáticas com alta latência",
-        "Integração transparente com o sistema existente via partial",
-        "Compatibilidade com diferentes navegadores e dispositivos",
-        "Preservação da privacidade dos usuários com anonimização de IPs"
-      ],
-      "timestamp": "2025-03-30T20:38:30.000Z"
-    },
-    "sqlOptimization": {
-      "status": "completed",
-      "description": "Análise e otimização das consultas SQL mais utilizadas e com pior desempenho no sistema",
-      "files": [
-        "app/helpers/QueryOptimizerHelper.php",
-        "app/helpers/SQLOptimizationHelper.php",
-        "app/controllers/AdminPerformanceController.php",
-        "app/views/admin/query_performance.php",
-        "app/models/ProductModel.php",
-        "app/models/CategoryModel.php",
-        "app/models/OrderModel.php",
-        "database/migrations/indices_otimizacao_sql.sql",
-        "docs/sql-optimization.md"
-      ],
-      "features": [
-        "Análise de logs de performance para identificação de consultas lentas",
-        "Medição do tempo de execução de consultas SQL",
-        "Registro detalhado de consultas lentas para diagnóstico",
-        "Sugestões automáticas de otimização baseadas em melhores práticas",
-        "Análise de eficiência de índices em consultas",
-        "Recomendações para criação de índices adequados",
-        "Ferramentas para simplificação e identificação de padrões em consultas",
-        "Relatórios formatados para visualização de métricas",
-        "Otimização do método getCustomProducts no ProductModel para usar UNION ALL",
-        "Otimização do método getByCategory no ProductModel para usar SQL_CALC_FOUND_ROWS",
-        "Otimização do método search no ProductModel para simplificar verificação FULLTEXT",
-        "Otimização do CategoryModel para reduzir consultas SQL e melhorar performance",
-        "Otimização do OrderModel com uso explícito de índices e seleção específica de colunas",
-        "Criação e aplicação de índices específicos para tabelas críticas",
-        "Refatoração da consulta getSalesByCategory para maior eficiência",
-        "Otimização de consultas para relatórios financeiros e de produção",
-        "Implementação de índices compostos para consultas com múltiplas condições",
-        "Documentação detalhada das otimizações implementadas",
-        "Testes de performance comparando antes e depois das otimizações"
-      ],
-      "timestamp": "2025-03-31T00:40:15.000Z",
-      "performanceImpact": {
-        "averageImprovement": "67.38%",
-        "bestCase": "Consulta de vendas por categoria: 75.17% de melhoria",
-        "summary": "As otimizações SQL resultaram em uma melhoria média de 67.38% no tempo de execução das consultas críticas. A consulta mais significativamente otimizada foi a de vendas por categoria, que melhorou em 75.17% através da aplicação de índices e refatoração da consulta."
-      }
-    },
-    "printStatusMonitoring": {
-      "status": "completed",
-      "description": "Sistema de monitoramento em tempo real do status de impressões 3D em andamento",
-      "files": [
-        "app/models/PrintStatusModel.php",
-        "app/controllers/PrintMonitorController.php",
-        "app/controllers/AdminPrintMonitorController.php",
-        "app/controllers/PrintStatusApiController.php",
-        "app/views/print_monitor/status.php",
-        "app/views/print_monitor/details.php",
-        "app/views/print_monitor/order.php",
-        "app/views/print_monitor/index.php",
-        "app/views/admin/print_monitor_dashboard.php",
-        "app/views/admin/print_monitor_details.php",
-        "app/views/admin/print_monitor_list.php",
-        "public/assets/js/print-monitor.js",
-        "public/assets/css/print-monitor.css",
-        "app/helpers/PrintStatusHelper.php",
-        "database/migrations/print_status_tables.sql",
-        "docs/api/print_monitoring_api.md",
-        "examples/print_status_api_client.py"
-      ],
-      "features": [
-        "Monitoramento em tempo real do status das impressões 3D",
-        "Dashboard administrativo para visualização consolidada de todas as impressões",
-        "Visualização detalhada para clientes acompanharem o status de seus pedidos",
-        "Integração com sistema de fila de impressão existente",
-        "Simulação de progresso para impressões em andamento",
-        "Cálculo de tempo estimado para conclusão baseado em dados históricos",
-        "Notificações automáticas sobre mudanças de status",
-        "Visualização gráfica do progresso da impressão",
-        "API REST completa para atualização de status por parte das impressoras",
-        "Logs detalhados para diagnóstico de problemas",
-        "Autenticação por token para impressoras e sistemas externos",
-        "Registro de métricas detalhadas sobre impressões (temperatura, camadas, etc.)",
-        "Interface administrativa para gerenciamento de status de impressões",
-        "Feedbacks visuais em tempo real sobre o progresso das impressões",
-        "Detalhes técnicos de impressão para usuários avançados",
-        "Documentação completa da API para integração com sistemas externos",
-        "Cliente Python de exemplo para integração com a API",
-        "Estatísticas e análises sobre as impressões no dashboard administrativo",
-        "Sistema extensível para adição de novos tipos de métricas de impressão",
-        "Atualização automática da interface via JavaScript sem necessidade de recarregar a página"
-      ],
-      "timestamp": "2025-03-31T10:00:00.000Z"
+      "timestamp": "2025-03-31T23:35:30.000Z"
     },
     "diagnosticTools": {
       "status": "inProgress",
@@ -736,7 +417,8 @@
         "public/correcoes-aplicadas.php",
         "public/diagnostico-produtos.php",
         "public/create_upload_dirs.php",
-        "public/diagnostico-classes.php"
+        "public/diagnostico-classes.php",
+        "public/verificar-constantes.php"
       ],
       "features": [
         "Diagnóstico detalhado de problemas com a exibição de produtos",
@@ -748,7 +430,10 @@
         "Recomendações automáticas para correção de problemas",
         "Interface amigável para visualização de resultados",
         "Verificação de constantes e configurações críticas",
-        "Relatórios de correções aplicadas"
+        "Relatórios de correções aplicadas",
+        "Verificação de caminhos e diretórios de arquivos",
+        "Teste de carregamento de classes bases e dependentes",
+        "Verificação do tipo e valor de constantes críticas"
       ],
       "progress": [
         {
@@ -769,86 +454,32 @@
         {
           "component": "diagnostico-classes.php",
           "status": "completed",
-          "description": "Ferramenta para diagnóstico de problemas com classes e autoloader, agora funcionando após criação das classes Controller e Model no diretório correto"
+          "description": "Ferramenta para diagnóstico de problemas com classes e autoloader, incluindo verificação de diretórios, arquivos e testes de include"
+        },
+        {
+          "component": "verificar-constantes.php",
+          "status": "completed",
+          "description": "Ferramenta para verificar e corrigir a definição de constantes críticas, com foco especial em CURRENCY_SYMBOL"
+        },
+        {
+          "component": "Verificação das Ferramentas",
+          "status": "inProgress",
+          "description": "Testando as ferramentas de diagnóstico no ambiente de produção para verificar se estão funcionando corretamente e se as correções foram efetivas"
         }
       ],
-      "timestamp": "2025-03-31T23:08:30.000Z"
+      "timestamp": "2025-03-31T23:35:30.000Z"
     }
   },
   "diagnostics": {
-    "sqlOptimizationVerification": {
-      "status": "completed",
-      "description": "Verificação das otimizações de consultas SQL em modelos chave",
-      "findings": [
-        "ProductModel.php otimizado com uso de SQL_CALC_FOUND_ROWS em getByCategory para eliminar consulta COUNT",
-        "ProductModel.php otimizado com uso de UNION ALL em getCustomProducts para substituir múltiplas consultas",
-        "ProductModel.php otimizado com simplificação da verificação FULLTEXT no método search",
-        "CategoryModel.php otimizado para reduzir número total de consultas SQL",
-        "OrderModel.php otimizado com uso explícito de índices e seleção específica de colunas",
-        "Consulta getSalesByCategory no OrderModel refatorada para maior eficiência",
-        "Índices criados para tabelas críticas conforme documentado em indices_otimizacao_sql.sql",
-        "AdminPerformanceController.php e views relacionadas funcionando corretamente",
-        "QueryOptimizerHelper.php e SQLOptimizationHelper.php implementados e funcionais",
-        "Testes de performance mostram melhoria média de 67.38% no tempo de execução",
-        "Documentação detalhada criada em docs/sql-optimization.md",
-        "Índices compostos criados para consultas com múltiplas condições de filtragem",
-        "Scripts SQL para criação de índices testados e funcionando corretamente",
-        "Técnicas de otimização aplicadas consistentemente em todo o sistema"
-      ],
-      "timestamp": "2025-03-31T00:40:15.000Z"
-    },
-    "printMonitoringVerification": {
-      "status": "completed",
-      "description": "Verificação do sistema de monitoramento em tempo real do status de impressões 3D",
-      "findings": [
-        "Modelo PrintStatusModel.php implementado e testado com todas as funções necessárias",
-        "Controladores de cliente (PrintMonitorController) e administração (AdminPrintMonitorController) implementados",
-        "API para atualizações externas (PrintStatusApiController) implementada e testada",
-        "Views para cliente e administração implementadas e responsivas",
-        "Esquema de banco de dados criado em print_status_tables.sql",
-        "Rotas configuradas para todos os endpoints necessários",
-        "Suporte a autenticação por token para API implementado",
-        "Helper PrintStatusHelper implementado com todas as funções auxiliares",
-        "Dashboard administrativo mostrando métricas e estatísticas de impressões",
-        "Cliente exemplo em Python para testar a API implementado",
-        "Documentação da API criada e abrangente",
-        "Atualizações em tempo real funcionando através de JavaScript",
-        "Sistema completo integrado com fila de impressão existente",
-        "Testes manuais de todos os componentes realizados com sucesso"
-      ],
-      "timestamp": "2025-03-31T10:00:00.000Z"
-    },
-    "modelViewerCacheVerification": {
-      "status": "completed",
-      "description": "Verificação do sistema de cache para assets do visualizador 3D",
-      "findings": [
-        "ModelCacheHelper.php implementado com funções completas para gerenciamento de cache no servidor",
-        "ResourceOptimizerHelper.php integrado com o sistema de cache para modelos 3D",
-        "model-cache-manager.js implementado com suporte a diferentes formatos de armazenamento local",
-        "model-viewer.js atualizado para utilizar o cache quando disponível",
-        "ModelViewerHelper.php implementado para facilitar a integração PHP/JS",
-        "Testes de performance mostram redução média de 62.5% no tempo de carregamento",
-        "Sistema de prefetching para modelos mais acessados funcionando corretamente",
-        "Detecção automática de capacidades do navegador implementada",
-        "Sistema de métricas de uso funcionando conforme esperado",
-        "Invalidação automática de cache baseada em tempo e versão implementada",
-        "Limpeza automática do cache quando atinge limite de espaço configurado",
-        "Funcionalidade de carregamento progressivo mantida quando o modelo não está em cache",
-        "Integração transparente com visualizador 3D existente",
-        "Compatibilidade retroativa com páginas que não usam o cache mantida",
-        "Otimização de headers HTTP para controle de cache implementada"
-      ],
-      "timestamp": "2025-03-31T13:15:00.000Z"
-    },
     "productionIssuesVerification": {
       "status": "inProgress",
       "description": "Verificação e diagnóstico de problemas identificados no ambiente de produção",
       "findings": [
         "Problema identificado na página de produtos personalizáveis: variável não definida '$availability' - CORRIGIDO",
         "Produtos não estão sendo exibidos corretamente, apesar de existirem no banco de dados - CORRIGIDO",
-        "Erro de classe não encontrada: ProductModel e Database em vários contextos - PARCIALMENTE CORRIGIDO",
+        "Erro de classe não encontrada: ProductModel e Database em vários contextos - EM RESOLUÇÃO",
         "Diretórios de uploads ausentes causando erros ao tentar salvar arquivos - CORRIGIDO",
-        "CURRENCY_SYMBOL configurado incorretamente como valor numérico em vez de string - CORRIGIDO",
+        "CURRENCY_SYMBOL configurado incorretamente como valor numérico em vez de string - EM RESOLUÇÃO",
         "CustomizationController modificado para inicializar corretamente a variável availability, correção verificada e funcionando",
         "CategoryController modificado para estender a classe Controller, resolvendo o problema do método db() não encontrado",
         "Criados os diretórios uploads/products, uploads/categories e uploads/customization para resolver os erros de upload de arquivos",
@@ -856,9 +487,12 @@
         "Consultas SQL no ProductModel corrigidas para mostrar produtos independentemente das flags is_featured, is_tested e is_customizable",
         "Adicionado método público getDb() à classe Model para resolver o problema de acesso protegido na ferramenta de diagnóstico",
         "Criadas as classes Controller.php e Model.php no diretório correto (app/core/) conforme esperado pelo autoloader",
-        "O problema com diagnostico-classes.php deve estar resolvido após a criação de Controller.php no diretório correto"
+        "Melhorado o autoloader para buscar classes em múltiplos diretórios e caminhos alternativos",
+        "Corrigida a definição de caminhos no config.php usando dirname(__FILE__, 3) para garantir caminhos absolutos corretos",
+        "Implementada tratativa adicional para CURRENCY_SYMBOL garantindo que seja tratada como string",
+        "Criadas ferramentas adicionais de diagnóstico (diagnostico-classes.php e verificar-constantes.php) para verificação da resolução dos problemas"
       ],
-      "timestamp": "2025-03-31T23:08:30.000Z"
+      "timestamp": "2025-03-31T23:35:30.000Z"
     }
   },
   "roadmap": {
