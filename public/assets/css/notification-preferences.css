@@ -1,0 +1,110 @@
+/**
+ * Estilos para a página de preferências de notificação
+ */
+
+.notification-card {
+    transition: all 0.3s ease;
+}
+
+.notification-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.notification-toggle:checked + .form-check-label {
+    color: #0d6efd;
+    font-weight: 600;
+}
+
+.notification-category {
+    border-left: 4px solid #0d6efd;
+}
+
+.notification-critical {
+    border-left: 4px solid #dc3545;
+}
+
+.channel-icon {
+    font-size: 1.5rem;
+    color: #6c757d;
+    transition: color 0.3s ease;
+}
+
+.notification-toggle:checked ~ .channel-icon {
+    color: #0d6efd;
+}
+
+.frequency-select {
+    transition: opacity 0.3s ease;
+}
+
+.frequency-select:disabled {
+    opacity: 0.6;
+}
+
+/* Estilo para o toast de notificação */
+.toast-notification {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1050;
+    min-width: 250px;
+}
+
+/* Estilos para dispositivos móveis */
+@media (max-width: 767.98px) {
+    .notification-card {
+        margin-bottom: 1rem;
+    }
+    
+    .channel-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .channel-icon {
+        margin-right: 0.5rem;
+    }
+}
+
+/* Animação para toggles */
+.form-check-input {
+    transition: background-color 0.15s ease-in-out, background-position 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+/* Estilo para notificações críticas */
+.critical-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    margin-left: 5px;
+    background-color: #dc3545;
+    color: white;
+    border-radius: 10px;
+}
+
+/* Tooltip personalizado */
+.custom-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.custom-tooltip .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -100px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.custom-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
