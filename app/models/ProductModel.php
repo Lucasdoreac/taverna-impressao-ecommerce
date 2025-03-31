@@ -22,6 +22,9 @@ class ProductModel extends Model {
      */
     public function getFeatured($limit = 8) {
         try {
+            // Adicionar log de diagnóstico
+            error_log("ProductModel::getFeatured - Iniciando busca de produtos em destaque (limit: $limit)");
+            
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, 
                            pi.image, 
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
@@ -31,7 +34,12 @@ class ProductModel extends Model {
                     ORDER BY p.is_tested DESC, p.created_at DESC
                     LIMIT :limit";
             
-            return $this->db()->select($sql, ['limit' => $limit]);
+            $result = $this->db()->select($sql, ['limit' => $limit]);
+            
+            // Adicionar log com o resultado
+            error_log("ProductModel::getFeatured - Encontrados " . count($result) . " produtos em destaque");
+            
+            return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos em destaque: " . $e->getMessage());
             return [];
@@ -46,6 +54,9 @@ class ProductModel extends Model {
      */
     public function getTestedProducts($limit = 12) {
         try {
+            // Adicionar log de diagnóstico
+            error_log("ProductModel::getTestedProducts - Iniciando busca de produtos testados (limit: $limit)");
+            
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
                            pi.image,
                            'Pronta Entrega' as availability
@@ -55,7 +66,12 @@ class ProductModel extends Model {
                     ORDER BY p.created_at DESC
                     LIMIT :limit";
             
-            return $this->db()->select($sql, ['limit' => $limit]);
+            $result = $this->db()->select($sql, ['limit' => $limit]);
+            
+            // Adicionar log com o resultado
+            error_log("ProductModel::getTestedProducts - Encontrados " . count($result) . " produtos testados");
+            
+            return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos testados: " . $e->getMessage());
             return [];
@@ -70,6 +86,9 @@ class ProductModel extends Model {
      */
     public function getCustomProducts($limit = 12) {
         try {
+            // Adicionar log de diagnóstico
+            error_log("ProductModel::getCustomProducts - Iniciando busca de produtos sob encomenda (limit: $limit)");
+            
             // Otimização: Usar UNION ALL para combinar as consultas em vez de fazer duas separadas e combinar no PHP
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.created_at,
                           pi.image,
@@ -90,7 +109,12 @@ class ProductModel extends Model {
                    ORDER BY created_at DESC
                    LIMIT :limit";
             
-            return $this->db()->select($sql, ['limit' => $limit]);
+            $result = $this->db()->select($sql, ['limit' => $limit]);
+            
+            // Adicionar log com o resultado
+            error_log("ProductModel::getCustomProducts - Encontrados " . count($result) . " produtos sob encomenda");
+            
+            return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos sob encomenda: " . $e->getMessage());
             return [];
@@ -110,6 +134,10 @@ class ProductModel extends Model {
      */
     public function paginate($page = 1, $limit = 10, $conditions = '1=1', $params = [], $availability = 'all', $orderBy = "created_at DESC") {
         try {
+            error_log("ProductModel::paginate - Iniciando paginação (page: $page, limit: $limit, availability: $availability)");
+            error_log("ProductModel::paginate - Condições: $conditions");
+            error_log("ProductModel::paginate - Parâmetros: " . json_encode($params));
+            
             $offset = ($page - 1) * $limit;
             
             // Filtro de disponibilidade
@@ -127,6 +155,8 @@ class ProductModel extends Model {
             $countResult = $this->db()->select($countSql, $params);
             $total = isset($countResult[0]['total']) ? $countResult[0]['total'] : 0;
             
+            error_log("ProductModel::paginate - Total de registros encontrados: $total");
+            
             // Buscar registros paginados com imagens e dados de disponibilidade
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
                            pi.image,
@@ -140,6 +170,8 @@ class ProductModel extends Model {
             $queryParams = array_merge($params, ['offset' => $offset, 'limit' => $limit]);
             $items = $this->db()->select($sql, $queryParams);
             
+            error_log("ProductModel::paginate - Encontrados " . count($items) . " itens para a página atual");
+            
             return [
                 'items' => $items,
                 'total' => $total,
@@ -152,6 +184,7 @@ class ProductModel extends Model {
             ];
         } catch (Exception $e) {
             error_log("Erro na paginação de produtos: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [
                 'items' => [],
                 'total' => 0,
@@ -176,6 +209,8 @@ class ProductModel extends Model {
      */
     public function getByCategory($categoryId, $page = 1, $limit = 12, $availability = 'all') {
         try {
+            error_log("ProductModel::getByCategory - Iniciando busca por categoria (categoryId: $categoryId, page: $page, limit: $limit, availability: $availability)");
+            
             $offset = ($page - 1) * $limit;
             $params = ['category_id' => $categoryId];
             
@@ -202,10 +237,14 @@ class ProductModel extends Model {
             $params['limit'] = $limit;
             
             $items = $this->db()->select($sql, $params);
+            error_log("ProductModel::getByCategory - SQL executado: " . str_replace(array("\r", "\n"), ' ', $sql));
+            error_log("ProductModel::getByCategory - Parâmetros: " . json_encode($params));
+            error_log("ProductModel::getByCategory - Encontrados " . count($items) . " itens para a página atual");
             
             // Obter o total de registros encontrados
             $totalResult = $this->db()->select("SELECT FOUND_ROWS() as total");
             $total = isset($totalResult[0]['total']) ? $totalResult[0]['total'] : 0;
+            error_log("ProductModel::getByCategory - Total de registros encontrados: $total");
             
             return [
                 'items' => $items,
@@ -217,6 +256,7 @@ class ProductModel extends Model {
             ];
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos por categoria: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [
                 'items' => [],
                 'total' => 0,
@@ -236,6 +276,8 @@ class ProductModel extends Model {
      */
     public function getBySlug($slug) {
         try {
+            error_log("ProductModel::getBySlug - Iniciando busca por slug: $slug");
+            
             $sql = "SELECT p.id, p.name, p.slug, p.description, p.short_description, 
                            p.price, p.sale_price, p.stock, p.dimensions, p.sku, 
                            p.is_featured, p.is_active, p.is_customizable, 
@@ -246,13 +288,19 @@ class ProductModel extends Model {
                     LEFT JOIN categories c ON p.category_id = c.id
                     WHERE p.slug = :slug AND p.is_active = 1";
             
+            error_log("ProductModel::getBySlug - SQL: " . str_replace(array("\r", "\n"), ' ', $sql));
+            
             $result = $this->db()->select($sql, ['slug' => $slug]);
             
+            error_log("ProductModel::getBySlug - Resultado da consulta: " . json_encode(!empty($result) ? ['count' => count($result), 'first_id' => $result[0]['id']] : []));
+            
             if (empty($result)) {
+                error_log("ProductModel::getBySlug - Produto não encontrado para slug: $slug");
                 return null;
             }
             
             $product = $result[0];
+            error_log("ProductModel::getBySlug - Produto encontrado, ID: " . $product['id']);
             
             // Definir disponibilidade
             $product['availability'] = (isset($product['is_tested']) && $product['is_tested'] && $product['stock'] > 0) ? 'Pronta Entrega' : 'Sob Encomenda';
@@ -264,9 +312,12 @@ class ProductModel extends Model {
                         FROM product_images 
                         WHERE product_id = :id 
                         ORDER BY is_main DESC, display_order ASC";
+                error_log("ProductModel::getBySlug - Buscando imagens para produto ID: " . $product['id']);
                 $product['images'] = $this->db()->select($sql, ['id' => $product['id']]);
+                error_log("ProductModel::getBySlug - Imagens encontradas: " . count($product['images']));
             } catch (Exception $e) {
                 error_log("Erro ao buscar imagens do produto: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
                 $product['images'] = [];
             }
             
@@ -276,26 +327,37 @@ class ProductModel extends Model {
                     $sql = "SELECT id, product_id, name, description, required, type, options_json  
                             FROM customization_options 
                             WHERE product_id = :id";
+                    error_log("ProductModel::getBySlug - Buscando opções de personalização para produto ID: " . $product['id']);
                     $product['customization_options'] = $this->db()->select($sql, ['id' => $product['id']]);
+                    error_log("ProductModel::getBySlug - Opções de personalização encontradas: " . count($product['customization_options']));
                 } catch (Exception $e) {
                     error_log("Erro ao buscar opções de personalização: " . $e->getMessage());
+                    error_log("Stack trace: " . $e->getTraceAsString());
                     $product['customization_options'] = [];
                 }
             }
             
             // Obter cores de filamento disponíveis para este tipo de produto
             try {
+                error_log("ProductModel::getBySlug - Tentando obter instância de FilamentModel");
                 $filamentModel = new FilamentModel();
+                error_log("ProductModel::getBySlug - FilamentModel instanciado com sucesso");
+                
                 $filamentType = isset($product['filament_type']) ? $product['filament_type'] : 'PLA';
+                error_log("ProductModel::getBySlug - Buscando cores de filamento para tipo: $filamentType");
+                
                 $product['filament_colors'] = $filamentModel->getColors($filamentType);
+                error_log("ProductModel::getBySlug - Cores de filamento encontradas: " . count($product['filament_colors']));
             } catch (Exception $e) {
                 error_log("Erro ao buscar cores de filamento: " . $e->getMessage());
+                error_log("Stack trace: " . $e->getTraceAsString());
                 $product['filament_colors'] = [];
             }
             
             return $product;
         } catch (Exception $e) {
             error_log("Erro ao buscar produto por slug: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return null;
         }
     }
@@ -332,6 +394,8 @@ class ProductModel extends Model {
      */
     public function search($query, $page = 1, $limit = 12, $availability = 'all') {
         try {
+            error_log("ProductModel::search - Iniciando busca por termo: $query (page: $page, limit: $limit, availability: $availability)");
+            
             $offset = ($page - 1) * $limit;
             $searchTerm = "%{$query}%";
             $params = ['term' => $searchTerm, 'termExact' => $query];
@@ -346,6 +410,7 @@ class ProductModel extends Model {
             
             // Verificar se temos um índice FULLTEXT
             $hasFulltext = $this->hasFulltextIndex();
+            error_log("ProductModel::search - Índice FULLTEXT disponível: " . ($hasFulltext ? "Sim" : "Não"));
             
             // Buscar produtos com SQL_CALC_FOUND_ROWS para eliminar a consulta COUNT separada
             if ($hasFulltext) {
@@ -378,11 +443,16 @@ class ProductModel extends Model {
             $params['offset'] = $offset;
             $params['limit'] = $limit;
             
+            error_log("ProductModel::search - SQL: " . str_replace(array("\r", "\n"), ' ', $sql));
+            error_log("ProductModel::search - Parâmetros: " . json_encode($params));
+            
             $items = $this->db()->select($sql, $params);
+            error_log("ProductModel::search - Itens encontrados: " . count($items));
             
             // Obter o total de registros encontrados
             $totalResult = $this->db()->select("SELECT FOUND_ROWS() as total");
             $total = isset($totalResult[0]['total']) ? $totalResult[0]['total'] : 0;
+            error_log("ProductModel::search - Total de registros encontrados: $total");
             
             return [
                 'items' => $items,
@@ -395,6 +465,7 @@ class ProductModel extends Model {
             ];
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [
                 'items' => [],
                 'total' => 0,
@@ -417,6 +488,8 @@ class ProductModel extends Model {
      */
     public function getRelated($productId, $categoryId, $limit = 4) {
         try {
+            error_log("ProductModel::getRelated - Iniciando busca de produtos relacionados (productId: $productId, categoryId: $categoryId, limit: $limit)");
+            
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
                           pi.image,
                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
@@ -433,15 +506,20 @@ class ProductModel extends Model {
                 'limit' => $limit * 2 // Buscar mais produtos para escolher aleatoriamente
             ]);
             
+            error_log("ProductModel::getRelated - Produtos relacionados encontrados (pré-filtro): " . count($result));
+            
             // Selecionar aleatoriamente alguns dos produtos encontrados
             if (count($result) > $limit) {
                 shuffle($result);
                 $result = array_slice($result, 0, $limit);
             }
             
+            error_log("ProductModel::getRelated - Produtos relacionados retornados: " . count($result));
+            
             return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos relacionados: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -527,6 +605,8 @@ class ProductModel extends Model {
      */
     public function getCustomizableProducts($limit = 12) {
         try {
+            error_log("ProductModel::getCustomizableProducts - Iniciando busca de produtos personalizáveis (limit: $limit)");
+            
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
                            pi.image,
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
@@ -536,9 +616,13 @@ class ProductModel extends Model {
                     ORDER BY p.is_tested DESC, p.created_at DESC
                     LIMIT :limit";
             
-            return $this->db()->select($sql, ['limit' => $limit]);
+            $result = $this->db()->select($sql, ['limit' => $limit]);
+            error_log("ProductModel::getCustomizableProducts - Produtos personalizáveis encontrados: " . count($result));
+            
+            return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos personalizáveis: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
