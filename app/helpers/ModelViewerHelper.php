@@ -21,6 +21,9 @@ class ModelViewerHelper {
         <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.min.js"></script>
         <script src="' . BASE_URL . 'assets/js/model-viewer.js"></script>
+        <!-- Gerenciador de cache de modelos 3D -->
+        <script src="' . BASE_URL . 'assets/js/model-cache-manager.js"></script>
+        <script src="' . BASE_URL . 'assets/js/model-viewer-cache-integration.js"></script>
         <link rel="stylesheet" href="' . BASE_URL . 'assets/css/model-viewer.css">
         ';
         
@@ -65,7 +68,8 @@ class ModelViewerHelper {
             'optimizeForMobile' => true,
             'progressiveLoading' => true,
             'adaptiveQuality' => true,
-            'showAdvancedOptions' => true
+            'showAdvancedOptions' => true,
+            'useCache' => true
         ];
         
         // Mesclar opções fornecidas com padrões
@@ -108,9 +112,12 @@ class ModelViewerHelper {
             $containerStyle .= "background-color: {$options['backgroundColor']};";
         }
         
+        // Adicionar atributo para integração com cache, se habilitado
+        $dataCacheAttr = $options['useCache'] ? " data-use-cache=\"true\"" : "";
+        
         $containerHtml = "<div id=\"{$id}\" class=\"{$options['class']}\"" . 
                          (!empty($containerStyle) ? " style=\"{$containerStyle}\"" : "") . 
-                         "></div>";
+                         $dataCacheAttr . "></div>";
         
         // Gerar código JavaScript para inicializar o visualizador
         if ($useOptimizedViewer) {
@@ -135,8 +142,14 @@ class ModelViewerHelper {
                         optimizeForMobile: " . ($options['optimizeForMobile'] ? 'true' : 'false') . ",
                         progressiveLoading: " . ($options['progressiveLoading'] ? 'true' : 'false') . ",
                         adaptiveQuality: " . ($options['adaptiveQuality'] ? 'true' : 'false') . ",
-                        showAdvancedOptions: " . ($options['showAdvancedOptions'] ? 'true' : 'false') . "
+                        showAdvancedOptions: " . ($options['showAdvancedOptions'] ? 'true' : 'false') . ",
+                        useCache: " . ($options['useCache'] ? 'true' : 'false') . "
                     });
+                    
+                    // Conectar ao gerenciador de cache se disponível
+                    if (window.modelCacheManager && " . ($options['useCache'] ? 'true' : 'false') . ") {
+                        viewer.setCacheManager(window.modelCacheManager);
+                    }
                 } else {
                     // Fallback para o visualizador padrão
                     console.warn('Visualizador otimizado não encontrado. Usando visualizador padrão.');
@@ -163,6 +176,18 @@ class ModelViewerHelper {
                             window.modelViewers = {};
                         }
                         window.modelViewers['{$id}'] = viewer;
+                        
+                        // Conectar ao gerenciador de cache se disponível
+                        if (window.modelCacheManager && " . ($options['useCache'] ? 'true' : 'false') . ") {
+                            viewer.setCacheManager(window.modelCacheManager);
+                            
+                            // Extrair ID do modelo da URL, se presente
+                            const url = new URL('{$filePath}', window.location.href);
+                            const modelId = url.searchParams.get('id');
+                            if (modelId) {
+                                viewer.setModelId(modelId);
+                            }
+                        }
                     } else {
                         console.error('ModelViewer não está definido. Verifique se o script model-viewer.js foi carregado corretamente.');
                     }
@@ -199,6 +224,18 @@ class ModelViewerHelper {
                         window.modelViewers = {};
                     }
                     window.modelViewers['{$id}'] = viewer;
+                    
+                    // Conectar ao gerenciador de cache se disponível
+                    if (window.modelCacheManager && " . ($options['useCache'] ? 'true' : 'false') . ") {
+                        viewer.setCacheManager(window.modelCacheManager);
+                        
+                        // Extrair ID do modelo da URL, se presente
+                        const url = new URL('{$filePath}', window.location.href);
+                        const modelId = url.searchParams.get('id');
+                        if (modelId) {
+                            viewer.setModelId(modelId);
+                        }
+                    }
                 } else {
                     console.error('ModelViewer não está definido. Verifique se o script model-viewer.js foi carregado corretamente.');
                 }
@@ -228,6 +265,18 @@ class ModelViewerHelper {
         // Construir caminho para o arquivo
         $filePath = BASE_URL . 'uploads/3d_models/' . $model['file_name'];
         
+        // Gerar ID de cache para o modelo, se suportado
+        if (class_exists('ResourceOptimizerHelper') && class_exists('ModelCacheHelper')) {
+            $fullPath = ROOT_PATH . '/public/uploads/3d_models/' . $model['file_name'];
+            if (file_exists($fullPath)) {
+                $modelId = ModelCacheHelper::generateModelId($fullPath);
+                if ($modelId) {
+                    // Adicionar parâmetros de cache à URL
+                    $filePath .= '?id=' . $modelId . '&v=' . ModelCacheHelper::getVersion();
+                }
+            }
+        }
+        
         // Opções padrão específicas para modelos de cliente
         $defaultOptions = [
             'height' => '350px',
@@ -239,7 +288,8 @@ class ModelViewerHelper {
             'optimizeForMobile' => true,
             'progressiveLoading' => true,
             'adaptiveQuality' => true,
-            'showAdvancedOptions' => true
+            'showAdvancedOptions' => true,
+            'useCache' => true
         ];
         
         // Mesclar com opções fornecidas
@@ -272,8 +322,28 @@ class ModelViewerHelper {
             return '<div class="alert alert-warning">Formato de arquivo não suportado para visualização 3D.</div>';
         }
         
-        // Construir caminho para o arquivo
-        $filePath = BASE_URL . 'uploads/products/models/' . $product['model_file'];
+        // Construir caminho base para o arquivo
+        $baseFilePath = 'uploads/products/models/' . $product['model_file'];
+        $fullPath = ROOT_PATH . '/public/' . $baseFilePath;
+        $filePath = BASE_URL . $baseFilePath;
+        
+        // Otimizar URL para cache, se disponível
+        if (class_exists('ResourceOptimizerHelper') && class_exists('ModelCacheHelper')) {
+            // Verificar se o arquivo existe
+            if (file_exists($fullPath)) {
+                // Gerar ID de cache para o modelo
+                $modelId = ModelCacheHelper::generateModelId($fullPath);
+                if ($modelId) {
+                    // Adicionar parâmetros de cache à URL
+                    $filePath .= '?id=' . $modelId . '&v=' . ModelCacheHelper::getVersion();
+                    
+                    // Adicionar ao cache do servidor se ainda não estiver em cache
+                    if (!ModelCacheHelper::isModelCached($modelId)) {
+                        ModelCacheHelper::cacheModel($fullPath, $modelId);
+                    }
+                }
+            }
+        }
         
         // Opções padrão específicas para produtos
         $defaultOptions = [
@@ -287,7 +357,8 @@ class ModelViewerHelper {
             'optimizeForMobile' => true,
             'progressiveLoading' => true,
             'adaptiveQuality' => true,
-            'showAdvancedOptions' => true
+            'showAdvancedOptions' => true,
+            'useCache' => true
         ];
         
         // Mesclar com opções fornecidas
@@ -407,6 +478,56 @@ class ModelViewerHelper {
             // Adicionar toggle ao carregar a página (apenas em desenvolvimento)
             window.addEventListener("DOMContentLoaded", addOptimizationToggle);
         })();
+        </script>
+        ';
+    }
+    
+    /**
+     * Retorna código para inicializar o sistema de cache de modelos 3D
+     * 
+     * @param array $options Opções para o sistema de cache
+     * @return string Código JavaScript
+     */
+    public static function getModelCacheScript($options = []) {
+        // Opções padrão
+        $defaultOptions = [
+            'debug' => false,
+            'maxCacheSize' => 50 * 1024 * 1024, // 50MB
+            'maxEntries' => 100,
+            'expirationTime' => 30 * 24 * 60 * 60 * 1000, // 30 dias em ms
+            'version' => '1.0.0'
+        ];
+        
+        // Atualizar versão se a classe ModelCacheHelper estiver disponível
+        if (class_exists('ModelCacheHelper')) {
+            $defaultOptions['version'] = ModelCacheHelper::getVersion();
+        }
+        
+        // Mesclar opções
+        $options = array_merge($defaultOptions, $options);
+        
+        // Converter opções para JSON
+        $optionsJson = json_encode($options);
+        
+        return '
+        <script>
+        // Inicialização do sistema de cache de modelos 3D
+        document.addEventListener("DOMContentLoaded", function() {
+            // Verificar suporte a cache no navegador
+            const indexedDBSupported = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+            
+            if (indexedDBSupported || window.localStorage) {
+                // Criar instância do gerenciador de cache
+                window.modelCacheManager = new ModelCacheManager(' . $optionsJson . ');
+                
+                // Informações de depuração
+                if (' . ($options['debug'] ? 'true' : 'false') . ') {
+                    window.modelCacheManager.getCacheStats().then(stats => {
+                        console.log("ModelCacheManager: Cache inicializado", stats);
+                    });
+                }
+            }
+        });
         </script>
         ';
     }
