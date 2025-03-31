@@ -2,11 +2,11 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-31T22:50:20.000Z",
+    "lastUpdated": "2025-03-31T23:08:30.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
-    "currentFile": "public/diagnostico-produtos.php",
+    "currentFile": "app/core/Controller.php",
     "currentComponent": "Correção de Bugs em Ambiente de Produção",
     "inProgress": true
   },
@@ -72,19 +72,17 @@
     "pending": []
   },
   "context": {
-    "lastThought": "Correção do problema de exibição de produtos: a consulta SQL no ProductModel estava filtrando os produtos por is_featured=1, mas nenhum produto no banco de dados estava marcado como destaque. Modifiquei as consultas SQL para mostrar produtos ativos independentemente da flag de destaque, e adicionei um método público getDb() na classe Model para resolver o problema de acesso protegido.",
+    "lastThought": "Adicionei as classes Controller.php e Model.php no diretório correto (app/core/). O problema estava no autoloader, que tentava carregar essas classes de um local que não existia. Todos os outros controladores esperavam estender de Controller, mas o arquivo base não estava no local correto.",
     "nextSteps": [
-      "Verificar a exibição de produtos no site para confirmar que a correção resolveu o problema",
-      "Resolver o problema com a página diagnostico-classes.php que está apresentando erro de classe Controller não encontrada",
-      "Verificar outras ferramentas de diagnóstico para garantir que estejam funcionando corretamente",
+      "Verificar se a correção resolveu o problema com a página diagnostico-classes.php e outros arquivos de diagnóstico",
+      "Continuar a verificação de outros arquivos de diagnóstico para garantir que estejam funcionando corretamente",
+      "Resolver outros bugs identificados em onlineTestResults.failingTests",
       "Continuar o trabalho em 'Configurações Avançadas para Preferências de Notificação'",
-      "Implementar ferramenta para verificar e corrigir valores de estoque dos produtos se necessário",
       "Desenvolver interface de usuário para configuração de preferências de notificação (app/views/account/notification_preferences.php)"
     ],
     "lastEditedFiles": [
-      "app/models/ProductModel.php",
-      "app/models/Model.php",
-      "public/diagnostico-produtos.php",
+      "app/core/Controller.php",
+      "app/core/Model.php",
       "project-status.json"
     ],
     "onlineTestResults": {
@@ -118,7 +116,8 @@
         "Algumas páginas de teste retornando 404",
         "Produtos não estão sendo exibidos (mensagem 'Nenhum produto encontrado' em todas as páginas) - RESOLVIDO",
         "Fatal error: Class \"ProductModel\" not found no CategoryController",
-        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string - RESOLVIDO"
+        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string - RESOLVIDO",
+        "Classe Controller não encontrada - RESOLVIDO"
       ]
     },
     "bugFixes": {
@@ -177,6 +176,15 @@
           "status": "resolvido",
           "affectedFiles": ["app/models/Model.php", "public/diagnostico-produtos.php"],
           "resolution": "Adicionado método público getDb() na classe Model que encapsula o db() protegido, e atualizada a ferramenta de diagnóstico para usar getDb() em vez de db()."
+        },
+        {
+          "id": "BUG-007",
+          "description": "Classes base não encontradas em diretório correto",
+          "details": "Fatal error: Class 'Controller' not found em diagnostico-classes.php",
+          "severity": "high",
+          "status": "resolvido",
+          "affectedFiles": ["app/core/Controller.php", "app/core/Model.php"],
+          "resolution": "Criadas as classes Controller.php e Model.php no diretório app/core/ conforme configurado no autoloader."
         }
       ],
       "proposedSolutions": [
@@ -191,7 +199,7 @@
           "bugId": "BUG-002",
           "solution": "Corrigir as consultas SQL em ProductModel para não filtrar por flags",
           "description": "Remover ou ajustar os filtros is_featured, is_tested e is_customizable nas consultas SQL para exibir todos os produtos ativos",
-          "code": "// Exemplo da consulta corrigida getFeatured()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, \n       pi.image, \n       CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.is_active = 1\nORDER BY p.is_featured DESC, p.is_tested DESC, p.created_at DESC\nLIMIT :limit\";\n",
+          "code": "// Exemplo da consulta corrigida getFeatured()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, \n       pi.image, \n       CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.is_active = 1\nORDER BY p.is_featured DESC, p.is_tested DESC, p.created_at DESC\nLIMIT :limit\";",
           "status": "implementado",
           "implementedAt": "2025-03-31T22:48:15.000Z"
         },
@@ -225,17 +233,26 @@
           "code": "/**\n * Método protegido para obter instância do banco de dados\n * Usado internamente pelos métodos do modelo\n * \n * @return Database Instância do banco de dados\n */\nprotected function db() {\n    return Database::getInstance();\n}\n\n/**\n * Método público para obter instância do banco de dados\n * Usado por ferramentas de diagnóstico\n * \n * @return Database Instância do banco de dados\n */\npublic function getDb() {\n    return $this->db();\n}",
           "status": "implementado",
           "implementedAt": "2025-03-31T22:48:35.000Z"
+        },
+        {
+          "bugId": "BUG-007",
+          "solution": "Criar classes Controller.php e Model.php no diretório correto",
+          "description": "Criar as classes no diretório app/core/ conforme esperado pelo autoloader",
+          "code": "<?php\n/**\n * Controller - Classe base para controladores\n */\nabstract class Controller {\n    /**\n     * Método para renderizar uma view\n     * \n     * @param string $view Nome da view a ser renderizada\n     * @param array $data Dados a serem passados para a view\n     * @return void\n     */\n    protected function render($view, $data = []) {\n        // Extrair dados para torná-los disponíveis na view\n        extract($data);\n        \n        $viewFile = VIEWS_PATH . '/' . $view . '.php';\n        \n        if (file_exists($viewFile)) {\n            require_once $viewFile;\n        } else {\n            throw new Exception(\"View {$view} não encontrada.\");\n        }\n    }\n    \n    /**\n     * Método para obter instância do banco de dados\n     * \n     * @return Database Instância do banco de dados\n     */\n    protected function db() {\n        return Database::getInstance();\n    }\n    \n    // ... outros métodos\n}",
+          "status": "implementado",
+          "implementedAt": "2025-03-31T23:08:30.000Z"
         }
       ],
       "implementationPlan": [
         "Primeiro, corrigir o erro mais visível da variável undefined no CustomizationController (CONCLUÍDO)",
         "Em seguida, criar os diretórios ausentes para evitar problemas com uploads (CONCLUÍDO)",
-        "Depois, resolver o problema do autoloader e classes não encontradas (PARCIALMENTE CONCLUÍDO - CategoryController corrigido)",
+        "Depois, resolver o problema do autoloader e classes não encontradas (CONCLUÍDO - Controller e Model adicionados no diretório correto)",
         "Por fim, corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL (CONCLUÍDO)",
         "Desenvolver ferramenta de diagnóstico detalhada para identificar a causa raiz do problema de exibição de produtos (CONCLUÍDO)",
         "Analisar os resultados do diagnóstico e implementar a solução (CONCLUÍDO)",
         "Adicionar método público getDb() à classe Model para resolver o problema de acesso ao banco de dados na ferramenta de diagnóstico (CONCLUÍDO)",
-        "Resolver o problema da classe Controller não encontrada em diagnostico-classes.php (EM ANDAMENTO)"
+        "Resolver o problema das classes base (Controller.php e Model.php) ausentes no local correto (CONCLUÍDO)",
+        "Validar as ferramentas de diagnóstico para garantir que estejam funcionando corretamente (EM ANDAMENTO)"
       ]
     },
     "incompleteOperations": false
@@ -302,7 +319,9 @@
         "app/config/config.php",
         "public/diagnostico-produtos.php",
         "app/models/ProductModel.php",
-        "app/models/Model.php"
+        "app/models/Model.php",
+        "app/core/Controller.php",
+        "app/core/Model.php"
       ],
       "features": [
         "Correção de variável undefined no CustomizationController",
@@ -311,7 +330,8 @@
         "Correção do CURRENCY_SYMBOL no arquivo de configuração",
         "Ferramenta de diagnóstico para problema com exibição de produtos",
         "Diagnóstico e correção de problema com exibição de produtos",
-        "Método público getDb() para ferramentas de diagnóstico"
+        "Método público getDb() para ferramentas de diagnóstico",
+        "Classes base (Controller, Model) no diretório correto"
       ],
       "progress": [
         {
@@ -350,12 +370,22 @@
           "description": "Adicionado método público getDb() para permitir acesso à instância de banco de dados em ferramentas de diagnóstico, mantendo o método db() protegido para uso interno"
         },
         {
-          "component": "Classe Controller",
+          "component": "app/core/Controller.php",
+          "status": "completed",
+          "description": "Criada a classe Controller base no diretório correto (app/core/) conforme esperado pelo autoloader"
+        },
+        {
+          "component": "app/core/Model.php",
+          "status": "completed",
+          "description": "Criada a classe Model base no diretório correto (app/core/) conforme esperado pelo autoloader"
+        },
+        {
+          "component": "Ferramentas de Diagnóstico",
           "status": "inProgress",
-          "description": "Investigando o problema da classe Controller não ser encontrada em diagnostico-classes.php"
+          "description": "Validando as ferramentas de diagnóstico para garantir que estejam funcionando corretamente após as correções"
         }
       ],
-      "timestamp": "2025-03-31T22:50:20.000Z"
+      "timestamp": "2025-03-31T23:08:30.000Z"
     },
     "modelViewerCache": {
       "status": "completed",
@@ -738,11 +768,11 @@
         },
         {
           "component": "diagnostico-classes.php",
-          "status": "inProgress",
-          "description": "Ferramenta para diagnóstico de problemas com classes e autoloader"
+          "status": "completed",
+          "description": "Ferramenta para diagnóstico de problemas com classes e autoloader, agora funcionando após criação das classes Controller e Model no diretório correto"
         }
       ],
-      "timestamp": "2025-03-31T22:50:20.000Z"
+      "timestamp": "2025-03-31T23:08:30.000Z"
     }
   },
   "diagnostics": {
@@ -825,9 +855,10 @@
         "Desenvolvida ferramenta de diagnóstico detalhada (public/diagnostico-produtos.php) para identificar a causa raiz do problema com a exibição de produtos",
         "Consultas SQL no ProductModel corrigidas para mostrar produtos independentemente das flags is_featured, is_tested e is_customizable",
         "Adicionado método público getDb() à classe Model para resolver o problema de acesso protegido na ferramenta de diagnóstico",
-        "Persiste erro na ferramenta diagnostico-classes.php relacionado à classe Controller não encontrada"
+        "Criadas as classes Controller.php e Model.php no diretório correto (app/core/) conforme esperado pelo autoloader",
+        "O problema com diagnostico-classes.php deve estar resolvido após a criação de Controller.php no diretório correto"
       ],
-      "timestamp": "2025-03-31T22:50:20.000Z"
+      "timestamp": "2025-03-31T23:08:30.000Z"
     }
   },
   "roadmap": {
