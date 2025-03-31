@@ -1,26 +1,20 @@
 <?php
 // Ponto de entrada da aplicação
 define('START_TIME', microtime(true));
+
+// Carregar configurações
 require_once __DIR__ . '/../app/config/config.php';
-require_once __DIR__ . '/../app/helpers/Database.php'; // Carregar explicitamente Database.php
+
+// CORREÇÃO: Carregar novo autoloader antes de qualquer outro código
+require_once __DIR__ . '/../app/autoload.php';
+
+// Carregar rotas
 require_once __DIR__ . '/../app/config/routes.php';
 
-// Carregar autoloader
-spl_autoload_register(function($class) {
-    $paths = [
-        APP_PATH . '/controllers/',
-        APP_PATH . '/models/',
-        APP_PATH . '/helpers/'
-    ];
-    
-    foreach ($paths as $path) {
-        $file = $path . $class . '.php';
-        if (file_exists($file)) {
-            require_once $file;
-            return;
-        }
-    }
-});
+// Backup de carregamento de database para compatibilidade
+if (!class_exists('Database')) {
+    require_once __DIR__ . '/../app/core/Database.php';
+}
 
 // Carregar e inicializar helpers de otimização
 $initHelpersFile = APP_PATH . '/helpers/init_helpers.php';
@@ -62,6 +56,15 @@ if (isset($_SERVER['REQUEST_URI'])) {
             exit;
         }
     }
+}
+
+// Log de depuração em ambiente de desenvolvimento
+if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
+    $loadedClasses = get_declared_classes();
+    $appClasses = array_filter($loadedClasses, function($class) {
+        return !strpos($class, '\\') && !in_array($class, ['stdClass', 'Exception', 'Error', 'PDO', 'DateTime']);
+    });
+    error_log("Classes carregadas antes da inicialização do roteador: " . implode(', ', $appClasses));
 }
 
 // Inicializar o roteador
