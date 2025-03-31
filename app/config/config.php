@@ -18,8 +18,9 @@ if (ENVIRONMENT === 'development') {
 $base_url = 'https://darkblue-cattle-647559.hostingersite.com/';
 define('BASE_URL', $base_url);
 
-// Definir caminhos
-define('ROOT_PATH', dirname(dirname(__DIR__)));
+// CORREÇÃO: Definir caminhos corretamente para corresponder à estrutura do servidor
+// Usando dirname(__FILE__, 3) para garantir o caminho absoluto correto
+define('ROOT_PATH', dirname(__FILE__, 3)); // Volta 3 níveis a partir deste arquivo (app/config/config.php)
 define('APP_PATH', ROOT_PATH . '/app');
 define('VIEWS_PATH', APP_PATH . '/views');
 define('UPLOADS_PATH', ROOT_PATH . '/public/uploads');
@@ -49,9 +50,16 @@ if (!defined('CURRENCY')) {
     define('CURRENCY', 'BRL');
 }
 
-// CORREÇÃO: Corrigir constante CURRENCY_SYMBOL para usar string ao invés de número
-if (!defined('CURRENCY_SYMBOL')) {
-    define('CURRENCY_SYMBOL', 'R$');  // Valor correto como string
+// CORREÇÃO: Restaurar CURRENCY_SYMBOL com definição explícita como string
+// Primeiro, remove a definição existente se possível
+if (defined('CURRENCY_SYMBOL')) {
+    // Não podemos remover constantes definidas, mas podemos evitar redefini-la
+    error_log("ATENÇÃO: CURRENCY_SYMBOL já está definido com valor: " . CURRENCY_SYMBOL);
+    error_log("Tipo atual: " . gettype(CURRENCY_SYMBOL));
+} else {
+    // Define apenas se não estiver definido ainda
+    define('CURRENCY_SYMBOL', 'R$');  // Valor correto como string literal
+    error_log("CURRENCY_SYMBOL definido como 'R$' com tipo: " . gettype(CURRENCY_SYMBOL));
 }
 
 // Log de configuração para depuração
