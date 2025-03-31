@@ -131,14 +131,14 @@ class AdminPerformanceController extends Controller {
                 $content = file_get_contents($modelFile);
                 
                 // Extrair consultas SQL
-                preg_match_all('/\\$sql\\s*=\\s*[\\\"\\']([\\s\\S]+?)[\\\"\\']/', $content, $matches);
+                preg_match_all('/\\$sql\\s*=\\s*[\\\"\\\']([\s\S]+?)[\\\"\\\']/s', $content, $matches);
                 $queries = $matches[1] ?? [];
                 
                 $analysis = [];
                 foreach ($queries as $index => $query) {
                     // Extrair método onde a query está sendo usada
-                    preg_match('/public\\s+function\\s+(\\w+)[^{]*{[^}]*\\$sql\\s*=\\s*[\\\"\\']/s', $content, $methodMatches);
-                    $method = isset($methodMatches[1]) ? $methodMatches[1] : \"unknown_method_$index\";
+                    preg_match('/public\\s+function\\s+(\\w+)[^{]*{[^}]*\\$sql\\s*=\\s*[\\\"\\\']/', $content, $methodMatches);
+                    $method = isset($methodMatches[1]) ? $methodMatches[1] : "unknown_method_$index";
                     
                     // Analisar a query
                     $suggestions = $this->queryOptimizer->suggestOptimizations($query);
@@ -255,6 +255,18 @@ class AdminPerformanceController extends Controller {
             'result' => $result,
             'suggestions' => $suggestions,
             'indexAnalysis' => $indexAnalysis
+        ]);
+    }
+    
+    /**
+     * Exibe a documentação completa das otimizações SQL implementadas
+     * 
+     * @return void
+     */
+    public function showOptimizationDoc() {
+        // Renderizar view com a documentação
+        $this->view->render('admin/sql_optimization_doc', [
+            'title' => 'Documentação de Otimizações SQL'
         ]);
     }
     
@@ -729,7 +741,7 @@ if ($hasFulltext) {
         $content = file_get_contents($modelFile);
         
         // Extrair todas as consultas SQL
-        preg_match_all('/\\$sql\\s*=\\s*[\\\"\\']([\\s\\S]+?)[\\\"\\']/', $content, $matches);
+        preg_match_all('/\\$sql\\s*=\\s*[\\\"\\\']([\s\S]+?)[\\\"\\\']/s', $content, $matches);
         $queries = $matches[1] ?? [];
         
         $recommendations = [];
