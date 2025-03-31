@@ -7,8 +7,24 @@ abstract class Model {
     protected $primaryKey = 'id';
     protected $fillable = [];
     
+    /**
+     * Método protegido para obter instância do banco de dados
+     * Usado internamente pelos métodos do modelo
+     * 
+     * @return Database Instância do banco de dados
+     */
     protected function db() {
         return Database::getInstance();
+    }
+    
+    /**
+     * Método público para obter instância do banco de dados
+     * Usado por ferramentas de diagnóstico
+     * 
+     * @return Database Instância do banco de dados
+     */
+    public function getDb() {
+        return $this->db();
     }
     
     public function all() {
