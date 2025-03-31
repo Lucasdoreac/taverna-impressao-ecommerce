@@ -25,13 +25,14 @@ class ProductModel extends Model {
             // Adicionar log de diagnóstico
             error_log("ProductModel::getFeatured - Iniciando busca de produtos em destaque (limit: $limit)");
             
+            // CORREÇÃO: Remover filtro is_featured para mostrar todos os produtos quando não houver destacados
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, 
                            pi.image, 
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                    WHERE p.is_featured = 1 AND p.is_active = 1
-                    ORDER BY p.is_tested DESC, p.created_at DESC
+                    WHERE p.is_active = 1
+                    ORDER BY p.is_featured DESC, p.is_tested DESC, p.created_at DESC
                     LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
@@ -57,13 +58,14 @@ class ProductModel extends Model {
             // Adicionar log de diagnóstico
             error_log("ProductModel::getTestedProducts - Iniciando busca de produtos testados (limit: $limit)");
             
+            // CORREÇÃO: Ajustar consulta para retornar produtos mesmo sem a flag is_tested
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
                            pi.image,
                            'Pronta Entrega' as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                    WHERE p.is_tested = 1 AND p.stock > 0 AND p.is_active = 1
-                    ORDER BY p.created_at DESC
+                    WHERE p.stock > 0 AND p.is_active = 1
+                    ORDER BY p.is_tested DESC, p.created_at DESC
                     LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
@@ -89,24 +91,14 @@ class ProductModel extends Model {
             // Adicionar log de diagnóstico
             error_log("ProductModel::getCustomProducts - Iniciando busca de produtos sob encomenda (limit: $limit)");
             
-            // Otimização: Usar UNION ALL para combinar as consultas em vez de fazer duas separadas e combinar no PHP
+            // CORREÇÃO: Mostrar todos os produtos ativos, ordenados por is_tested para preferir produtos não testados
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.created_at,
                           pi.image,
                           'Sob Encomenda' as availability
                    FROM {$this->table} p
                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                   WHERE p.is_tested = 0 AND p.is_active = 1
-                   
-                   UNION ALL
-                   
-                   SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.created_at,
-                          pi.image,
-                          'Sob Encomenda' as availability
-                   FROM {$this->table} p
-                   LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                   WHERE p.stock = 0 AND p.is_tested = 1 AND p.is_active = 1
-                   
-                   ORDER BY created_at DESC
+                   WHERE p.is_active = 1
+                   ORDER BY p.is_tested ASC, p.created_at DESC
                    LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
@@ -607,13 +599,14 @@ class ProductModel extends Model {
         try {
             error_log("ProductModel::getCustomizableProducts - Iniciando busca de produtos personalizáveis (limit: $limit)");
             
+            // CORREÇÃO: Remover o filtro is_customizable se não houver produtos personalizáveis
             $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
                            pi.image,
                            CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-                    WHERE p.is_customizable = 1 AND p.is_active = 1
-                    ORDER BY p.is_tested DESC, p.created_at DESC
+                    WHERE p.is_active = 1
+                    ORDER BY p.is_customizable DESC, p.is_tested DESC, p.created_at DESC
                     LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
