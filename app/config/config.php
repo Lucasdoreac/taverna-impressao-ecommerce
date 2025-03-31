@@ -63,6 +63,7 @@ if (ENVIRONMENT === 'development') {
     // Verificar se a constante está sendo exibida corretamente
     error_log("Verificação CURRENCY_SYMBOL: " . CURRENCY_SYMBOL);
     error_log("Verificação CURRENCY_SYMBOL como string: '" . CURRENCY_SYMBOL . "'");
+    error_log("gettype(CURRENCY_SYMBOL): " . gettype(CURRENCY_SYMBOL));
 }
 
 /**
