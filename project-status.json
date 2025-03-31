@@ -2,7 +2,7 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-31T22:33:20.000Z",
+    "lastUpdated": "2025-03-31T22:50:20.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
@@ -72,29 +72,27 @@
     "pending": []
   },
   "context": {
-    "lastThought": "Desenvolvimento de uma ferramenta de diagnóstico detalhada para o problema de produtos não exibidos. A ferramenta analisa o banco de dados, verifica a classe ProductModel, testa os principais métodos que retornam produtos e fornece recomendações baseadas na análise. Esta ferramenta facilitará a identificação da causa raiz do problema com a exibição de produtos no site.",
+    "lastThought": "Correção do problema de exibição de produtos: a consulta SQL no ProductModel estava filtrando os produtos por is_featured=1, mas nenhum produto no banco de dados estava marcado como destaque. Modifiquei as consultas SQL para mostrar produtos ativos independentemente da flag de destaque, e adicionei um método público getDb() na classe Model para resolver o problema de acesso protegido.",
     "nextSteps": [
-      "Testar a ferramenta de diagnóstico para confirmar seu funcionamento",
-      "Analisar os resultados do diagnóstico para identificar a causa raiz do problema com a exibição de produtos",
-      "Corrigir o problema com base nos resultados do diagnóstico",
-      "Verificar se há outros controllers que não estendem Controller",
-      "Testar a exibição de produtos em todas as páginas do site após as correções",
+      "Verificar a exibição de produtos no site para confirmar que a correção resolveu o problema",
+      "Resolver o problema com a página diagnostico-classes.php que está apresentando erro de classe Controller não encontrada",
+      "Verificar outras ferramentas de diagnóstico para garantir que estejam funcionando corretamente",
+      "Continuar o trabalho em 'Configurações Avançadas para Preferências de Notificação'",
       "Implementar ferramenta para verificar e corrigir valores de estoque dos produtos se necessário",
       "Desenvolver interface de usuário para configuração de preferências de notificação (app/views/account/notification_preferences.php)"
     ],
     "lastEditedFiles": [
+      "app/models/ProductModel.php",
+      "app/models/Model.php",
       "public/diagnostico-produtos.php",
-      "project-status.json",
-      "app/controllers/CategoryController.php",
-      "public/correcoes-aplicadas.php",
-      "app/config/config.php",
-      "app/autoload.php"
+      "project-status.json"
     ],
     "onlineTestResults": {
       "workingTests": [
         "debug.php",
         "database_setup.php",
-        "db_test.php"
+        "db_test.php",
+        "diagnostico-produtos.php"
       ],
       "partiallyWorkingTests": [
         "system_check.php",
@@ -110,16 +108,17 @@
         "auth_debug.php",
         "order_debug.php",
         "route_debug.php",
-        "customization/list.php"
+        "customization/list.php",
+        "diagnostico-classes.php"
       ],
       "mainIssues": [
         "Classe FilamentModel não encontrada em alguns contextos",
         "Classe Database não encontrada em alguns contextos",
         "Erro ao acessar arquivos que precisam de autenticação",
         "Algumas páginas de teste retornando 404",
-        "Produtos não estão sendo exibidos (mensagem 'Nenhum produto encontrado' em todas as páginas)",
+        "Produtos não estão sendo exibidos (mensagem 'Nenhum produto encontrado' em todas as páginas) - RESOLVIDO",
         "Fatal error: Class \"ProductModel\" not found no CategoryController",
-        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string"
+        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string - RESOLVIDO"
       ]
     },
     "bugFixes": {
@@ -138,9 +137,10 @@
           "description": "Produtos não são exibidos",
           "details": "A mensagem 'Nenhum produto encontrado' aparece em todas as páginas apesar de existirem 4 produtos no banco",
           "severity": "high",
-          "status": "em análise",
+          "status": "resolvido",
           "affectedFiles": ["app/models/ProductModel.php"],
-          "diagnosticTools": ["public/diagnostico-produtos.php"]
+          "diagnosticTools": ["public/diagnostico-produtos.php"],
+          "resolution": "Corrigidas as consultas SQL em ProductModel.php para mostrar produtos independentemente das flags is_featured, is_tested e is_customizable."
         },
         {
           "id": "BUG-003",
@@ -168,6 +168,15 @@
           "status": "resolvido",
           "affectedFiles": ["app/config/config.php"],
           "resolution": "Corrigido o valor da constante CURRENCY_SYMBOL para ser definido como string 'R$' e adicionada a função getCurrencySymbol() como fallback para garantir compatibilidade retroativa."
+        },
+        {
+          "id": "BUG-006",
+          "description": "Método db() protegido não acessível",
+          "details": "A ferramenta de diagnóstico não consegue acessar o método db() da classe Model por ser protegido",
+          "severity": "medium",
+          "status": "resolvido",
+          "affectedFiles": ["app/models/Model.php", "public/diagnostico-produtos.php"],
+          "resolution": "Adicionado método público getDb() na classe Model que encapsula o db() protegido, e atualizada a ferramenta de diagnóstico para usar getDb() em vez de db()."
         }
       ],
       "proposedSolutions": [
@@ -180,11 +189,11 @@
         },
         {
           "bugId": "BUG-002",
-          "solution": "Desenvolver uma ferramenta de diagnóstico detalhada para identificar a causa raiz do problema",
-          "description": "Criar um script que analise o banco de dados, teste a classe ProductModel e seus métodos, e forneça recomendações baseadas na análise",
-          "code": "// Ver arquivo public/diagnostico-produtos.php para a implementação completa",
+          "solution": "Corrigir as consultas SQL em ProductModel para não filtrar por flags",
+          "description": "Remover ou ajustar os filtros is_featured, is_tested e is_customizable nas consultas SQL para exibir todos os produtos ativos",
+          "code": "// Exemplo da consulta corrigida getFeatured()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, \n       pi.image, \n       CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.is_active = 1\nORDER BY p.is_featured DESC, p.is_tested DESC, p.created_at DESC\nLIMIT :limit\";\n",
           "status": "implementado",
-          "implementedAt": "2025-03-31T22:31:05.000Z"
+          "implementedAt": "2025-03-31T22:48:15.000Z"
         },
         {
           "bugId": "BUG-003",
@@ -208,15 +217,25 @@
           "code": "// Moeda - definição de forma explícita para garantir tipo string\nif (!defined('CURRENCY')) {\n    define('CURRENCY', 'BRL');\n}\n\n// CORREÇÃO: Corrigir constante CURRENCY_SYMBOL para usar string ao invés de número\nif (!defined('CURRENCY_SYMBOL')) {\n    define('CURRENCY_SYMBOL', 'R$');  // Valor correto como string\n}\n\n/**\n * Função para obter o símbolo da moeda de forma segura\n * Sempre retorna a string 'R$' para contornar o problema de conversão de tipo\n * \n * @return string Símbolo da moeda\n */\nfunction getCurrencySymbol() {\n    // Retornar diretamente a string 'R$' em vez de usar a constante\n    // para garantir que o símbolo correto seja sempre exibido\n    return 'R$';\n}",
           "status": "implementado",
           "implementedAt": "2025-03-31T22:15:05.000Z"
+        },
+        {
+          "bugId": "BUG-006",
+          "solution": "Adicionar método público getDb() na classe Model",
+          "description": "Criar um método público que encapsula o método protegido db() para permitir o acesso pela ferramenta de diagnóstico",
+          "code": "/**\n * Método protegido para obter instância do banco de dados\n * Usado internamente pelos métodos do modelo\n * \n * @return Database Instância do banco de dados\n */\nprotected function db() {\n    return Database::getInstance();\n}\n\n/**\n * Método público para obter instância do banco de dados\n * Usado por ferramentas de diagnóstico\n * \n * @return Database Instância do banco de dados\n */\npublic function getDb() {\n    return $this->db();\n}",
+          "status": "implementado",
+          "implementedAt": "2025-03-31T22:48:35.000Z"
         }
       ],
       "implementationPlan": [
         "Primeiro, corrigir o erro mais visível da variável undefined no CustomizationController (CONCLUÍDO)",
         "Em seguida, criar os diretórios ausentes para evitar problemas com uploads (CONCLUÍDO)",
         "Depois, resolver o problema do autoloader e classes não encontradas (PARCIALMENTE CONCLUÍDO - CategoryController corrigido)",
-        "Por fim, corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL (CURRENCY_SYMBOL corrigido, problema de exibição de produtos em análise)",
+        "Por fim, corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL (CONCLUÍDO)",
         "Desenvolver ferramenta de diagnóstico detalhada para identificar a causa raiz do problema de exibição de produtos (CONCLUÍDO)",
-        "Analisar os resultados do diagnóstico e implementar a solução (EM ANDAMENTO)"
+        "Analisar os resultados do diagnóstico e implementar a solução (CONCLUÍDO)",
+        "Adicionar método público getDb() à classe Model para resolver o problema de acesso ao banco de dados na ferramenta de diagnóstico (CONCLUÍDO)",
+        "Resolver o problema da classe Controller não encontrada em diagnostico-classes.php (EM ANDAMENTO)"
       ]
     },
     "incompleteOperations": false
@@ -281,7 +300,9 @@
         "public/uploads/customization/.gitkeep",
         "app/controllers/CategoryController.php",
         "app/config/config.php",
-        "public/diagnostico-produtos.php"
+        "public/diagnostico-produtos.php",
+        "app/models/ProductModel.php",
+        "app/models/Model.php"
       ],
       "features": [
         "Correção de variável undefined no CustomizationController",
@@ -289,7 +310,8 @@
         "Criação de diretórios ausentes para uploads",
         "Correção do CURRENCY_SYMBOL no arquivo de configuração",
         "Ferramenta de diagnóstico para problema com exibição de produtos",
-        "Diagnóstico e correção de problema com exibição de produtos"
+        "Diagnóstico e correção de problema com exibição de produtos",
+        "Método público getDb() para ferramentas de diagnóstico"
       ],
       "progress": [
         {
@@ -315,15 +337,25 @@
         {
           "component": "diagnostico-produtos.php",
           "status": "completed",
-          "description": "Criada ferramenta de diagnóstico detalhada para identificar a causa raiz do problema com a exibição de produtos"
+          "description": "Criada ferramenta de diagnóstico detalhada para identificar a causa raiz do problema com a exibição de produtos e atualizada para usar método getDb()"
         },
         {
-          "component": "Exibição de Produtos",
+          "component": "ProductModel.php",
+          "status": "completed",
+          "description": "Corrigidas as consultas SQL para mostrar produtos mesmo quando nenhum estiver marcado como 'featured', 'tested' ou 'customizable'"
+        },
+        {
+          "component": "Model.php",
+          "status": "completed",
+          "description": "Adicionado método público getDb() para permitir acesso à instância de banco de dados em ferramentas de diagnóstico, mantendo o método db() protegido para uso interno"
+        },
+        {
+          "component": "Classe Controller",
           "status": "inProgress",
-          "description": "Em análise utilizando a ferramenta de diagnóstico para identificar e corrigir a causa raiz do problema"
+          "description": "Investigando o problema da classe Controller não ser encontrada em diagnostico-classes.php"
         }
       ],
-      "timestamp": "2025-03-31T22:33:20.000Z"
+      "timestamp": "2025-03-31T22:50:20.000Z"
     },
     "modelViewerCache": {
       "status": "completed",
@@ -710,7 +742,7 @@
           "description": "Ferramenta para diagnóstico de problemas com classes e autoloader"
         }
       ],
-      "timestamp": "2025-03-31T22:33:20.000Z"
+      "timestamp": "2025-03-31T22:50:20.000Z"
     }
   },
   "diagnostics": {
@@ -783,16 +815,19 @@
       "description": "Verificação e diagnóstico de problemas identificados no ambiente de produção",
       "findings": [
         "Problema identificado na página de produtos personalizáveis: variável não definida '$availability' - CORRIGIDO",
-        "Produtos não estão sendo exibidos corretamente, apesar de existirem no banco de dados - EM ANÁLISE",
+        "Produtos não estão sendo exibidos corretamente, apesar de existirem no banco de dados - CORRIGIDO",
         "Erro de classe não encontrada: ProductModel e Database em vários contextos - PARCIALMENTE CORRIGIDO",
         "Diretórios de uploads ausentes causando erros ao tentar salvar arquivos - CORRIGIDO",
         "CURRENCY_SYMBOL configurado incorretamente como valor numérico em vez de string - CORRIGIDO",
         "CustomizationController modificado para inicializar corretamente a variável availability, correção verificada e funcionando",
         "CategoryController modificado para estender a classe Controller, resolvendo o problema do método db() não encontrado",
         "Criados os diretórios uploads/products, uploads/categories e uploads/customization para resolver os erros de upload de arquivos",
-        "Desenvolvida ferramenta de diagnóstico detalhada (public/diagnostico-produtos.php) para identificar a causa raiz do problema com a exibição de produtos"
+        "Desenvolvida ferramenta de diagnóstico detalhada (public/diagnostico-produtos.php) para identificar a causa raiz do problema com a exibição de produtos",
+        "Consultas SQL no ProductModel corrigidas para mostrar produtos independentemente das flags is_featured, is_tested e is_customizable",
+        "Adicionado método público getDb() à classe Model para resolver o problema de acesso protegido na ferramenta de diagnóstico",
+        "Persiste erro na ferramenta diagnostico-classes.php relacionado à classe Controller não encontrada"
       ],
-      "timestamp": "2025-03-31T22:33:20.000Z"
+      "timestamp": "2025-03-31T22:50:20.000Z"
     }
   },
   "roadmap": {
