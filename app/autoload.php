@@ -29,7 +29,7 @@ $classMap = [
     'NotificationPreferenceController' => APP_PATH . '/controllers/NotificationPreferenceController.php',
     
     // Helpers e Utilitários
-    'Database' => APP_PATH . '/core/Database.php',
+    'Database' => APP_PATH . '/helpers/Database.php', // CORREÇÃO: Caminho corrigido do helpers, não core
     'Router' => APP_PATH . '/core/Router.php',
     'Request' => APP_PATH . '/core/Request.php',
     'Response' => APP_PATH . '/core/Response.php',
@@ -88,7 +88,11 @@ spl_autoload_register('app_autoload');
 
 // Carregar diretamente classes essenciais (fallback caso o autoloader falhe)
 if (!class_exists('Database')) {
-    require_once APP_PATH . '/core/Database.php';
+    if (file_exists(APP_PATH . '/helpers/Database.php')) {
+        require_once APP_PATH . '/helpers/Database.php';
+    } else if (file_exists(APP_PATH . '/core/Database.php')) {
+        require_once APP_PATH . '/core/Database.php';
+    }
 }
 
 if (!class_exists('Model')) {
