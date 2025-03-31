@@ -49,25 +49,20 @@ if (!defined('CURRENCY')) {
     define('CURRENCY', 'BRL');
 }
 
-// CORREÇÃO: Redefinir constante de símbolo de moeda como string literal, não numérico
+// CORREÇÃO: Corrigir constante CURRENCY_SYMBOL para usar string ao invés de número
 if (!defined('CURRENCY_SYMBOL')) {
-    define('CURRENCY_SYMBOL', 'R$');
+    define('CURRENCY_SYMBOL', 'R$');  // Valor correto como string
 }
-
-// Definir uma versão alternativa da constante para uso quando a original apresentar problemas
-define('CURRENCY_SYMBOL_STR', 'R$');
 
 // Log de configuração para depuração
 if (ENVIRONMENT === 'development') {
     app_log("Configurações carregadas com sucesso", "info");
     app_log("CURRENCY_SYMBOL definido como: " . CURRENCY_SYMBOL, "debug");
-    app_log("CURRENCY_SYMBOL_STR definido como: " . CURRENCY_SYMBOL_STR, "debug");
     app_log("CURRENCY definido como: " . CURRENCY, "debug");
     
     // Verificar se a constante está sendo exibida corretamente
     error_log("Verificação CURRENCY_SYMBOL: " . CURRENCY_SYMBOL);
     error_log("Verificação CURRENCY_SYMBOL como string: '" . CURRENCY_SYMBOL . "'");
-    error_log("Verificação CURRENCY_SYMBOL_STR: " . CURRENCY_SYMBOL_STR);
 }
 
 /**
