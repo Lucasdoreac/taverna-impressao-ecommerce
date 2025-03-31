@@ -2,7 +2,7 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-31T15:30:00.000Z",
+    "lastUpdated": "2025-03-31T15:50:00.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
@@ -68,7 +68,9 @@
     "inProgress": [
       "Configurações Avançadas para Preferências de Notificação"
     ],
-    "pending": []
+    "pending": [
+      "Correção de Bugs em Ambiente de Produção"
+    ]
   },
   "context": {
     "lastThought": "Implementação do NotificationPreferenceController.php concluída. Este controller gerencia todas as interações de usuário relacionadas às preferências de notificação, permitindo aos usuários personalizar quais tipos de notificações desejam receber e por quais canais. Inclui funcionalidades como: visualização de preferências, atualização (via formulário ou AJAX), inicialização de preferências padrão, administração de preferências pelo admin, e visualização de métricas. O controller garante que notificações críticas não possam ser desativadas e implementa verificações de autenticação e permissões. O próximo passo é desenvolver a interface de usuário (views) para permitir que os usuários interajam com suas preferências de notificação.",
@@ -78,11 +80,21 @@
       "Desenvolver interface administrativa (app/views/admin/notification_preferences.php)",
       "Criar arquivos JavaScript e CSS para a interface de preferências",
       "Integrar as preferências com o sistema de notificações existente",
-      "Expandir dashboard com novas visualizações e métricas"
+      "Expandir dashboard com novas visualizações e métricas",
+      "Corrigir erro de variável indefinida no CustomizationController",
+      "Resolver problema dos produtos não exibidos",
+      "Resolver erro de classes não encontradas",
+      "Criar diretórios ausentes para uploads",
+      "Corrigir o problema com CURRENCY_SYMBOL"
     ],
     "lastEditedFiles": [
       "app/controllers/NotificationPreferenceController.php",
-      "project-status.json"
+      "project-status.json",
+      "app/views/account/notification_preferences.php",
+      "public/assets/js/notification-preferences.js",
+      "public/assets/css/notification-preferences.css",
+      "app/views/admin/notification_preferences.php",
+      "app/views/admin/notification_metrics.php"
     ],
     "onlineTestResults": {
       "workingTests": [
@@ -102,13 +114,96 @@
         "phpinfo.php",
         "auth_debug.php",
         "order_debug.php",
-        "route_debug.php"
+        "route_debug.php",
+        "customization/list.php"
       ],
       "mainIssues": [
         "Classe FilamentModel não encontrada em alguns contextos",
         "Classe Database não encontrada em alguns contextos",
         "Erro ao acessar arquivos que precisam de autenticação",
-        "Algumas páginas de teste retornando 404"
+        "Algumas páginas de teste retornando 404",
+        "Variável indefinida '$availability' na página de produtos personalizáveis",
+        "Produtos não estão sendo exibidos (mensagem 'Nenhum produto encontrado' em todas as páginas)",
+        "Fatal error: Class \"ProductModel\" not found no CategoryController",
+        "Diretórios ausentes para uploads de produtos, categorias e customizações",
+        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string"
+      ]
+    },
+    "bugFixes": {
+      "identifiedBugs": [
+        {
+          "id": "BUG-001",
+          "description": "Variável indefinida na página de produtos personalizáveis",
+          "details": "Warning: Undefined variable $availability na função list() do CustomizationController.php",
+          "severity": "medium",
+          "status": "pendente",
+          "affectedFiles": ["app/controllers/CustomizationController.php", "app/views/customization/list.php"]
+        },
+        {
+          "id": "BUG-002",
+          "description": "Produtos não são exibidos",
+          "details": "A mensagem 'Nenhum produto encontrado' aparece em todas as páginas apesar de existirem 4 produtos no banco",
+          "severity": "high",
+          "status": "pendente",
+          "affectedFiles": ["app/models/ProductModel.php"]
+        },
+        {
+          "id": "BUG-003",
+          "description": "Classes não encontradas",
+          "details": "Fatal error: Class \"ProductModel\" not found no CategoryController e 'Classe Database não encontrada!' em diagnostico-erros.php",
+          "severity": "critical",
+          "status": "pendente",
+          "affectedFiles": ["app/controllers/CategoryController.php", "app/diagnostico-erros.php"]
+        },
+        {
+          "id": "BUG-004",
+          "description": "Diretórios ausentes",
+          "details": "Vários diretórios essenciais não existem (/uploads/products, /uploads/categories, etc.)",
+          "severity": "medium",
+          "status": "pendente",
+          "affectedFiles": []
+        },
+        {
+          "id": "BUG-005",
+          "description": "Problema com CURRENCY_SYMBOL",
+          "details": "A constante está definida como '262145' (um valor numérico) em vez de 'R$'",
+          "severity": "medium",
+          "status": "pendente",
+          "affectedFiles": ["app/config/config.php"]
+        }
+      ],
+      "proposedSolutions": [
+        {
+          "bugId": "BUG-001",
+          "solution": "Adicionar 'availability' como variável no método list() do CustomizationController.php com valor padrão",
+          "code": "public function list() {\n    try {\n        // Adicionar esta linha para corrigir o erro\n        $availability = $_GET['availability'] ?? 'all';\n        \n        // Buscar produtos personalizáveis\n        $customizableProducts = $this->productModel->getCustomizableProducts(24);\n        \n        // Renderizar a view\n        require_once VIEWS_PATH . '/customization/list.php';\n    } catch (Exception $e) {\n        $this->handleError($e, \"Erro ao listar produtos personalizáveis\");\n    }\n}"
+        },
+        {
+          "bugId": "BUG-002",
+          "solution": "Verificar a função getCustomizableProducts no ProductModel e adicionar logs para diagnóstico",
+          "description": "Analisar a query SQL, verificar indexes e debugar a função getCustomizableProducts para identificar por que não está retornando produtos"
+        },
+        {
+          "bugId": "BUG-003",
+          "solution": "Verificar autoloader e incluir require_once para classes necessárias",
+          "description": "Verificar se ProductModel.php existe no servidor, garantir que o autoloader está carregando as classes corretamente, adicionar método db() ao CategoryController ou revisar sua implementação"
+        },
+        {
+          "bugId": "BUG-004",
+          "solution": "Criar diretórios de upload ausentes",
+          "code": "# Comandos a serem executados no servidor:\nmkdir -p /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads/products\nmkdir -p /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads/categories\nmkdir -p /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads/customization\nchmod -R 755 /home/u135851624/domains/darkblue-cattle-647559.hostingersite.com/public_html/public/uploads"
+        },
+        {
+          "bugId": "BUG-005",
+          "solution": "Corrigir o valor da constante CURRENCY_SYMBOL no arquivo de configuração",
+          "description": "Verificar a implementação da função getCurrencySymbol() ou corrigir o valor da constante CURRENCY_SYMBOL no arquivo de configuração para 'R$'"
+        }
+      ],
+      "implementationPlan": [
+        "Primeiro, corrigir o erro mais visível da variável undefined no CustomizationController",
+        "Em seguida, criar os diretórios ausentes para evitar problemas com uploads",
+        "Depois, resolver o problema do autoloader e classes não encontradas",
+        "Por fim, corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL"
       ]
     },
     "incompleteOperations": false
@@ -154,9 +249,14 @@
           "component": "NotificationPreferenceController.php",
           "status": "completed",
           "description": "Controller para gerenciar interface de usuário para preferências implementado com métodos para visualização, atualização e inicialização de preferências, bem como funcionalidades administrativas e de métricas"
+        },
+        {
+          "component": "Interface de Usuário",
+          "status": "completed",
+          "description": "Views para gerenciamento de preferências de notificação implementadas, incluindo interfaces de usuário e administrativas com recursos completos"
         }
       ],
-      "timestamp": "2025-03-31T15:30:00.000Z"
+      "timestamp": "2025-03-31T15:50:00.000Z"
     },
     "modelViewerCache": {
       "status": "completed",
@@ -565,11 +665,26 @@
         "Otimização de headers HTTP para controle de cache implementada"
       ],
       "timestamp": "2025-03-31T13:15:00.000Z"
+    },
+    "productionIssuesVerification": {
+      "status": "inProgress",
+      "description": "Verificação e diagnóstico de problemas identificados no ambiente de produção",
+      "findings": [
+        "Problema identificado na página de produtos personalizáveis: variável não definida '$availability'",
+        "Produtos não estão sendo exibidos corretamente, apesar de existirem no banco de dados",
+        "Erro de classe não encontrada: ProductModel e Database em vários contextos",
+        "Diretórios de uploads ausentes causando erros ao tentar salvar arquivos",
+        "CURRENCY_SYMBOL configurado incorretamente como valor numérico em vez de string",
+        "CustomizationController não está inicializando corretamente a variável availability",
+        "CategoryController está tendo problemas ao tentar acessar o ProductModel"
+      ],
+      "timestamp": "2025-03-31T15:50:00.000Z"
     }
   },
   "roadmap": {
     "shortTerm": [
       "Implementar configurações avançadas para preferências de notificação",
+      "Corrigir bugs identificados em ambiente de produção",
       "Expandir dashboard com novas visualizações e métricas",
       "Implementar CDN para entrega de assets estáticos"
     ],
