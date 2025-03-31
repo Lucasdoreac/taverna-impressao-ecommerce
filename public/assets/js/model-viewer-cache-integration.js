@@ -1,400 +1,454 @@
 /**
- * Model Viewer Cache Integration
+ * ModelViewerCacheIntegration - Integração entre ModelViewer e sistema de cache
  * 
- * Integração entre o ModelViewer e o sistema de cache de modelos 3D.
- * Este módulo estende o ModelViewer para utilizar o ModelCacheManager.
+ * Este componente conecta o visualizador de modelos 3D (ModelViewer) com o
+ * sistema de cache de modelos (ModelCacheManager), permitindo o carregamento
+ * eficiente e acesso rápido a modelos previamente baixados.
  */
 (function() {
-    // Verificar existência do ModelViewer
-    if (typeof ModelViewer !== 'function') {
-        console.warn('ModelViewer não encontrado. A integração com cache não será aplicada.');
-        return;
-    }
-    
-    // Armazenar referência ao construtor original
-    const OriginalModelViewer = ModelViewer;
-    
-    // Verificar se a integração já foi aplicada
-    if (OriginalModelViewer.prototype._cacheEnabled) {
-        return;
-    }
-    
-    // Marcar integração como aplicada
-    OriginalModelViewer.prototype._cacheEnabled = true;
-    
-    // Estender o protótipo do ModelViewer para adicionar suporte a cache
+    // Armazenar referência às funções originais
+    const originalModelViewerLoadModel = ModelViewer.prototype.loadModel;
     
     /**
-     * Define o gerenciador de cache para o visualizador
-     * @param {ModelCacheManager} cacheManager Instância do gerenciador de cache
+     * Estende o ModelViewer com funcionalidades de cache
      */
-    OriginalModelViewer.prototype.setCacheManager = function(cacheManager) {
-        this.cacheManager = cacheManager;
-        this.log('Cache manager configurado');
-    };
-    
-    /**
-     * Verifica se o visualizador tem gerenciador de cache configurado
-     * @returns {boolean} Verdadeiro se o gerenciador de cache estiver configurado
-     */
-    OriginalModelViewer.prototype.hasCacheManager = function() {
-        return !!this.cacheManager;
-    };
-    
-    /**
-     * Verifica se um modelo está em cache
-     * @param {string} fileUrl URL do arquivo de modelo
-     * @param {string} modelId ID do modelo no cache
-     * @returns {Promise<boolean>} Promessa resolvida com estado do cache
-     */
-    OriginalModelViewer.prototype.checkModelCache = function(fileUrl, modelId) {
-        if (!this.hasCacheManager() || !modelId) {
-            return Promise.resolve(false);
+    function extendModelViewer() {
+        // Verificar se ModelViewer está disponível
+        if (typeof ModelViewer !== 'function') {
+            console.warn('ModelViewerCacheIntegration: ModelViewer não encontrado. A integração de cache não será aplicada.');
+            return;
         }
         
-        return this.cacheManager.hasModel(modelId);
-    };
-    
-    /**
-     * Adiciona um modelo ao cache
-     * @param {string} modelId ID do modelo
-     * @param {ArrayBuffer|string} data Dados do modelo
-     * @param {string} modelType Tipo do modelo (stl, obj, etc.)
-     * @returns {Promise} Promessa resolvida quando o modelo for adicionado
-     */
-    OriginalModelViewer.prototype.addModelToCache = function(modelId, data, modelType) {
-        if (!this.hasCacheManager() || !modelId || !data) {
-            return Promise.resolve(false);
-        }
+        // Adicionar propriedades relacionadas ao cache
+        ModelViewer.prototype.cacheManager = null;
+        ModelViewer.prototype.modelId = null;
         
-        return this.cacheManager.addModel({
-            id: modelId,
-            data: data,
-            modelType: modelType || 'unknown'
-        }).then(() => {
-            this.log(`Modelo ${modelId} adicionado ao cache`);
-            return true;
-        }).catch(error => {
-            this.log(`Erro ao adicionar modelo ao cache: ${error.message}`);
-            return false;
-        });
-    };
-    
-    /**
-     * Carrega um modelo do cache
-     * @param {string} modelId ID do modelo
-     * @returns {Promise} Promessa resolvida com os dados do modelo
-     */
-    OriginalModelViewer.prototype.loadModelFromCache = function(modelId) {
-        if (!this.hasCacheManager() || !modelId) {
-            return Promise.resolve(null);
-        }
-        
-        return this.cacheManager.getModel(modelId).then(model => {
-            if (model) {
-                this.log(`Modelo ${modelId} carregado do cache`);
+        /**
+         * Define o gerenciador de cache para o visualizador
+         * @param {ModelCacheManager} cacheManager - Instância do gerenciador de cache
+         */
+        ModelViewer.prototype.setCacheManager = function(cacheManager) {
+            this.cacheManager = cacheManager;
+            
+            if (this.options.debug) {
+                console.log('ModelViewerCacheIntegration: Gerenciador de cache conectado ao ModelViewer');
             }
-            return model;
-        }).catch(error => {
-            this.log(`Erro ao carregar modelo do cache: ${error.message}`);
-            return null;
-        });
-    };
-    
-    // Estender o método loadModel para usar cache quando disponível
-    const originalLoadModel = OriginalModelViewer.prototype.loadModel;
-    OriginalModelViewer.prototype.loadModel = function() {
-        // Se não temos o gerenciador de cache ou o ID do modelo, usar método original
-        if (!this.hasCacheManager() || !this.modelId) {
-            return originalLoadModel.apply(this, arguments);
-        }
+        };
         
-        const filePath = this.options.filePath;
-        const fileType = this.options.fileType.toLowerCase();
+        /**
+         * Define o ID do modelo sendo visualizado
+         * @param {string} modelId - Identificador único do modelo
+         */
+        ModelViewer.prototype.setModelId = function(modelId) {
+            this.modelId = modelId;
+            
+            if (this.options.debug) {
+                console.log(`ModelViewerCacheIntegration: ID do modelo definido: ${modelId}`);
+            }
+        };
         
-        // Tentar carregar do cache primeiro
-        this.log(`Verificando cache para modelo ${this.modelId}`);
-        this.isLoading = true;
-        
-        return this.loadModelFromCache(this.modelId).then(cachedModel => {
-            if (cachedModel && cachedModel.data) {
-                this.log(`Usando modelo ${this.modelId} do cache`);
+        /**
+         * Sobrescreve o método loadModel para verificar o cache antes de baixar
+         * @param {string} overrideFilePath - Caminho opcional para substituir o caminho padrão
+         */
+        ModelViewer.prototype.loadModel = function(overrideFilePath) {
+            // Usar caminho substituído ou padrão
+            const filePath = overrideFilePath || this.options.filePath;
+            const fileType = this.options.fileType.toLowerCase();
+            
+            // Verificar se o cache está disponível
+            if (!this.cacheManager) {
+                // Cache não disponível, usar método original
+                if (this.options.debug) {
+                    console.log('ModelViewerCacheIntegration: Cache não disponível, carregando normalmente');
+                }
+                return originalModelViewerLoadModel.call(this, filePath);
+            }
+            
+            // Verificar se temos um modelId
+            if (!this.modelId) {
+                // Extrair modelId da URL se presente
+                const url = new URL(filePath, window.location.href);
+                this.modelId = url.searchParams.get('id');
                 
-                // Determinar o tipo de dados
-                let modelData = cachedModel.data;
-                if (typeof modelData === 'string' && modelData.startsWith('data:')) {
-                    // Dados codificados em base64
-                    const base64Match = modelData.match(/^data:.*;base64,(.*)$/);
-                    if (base64Match) {
-                        const base64Data = base64Match[1];
-                        const binaryString = window.atob(base64Data);
-                        const bytes = new Uint8Array(binaryString.length);
-                        for (let i = 0; i < binaryString.length; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
-                        }
-                        modelData = bytes.buffer;
+                if (!this.modelId) {
+                    // Não foi possível determinar o modelId, usar método original
+                    if (this.options.debug) {
+                        console.log('ModelViewerCacheIntegration: Sem ID de modelo, carregando normalmente');
                     }
-                } else if (typeof modelData === 'string') {
-                    // String base64 pura
-                    try {
+                    return originalModelViewerLoadModel.call(this, filePath);
+                }
+            }
+            
+            // Atualizar indicador de progresso
+            this.updateLoadingProgress(0);
+            
+            // Verificar se o modelo está em cache
+            this.cacheManager.hasModel(this.modelId)
+                .then(inCache => {
+                    if (inCache) {
+                        // Modelo está em cache, carregar dele
+                        if (this.options.debug) {
+                            console.log(`ModelViewerCacheIntegration: Modelo ${this.modelId} encontrado no cache`);
+                        }
+                        
+                        this.updateLoadingProgress(20);
+                        return this.loadModelFromCache();
+                    } else {
+                        // Modelo não está em cache, baixar normalmente
+                        if (this.options.debug) {
+                            console.log(`ModelViewerCacheIntegration: Modelo ${this.modelId} não encontrado no cache, baixando`);
+                        }
+                        
+                        this.updateLoadingProgress(10);
+                        return this.loadModelAndCache(filePath, fileType);
+                    }
+                })
+                .catch(error => {
+                    // Erro ao verificar cache, usar método original
+                    console.warn('ModelViewerCacheIntegration: Erro ao verificar cache', error);
+                    originalModelViewerLoadModel.call(this, filePath);
+                });
+        };
+        
+        /**
+         * Carrega um modelo a partir do cache
+         * @returns {Promise} Promessa resolvida quando o modelo for carregado
+         */
+        ModelViewer.prototype.loadModelFromCache = function() {
+            return new Promise((resolve, reject) => {
+                if (!this.cacheManager || !this.modelId) {
+                    reject(new Error('Cache manager ou model ID não disponível'));
+                    return;
+                }
+                
+                // Obter modelo do cache
+                this.cacheManager.getModel(this.modelId)
+                    .then(modelData => {
+                        if (!modelData || !modelData.data) {
+                            reject(new Error('Dados do modelo não encontrados no cache'));
+                            return;
+                        }
+                        
+                        // Atualizar indicador de progresso
+                        this.updateLoadingProgress(50);
+                        
+                        // Verificar tipo de modelo
+                        const modelType = modelData.modelType || this.options.fileType;
+                        
+                        // Carregar modelo do cache
+                        if (modelType === 'stl') {
+                            this.loadCachedSTLModel(modelData.data);
+                        } else if (modelType === 'obj') {
+                            this.loadCachedOBJModel(modelData.data);
+                        } else {
+                            reject(new Error(`Tipo de modelo não suportado: ${modelType}`));
+                        }
+                        
+                        resolve();
+                    })
+                    .catch(error => {
+                        console.warn('ModelViewerCacheIntegration: Erro ao carregar do cache', error);
+                        
+                        // Fallback para carregamento normal
+                        originalModelViewerLoadModel.call(this, this.options.filePath);
+                        reject(error);
+                    });
+            });
+        };
+        
+        /**
+         * Carrega um modelo STL a partir do cache
+         * @param {string|ArrayBuffer} modelData - Dados do modelo em cache
+         */
+        ModelViewer.prototype.loadCachedSTLModel = function(modelData) {
+            try {
+                let geometry;
+                
+                // Processar dados conforme o tipo
+                if (typeof modelData === 'string') {
+                    // Verificar se é uma string base64 ou conteúdo direto
+                    if (modelData.startsWith('data:') || modelData.startsWith('SOLID') || modelData.startsWith('solid')) {
+                        // Conteúdo direto STL
+                        const loader = new THREE.STLLoader();
+                        geometry = loader.parse(modelData);
+                    } else {
+                        // Assumir base64
                         const binaryString = window.atob(modelData);
                         const bytes = new Uint8Array(binaryString.length);
                         for (let i = 0; i < binaryString.length; i++) {
                             bytes[i] = binaryString.charCodeAt(i);
                         }
-                        modelData = bytes.buffer;
-                    } catch (e) {
-                        // Não é base64, tratar como string normal
-                        const encoder = new TextEncoder();
-                        modelData = encoder.encode(modelData).buffer;
+                        
+                        const loader = new THREE.STLLoader();
+                        geometry = loader.parse(bytes.buffer);
                     }
-                }
-                
-                // Processar dados do modelo conforme o tipo
-                if (fileType === 'stl') {
-                    this.processSTLData(modelData);
-                } else if (fileType === 'obj') {
-                    this.processOBJData(modelData);
+                } else if (modelData instanceof ArrayBuffer) {
+                    // Dados binários
+                    const loader = new THREE.STLLoader();
+                    geometry = loader.parse(modelData);
                 } else {
-                    throw new Error(`Tipo de arquivo não suportado: ${fileType}`);
+                    throw new Error('Formato de dados STL não suportado');
                 }
                 
-                return true;
-            } else {
-                // Não encontrado no cache, carregar normalmente
-                this.log(`Modelo ${this.modelId} não encontrado no cache, carregando da URL...`);
+                // Criar material
+                const material = this.createOptimizedMaterial();
                 
-                return new Promise((resolve, reject) => {
-                    // Carregar normalmente e adicionar ao cache
-                    const xhr = new XMLHttpRequest();
-                    xhr.responseType = 'arraybuffer';
-                    
-                    xhr.onload = () => {
-                        if (xhr.status === 200) {
-                            const modelData = xhr.response;
-                            
-                            // Processar dados do modelo
-                            try {
-                                if (fileType === 'stl') {
-                                    this.processSTLData(modelData);
-                                } else if (fileType === 'obj') {
-                                    this.processOBJData(modelData);
-                                } else {
-                                    throw new Error(`Tipo de arquivo não suportado: ${fileType}`);
-                                }
-                                
-                                // Adicionar ao cache para uso futuro
-                                this.addModelToCache(this.modelId, modelData, fileType)
-                                    .then(() => {
-                                        this.log(`Modelo ${this.modelId} adicionado ao cache com sucesso`);
-                                    })
-                                    .catch(e => {
-                                        this.log(`Erro ao adicionar modelo ao cache: ${e.message}`);
-                                    });
-                                
-                                resolve(true);
-                            } catch (error) {
-                                this.log(`Erro ao processar modelo: ${error.message}`);
-                                this.hideLoading();
-                                reject(error);
-                            }
-                        } else {
-                            this.log(`Erro ao carregar modelo: HTTP ${xhr.status}`);
-                            this.hideLoading();
-                            reject(new Error(`HTTP ${xhr.status}`));
-                        }
-                    };
-                    
-                    xhr.onerror = (error) => {
-                        this.log(`Erro de rede ao carregar modelo: ${error}`);
-                        this.hideLoading();
-                        reject(error);
-                    };
-                    
-                    xhr.onprogress = (event) => {
-                        if (event.lengthComputable && this.options.progressiveLoading) {
-                            const percent = (event.loaded / event.total) * 100;
-                            this.updateLoadingProgress(percent);
-                        }
-                    };
-                    
-                    xhr.open('GET', filePath, true);
-                    xhr.send();
-                });
-            }
-        }).catch(error => {
-            this.log(`Erro no sistema de cache: ${error.message}`);
-            this.hideLoading();
-            
-            // Fallback para carregamento normal em caso de erro
-            return originalLoadModel.apply(this, arguments);
-        });
-    };
-    
-    /**
-     * Processa os dados de um STL
-     * @param {ArrayBuffer} data Dados binários do STL
-     * @private
-     */
-    OriginalModelViewer.prototype.processSTLData = function(data) {
-        try {
-            const loader = new THREE.STLLoader();
-            const geometry = loader.parse(data);
-            
-            // Criar material com opções otimizadas
-            const material = this.createOptimizedMaterial();
-            
-            // Simplificar geometria para dispositivos móveis, se necessário
-            let processedGeometry = geometry;
-            if (this.isMobile && this.options.optimizeForMobile && 
-                geometry.attributes && geometry.attributes.position) {
-                // Verificar se o modelo é complexo (mais de 100k vértices)
-                const vertexCount = geometry.attributes.position.count;
+                // Criar malha
+                const mesh = new THREE.Mesh(geometry, material);
                 
-                if (vertexCount > 100000) {
-                    processedGeometry = this.simplifyGeometry(geometry);
+                // Centralizar o modelo
+                geometry.computeBoundingBox();
+                const box = geometry.boundingBox;
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                mesh.position.sub(center);
+                
+                // Normalizar tamanho
+                this.normalizeModelSize(mesh);
+                
+                // Adicionar à cena
+                this.object = mesh;
+                this.scene.add(mesh);
+                
+                // Ajustar câmera
+                this.adjustCameraToModel();
+                
+                // Esconder carregamento
+                this.hideLoading();
+                
+                // Log de sucesso
+                if (this.options.debug) {
+                    console.log('ModelViewerCacheIntegration: Modelo STL carregado do cache com sucesso');
                 }
+                
+                // Atualizar indicador de progresso
+                this.updateLoadingProgress(100);
+            } catch (error) {
+                console.error('ModelViewerCacheIntegration: Erro ao carregar STL do cache', error);
+                
+                // Fallback para carregamento normal
+                originalModelViewerLoadModel.call(this, this.options.filePath);
             }
-            
-            // Criar malha
-            const mesh = new THREE.Mesh(processedGeometry, material);
-            
-            // Centralizar o modelo
-            processedGeometry.computeBoundingBox();
-            const box = processedGeometry.boundingBox;
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            mesh.position.sub(center);
-            
-            // Normalizar tamanho
-            this.normalizeModelSize(mesh);
-            
-            // Adicionar à cena
-            this.object = mesh;
-            this.scene.add(mesh);
-            
-            // Ajustar câmera
-            this.adjustCameraToModel();
-            
-            // Esconder carregamento
-            this.hideLoading();
-            
-            this.log(`Modelo STL processado com sucesso a partir de dados em cache`);
-        } catch (error) {
-            this.log(`Erro ao processar dados STL: ${error.message}`);
-            throw error;
-        }
-    };
-    
-    /**
-     * Processa os dados de um OBJ
-     * @param {ArrayBuffer|string} data Dados do OBJ
-     * @private
-     */
-    OriginalModelViewer.prototype.processOBJData = function(data) {
-        try {
-            const loader = new THREE.OBJLoader();
-            
-            // Converter ArrayBuffer para string se necessário
-            let objContent;
-            if (data instanceof ArrayBuffer) {
-                objContent = new TextDecoder().decode(data);
-            } else {
-                objContent = data;
-            }
-            
-            // Carregar OBJ a partir da string
-            const object = loader.parse(objContent);
-            
-            // Otimizar para dispositivos móveis
-            if (this.isMobile && this.options.optimizeForMobile) {
+        };
+        
+        /**
+         * Carrega um modelo OBJ a partir do cache
+         * @param {string|ArrayBuffer} modelData - Dados do modelo em cache
+         */
+        ModelViewer.prototype.loadCachedOBJModel = function(modelData) {
+            try {
+                let objContent;
+                
+                // Processar dados conforme o tipo
+                if (typeof modelData === 'string') {
+                    objContent = modelData;
+                } else {
+                    // Converter ArrayBuffer para string
+                    const decoder = new TextDecoder('utf-8');
+                    objContent = decoder.decode(modelData);
+                }
+                
+                // Carregar modelo OBJ a partir do conteúdo
+                const loader = new THREE.OBJLoader();
+                const object = loader.parse(objContent);
+                
+                // Aplicar material
                 object.traverse((child) => {
                     if (child instanceof THREE.Mesh) {
-                        // Aplicar material otimizado
-                        if (!child.material || this.shouldReplaceWithOptimizedMaterial(child.material)) {
-                            child.material = this.createOptimizedMaterial();
+                        child.material = this.createOptimizedMaterial();
+                    }
+                });
+                
+                // Centralizar o modelo
+                const box = new THREE.Box3().setFromObject(object);
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                object.position.sub(center);
+                
+                // Normalizar tamanho
+                this.normalizeModelSize(object);
+                
+                // Adicionar à cena
+                this.object = object;
+                this.scene.add(object);
+                
+                // Ajustar câmera
+                this.adjustCameraToModel();
+                
+                // Esconder carregamento
+                this.hideLoading();
+                
+                // Log de sucesso
+                if (this.options.debug) {
+                    console.log('ModelViewerCacheIntegration: Modelo OBJ carregado do cache com sucesso');
+                }
+                
+                // Atualizar indicador de progresso
+                this.updateLoadingProgress(100);
+            } catch (error) {
+                console.error('ModelViewerCacheIntegration: Erro ao carregar OBJ do cache', error);
+                
+                // Fallback para carregamento normal
+                originalModelViewerLoadModel.call(this, this.options.filePath);
+            }
+        };
+        
+        /**
+         * Carrega um modelo e adiciona ao cache
+         * @param {string} filePath - Caminho do arquivo
+         * @param {string} fileType - Tipo de arquivo (stl ou obj)
+         * @returns {Promise} Promessa resolvida quando o modelo for carregado
+         */
+        ModelViewer.prototype.loadModelAndCache = function(filePath, fileType) {
+            return new Promise((resolve, reject) => {
+                // URL para requisição
+                const url = new URL(filePath, window.location.href);
+                
+                // Realizar requisição para obter o arquivo
+                fetch(url.toString())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
                         }
                         
-                        // Simplificar geometria se for muito complexa
-                        if (child.geometry && child.geometry.attributes && 
-                            child.geometry.attributes.position && 
-                            child.geometry.attributes.position.count > 100000) {
-                            child.geometry = this.simplifyGeometry(child.geometry);
-                        }
-                    }
-                });
-            } else {
-                // Se não for dispositivo móvel, apenas aplicar material padrão onde necessário
-                object.traverse((child) => {
-                    if (child instanceof THREE.Mesh) {
-                        if (!child.material) {
-                            child.material = new THREE.MeshPhongMaterial({
-                                color: this.options.modelColor,
-                                specular: 0x111111,
-                                shininess: 30
+                        // Atualizar indicador de progresso
+                        this.updateLoadingProgress(40);
+                        
+                        // Obter dados
+                        return response.arrayBuffer();
+                    })
+                    .then(arrayBuffer => {
+                        // Atualizar indicador de progresso
+                        this.updateLoadingProgress(70);
+                        
+                        // Adicionar ao cache
+                        if (this.cacheManager && this.modelId) {
+                            this.cacheManager.addModel({
+                                id: this.modelId,
+                                modelType: fileType,
+                                data: arrayBuffer,
+                                uri: filePath
+                            }).catch(err => {
+                                console.warn('ModelViewerCacheIntegration: Erro ao adicionar modelo ao cache', err);
+                                // Continuar carregamento mesmo se o cache falhar
                             });
                         }
-                    }
-                });
-            }
-            
-            // Centralizar o modelo
-            const box = new THREE.Box3().setFromObject(object);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            object.position.sub(center);
-            
-            // Normalizar tamanho
-            this.normalizeModelSize(object);
-            
-            // Adicionar à cena
-            this.object = object;
-            this.scene.add(object);
-            
-            // Ajustar câmera
-            this.adjustCameraToModel();
-            
-            // Esconder carregamento
-            this.hideLoading();
-            
-            this.log(`Modelo OBJ processado com sucesso a partir de dados em cache`);
-        } catch (error) {
-            this.log(`Erro ao processar dados OBJ: ${error.message}`);
-            throw error;
-        }
-    };
-    
-    // Configurar o ModelViewer para usar ID de modelo para cache
-    const originalInit = OriginalModelViewer.prototype.init;
-    OriginalModelViewer.prototype.init = function() {
-        // Extrair ID do modelo da URL ou opções
-        const url = new URL(this.options.filePath, window.location.href);
-        this.modelId = url.searchParams.get('id') || this.options.modelId;
-        
-        // Chamar inicialização original
-        originalInit.apply(this, arguments);
-        
-        // Verificar e usar cache manager global se disponível
-        if (!this.cacheManager && window.modelCacheManager) {
-            this.setCacheManager(window.modelCacheManager);
-        }
-        
-        // Chamar hooks de inicialização se existirem
-        if (window.modelViewerInitHooks && Array.isArray(window.modelViewerInitHooks)) {
-            window.modelViewerInitHooks.forEach(hook => {
-                if (typeof hook === 'function') {
-                    try {
-                        hook(this);
-                    } catch (e) {
-                        console.error('Erro ao executar hook de inicialização:', e);
-                    }
-                }
+                        
+                        // Carregar modelo com o loader apropriado
+                        if (fileType === 'stl') {
+                            const loader = new THREE.STLLoader();
+                            const geometry = loader.parse(arrayBuffer);
+                            
+                            // Criar material
+                            const material = this.createOptimizedMaterial();
+                            
+                            // Criar malha
+                            const mesh = new THREE.Mesh(geometry, material);
+                            
+                            // Centralizar o modelo
+                            geometry.computeBoundingBox();
+                            const box = geometry.boundingBox;
+                            const center = new THREE.Vector3();
+                            box.getCenter(center);
+                            mesh.position.sub(center);
+                            
+                            // Normalizar tamanho
+                            this.normalizeModelSize(mesh);
+                            
+                            // Adicionar à cena
+                            this.object = mesh;
+                            this.scene.add(mesh);
+                            
+                            // Ajustar câmera
+                            this.adjustCameraToModel();
+                            
+                            // Esconder carregamento
+                            this.hideLoading();
+                            
+                            // Atualizar indicador de progresso
+                            this.updateLoadingProgress(100);
+                            
+                            resolve();
+                        } else if (fileType === 'obj') {
+                            // Para OBJ, primeiro converter para texto
+                            const decoder = new TextDecoder('utf-8');
+                            const objContent = decoder.decode(arrayBuffer);
+                            
+                            // Carregar modelo OBJ a partir do conteúdo
+                            const loader = new THREE.OBJLoader();
+                            const object = loader.parse(objContent);
+                            
+                            // Aplicar material
+                            object.traverse((child) => {
+                                if (child instanceof THREE.Mesh) {
+                                    child.material = this.createOptimizedMaterial();
+                                }
+                            });
+                            
+                            // Centralizar o modelo
+                            const box = new THREE.Box3().setFromObject(object);
+                            const center = new THREE.Vector3();
+                            box.getCenter(center);
+                            object.position.sub(center);
+                            
+                            // Normalizar tamanho
+                            this.normalizeModelSize(object);
+                            
+                            // Adicionar à cena
+                            this.object = object;
+                            this.scene.add(object);
+                            
+                            // Ajustar câmera
+                            this.adjustCameraToModel();
+                            
+                            // Esconder carregamento
+                            this.hideLoading();
+                            
+                            // Atualizar indicador de progresso
+                            this.updateLoadingProgress(100);
+                            
+                            resolve();
+                        } else {
+                            reject(new Error(`Tipo de arquivo não suportado: ${fileType}`));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('ModelViewerCacheIntegration: Erro ao carregar modelo', error);
+                        
+                        // Fallback para método original para evitar quebra total
+                        originalModelViewerLoadModel.call(this, filePath);
+                        reject(error);
+                    });
             });
+        };
+    }
+    
+    // Array de hooks de inicialização do ModelViewer
+    window.modelViewerInitHooks = window.modelViewerInitHooks || [];
+    
+    // Adicionar hook para quando o DOM estiver carregado
+    document.addEventListener('DOMContentLoaded', function() {
+        // Estender ModelViewer com funcionalidades de cache
+        extendModelViewer();
+        
+        // Verificar se temos algum visualizador para inicializar
+        if (typeof ModelViewer === 'function') {
+            console.log('ModelViewerCacheIntegration: Visualizador 3D estendido com suporte a cache');
         }
-    };
+    });
     
-    // Registrar versão do modelo-viewer com integração de cache
-    ModelViewer.version = (ModelViewer.version || '1.0.0') + '-cache';
+    // Hook para inicializar visualizadores existentes
+    function initializeExistingViewers() {
+        // Verificar se janela model3dCacheInfo está disponível
+        if (window.model3dCacheInfo && window.model3dCacheInfo.enabled) {
+            // Verificar se há informações sobre modelos a pré-carregar
+            if (window.model3dCacheInfo.preloadModels && window.model3dCacheInfo.preloadModels.length > 0) {
+                console.log(`ModelViewerCacheIntegration: ${window.model3dCacheInfo.preloadModels.length} modelos disponíveis para pré-carregamento`);
+            }
+        }
+    }
     
-    console.log(`ModelViewer com integração de cache (${ModelViewer.version}) inicializado.`);
+    // Inicializar quando a janela estiver totalmente carregada
+    window.addEventListener('load', initializeExistingViewers);
 })();
