@@ -12,6 +12,7 @@ class ResourceOptimizerHelper {
     private static $criticalCSSEnabled = true;
     private static $initialized = false;
     private static $criticalCSSCache = [];
+    private static $model3dCacheEnabled = true;
     
     // Lista de recursos internos para substituir versões externas
     private static $localResources = [
@@ -35,6 +36,9 @@ class ResourceOptimizerHelper {
         'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'
     ];
     
+    // Tipos de modelos 3D suportados para cache
+    private static $supportedModelFormats = ['stl', 'obj', 'mtl'];
+    
     /**
      * Inicializa o helper
      */
@@ -50,6 +54,14 @@ class ResourceOptimizerHelper {
         
         // Inicializar recursos locais
         self::initLocalResources();
+        
+        // Inicializar cache de modelos 3D se disponível
+        if (class_exists('ModelCacheHelper')) {
+            ModelCacheHelper::init();
+            self::$model3dCacheEnabled = ModelCacheHelper::isCacheEnabled();
+        } else {
+            self::$model3dCacheEnabled = false;
+        }
     }
     
     /**
@@ -68,6 +80,31 @@ class ResourceOptimizerHelper {
      */
     public static function enableCriticalCSS($enabled) {
         self::$criticalCSSEnabled = $enabled;
+    }
+    
+    /**
+     * Habilita ou desabilita o cache de modelos 3D
+     * 
+     * @param bool $enabled Verdadeiro para habilitar cache de modelos 3D
+     */
+    public static function enableModel3DCache($enabled) {
+        self::$model3dCacheEnabled = $enabled;
+        
+        // Propagar configuração para o ModelCacheHelper
+        if (class_exists('ModelCacheHelper')) {
+            ModelCacheHelper::setCacheEnabled($enabled);
+        }
+    }
+    
+    /**
+     * Define a versão do cache para modelos 3D
+     * 
+     * @param string $version Nova versão para invalidação de cache
+     */
+    public static function setModel3DCacheVersion($version) {
+        if (class_exists('ModelCacheHelper')) {
+            ModelCacheHelper::setVersion($version);
+        }
     }
     
     /**
@@ -383,5 +420,172 @@ class ResourceOptimizerHelper {
         $script .= "</script>\n";
         
         return $script;
+    }
+    
+    /**
+     * Verifica se um arquivo é um modelo 3D suportado
+     * 
+     * @param string $filePath Caminho do arquivo
+     * @return bool Verdadeiro se for um modelo 3D suportado
+     */
+    public static function isSupported3DModel($filePath) {
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        return in_array($extension, self::$supportedModelFormats);
+    }
+    
+    /**
+     * Otimiza a URL de um modelo 3D para uso com cache
+     * 
+     * @param string $filePath Caminho do arquivo de modelo 3D
+     * @param bool $useCache Se deve usar o sistema de cache (padrão: verdadeiro)
+     * @return array Informações otimizadas do modelo
+     */
+    public static function optimize3DModelUrl($filePath, $useCache = true) {
+        // Verificar se o modelo é suportado
+        if (!self::isSupported3DModel($filePath)) {
+            return [
+                'url' => $filePath,
+                'cached' => false,
+                'modelId' => null
+            ];
+        }
+        
+        // Verificar se o cache está habilitado e disponível
+        if (!$useCache || !self::$model3dCacheEnabled || !class_exists('ModelCacheHelper')) {
+            return [
+                'url' => $filePath,
+                'cached' => false,
+                'modelId' => null
+            ];
+        }
+        
+        // Gerar ID do modelo
+        $fullPath = strpos($filePath, ROOT_PATH) === 0 ? $filePath : ROOT_PATH . '/public/' . ltrim($filePath, '/');
+        $modelId = ModelCacheHelper::generateModelId($fullPath);
+        
+        // Verificar se o modelo está em cache
+        $isCached = ModelCacheHelper::isModelCached($modelId);
+        
+        // Se não estiver em cache e for um arquivo local válido, adicionar ao cache
+        if (!$isCached && file_exists($fullPath)) {
+            $modelId = ModelCacheHelper::cacheModel($fullPath);
+            $isCached = $modelId !== false;
+        }
+        
+        // Determinar a URL final
+        if ($isCached) {
+            $cachedPath = ModelCacheHelper::getCachedModelPath($modelId);
+            $url = BASE_URL . ltrim($cachedPath, '/');
+            
+            // Registrar acesso ao modelo
+            ModelCacheHelper::recordAccess($modelId);
+        } else {
+            $url = $filePath;
+        }
+        
+        // Adicionar parâmetros para controle de cache
+        if ($modelId) {
+            $glue = strpos($url, '?') === false ? '?' : '&';
+            $url .= $glue . 'v=' . ModelCacheHelper::getVersion() . '&id=' . $modelId;
+        }
+        
+        return [
+            'url' => $url,
+            'cached' => $isCached,
+            'modelId' => $modelId
+        ];
+    }
+    
+    /**
+     * Gera o script JavaScript para inicializar o gerenciador de cache de modelos 3D no cliente
+     * 
+     * @param array $options Opções de configuração para o gerenciador de cache
+     * @return string Script JavaScript para inicialização
+     */
+    public static function generateModel3DCacheManagerScript($options = []) {
+        // Opções padrão
+        $defaultOptions = [
+            'debug' => !self::$productionMode,
+            'maxCacheSize' => 50 * 1024 * 1024, // 50MB
+            'version' => ModelCacheHelper::getVersion()
+        ];
+        
+        // Mesclar opções
+        $options = array_merge($defaultOptions, $options);
+        
+        // Converter opções para JSON
+        $optionsJson = json_encode($options);
+        
+        // Gerar script
+        $script = "<script>\n";
+        $script .= "// Inicialização do gerenciador de cache de modelos 3D\n";
+        $script .= "document.addEventListener('DOMContentLoaded', function() {\n";
+        $script .= "  if (typeof ModelCacheManager !== 'undefined') {\n";
+        $script .= "    window.modelCacheManager = new ModelCacheManager({$optionsJson});\n";
+        $script .= "    // Disponibilizar para o visualizador 3D\n";
+        $script .= "    window.getModelCache = function() {\n";
+        $script .= "      return window.modelCacheManager;\n";
+        $script .= "    };\n";
+        $script .= "  } else {\n";
+        $script .= "    console.warn('ModelCacheManager não disponível. Cache de modelos 3D desabilitado.');\n";
+        $script .= "  }\n";
+        $script .= "});\n";
+        $script .= "</script>\n";
+        
+        return $script;
+    }
+    
+    /**
+     * Configura headers HTTP para controle de cache para modelos 3D
+     * 
+     * @param string $modelId ID do modelo no cache
+     */
+    public static function setModel3DCacheHeaders($modelId) {
+        if (!self::$model3dCacheEnabled || !class_exists('ModelCacheHelper')) {
+            return;
+        }
+        
+        // Verificar se o cliente tem uma versão em cache válida
+        if (ModelCacheHelper::clientHasValidCache()) {
+            ModelCacheHelper::sendNotModifiedIfValid();
+            return;
+        }
+        
+        // Configurar headers de cache
+        ModelCacheHelper::setCacheHeaders();
+        
+        // Registrar acesso ao modelo
+        if ($modelId) {
+            ModelCacheHelper::recordAccess($modelId);
+        }
+    }
+    
+    /**
+     * Limpa o cache de modelos 3D
+     * 
+     * @return bool Sucesso da operação
+     */
+    public static function clearModel3DCache() {
+        if (!self::$model3dCacheEnabled || !class_exists('ModelCacheHelper')) {
+            return false;
+        }
+        
+        return ModelCacheHelper::clearCache();
+    }
+    
+    /**
+     * Obtém informações sobre o cache de modelos 3D
+     * 
+     * @return array Informações sobre o cache
+     */
+    public static function getModel3DCacheInfo() {
+        if (!self::$model3dCacheEnabled || !class_exists('ModelCacheHelper')) {
+            return [
+                'enabled' => false,
+                'reason' => 'Cache de modelos 3D desabilitado ou ModelCacheHelper não disponível'
+            ];
+        }
+        
+        return ModelCacheHelper::getCacheInfo();
     }
 }
