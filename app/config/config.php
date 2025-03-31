@@ -49,7 +49,7 @@ if (!defined('CURRENCY')) {
     define('CURRENCY', 'BRL');
 }
 
-// Definir constante de símbolo de moeda de forma literal para evitar problemas de tipo
+// CORREÇÃO: Redefinir constante de símbolo de moeda como string literal, não numérico
 if (!defined('CURRENCY_SYMBOL')) {
     define('CURRENCY_SYMBOL', 'R$');
 }
