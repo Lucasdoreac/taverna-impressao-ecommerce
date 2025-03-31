@@ -2,12 +2,12 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-03-31T16:33:30.000Z",
+    "lastUpdated": "2025-03-31T17:01:30.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
-    "currentFile": "app/controllers/NotificationPreferenceController.php",
-    "currentComponent": "Configurações Avançadas para Preferências de Notificação",
+    "currentFile": "app/controllers/CategoryController.php",
+    "currentComponent": "Correção de Bugs em Ambiente de Produção",
     "inProgress": true
   },
   "components": {
@@ -72,26 +72,23 @@
     "pending": []
   },
   "context": {
-    "lastThought": "Criados os diretórios ausentes para uploads de produtos, categorias e customização. Esses diretórios são essenciais para que o sistema funcione corretamente ao fazer upload de imagens de produtos, categorias e arquivos de customização 3D. A falta destes diretórios estava causando erros quando os usuários tentavam realizar uploads.",
+    "lastThought": "Correção do CategoryController para estender Controller e usar seus métodos. O erro ocorria porque o CategoryController não estendia a classe Controller, então o método db() não estava disponível. A solução foi modificar a declaração da classe para 'class CategoryController extends Controller' para herdar os métodos necessários.",
     "nextSteps": [
       "Desenvolver interface de usuário para configuração de preferências (app/views/account/notification_preferences.php)",
       "Implementar o controller administrativo (app/controllers/AdminNotificationController.php)",
       "Desenvolver interface administrativa (app/views/admin/notification_preferences.php)",
       "Criar arquivos JavaScript e CSS para a interface de preferências",
-      "Integrar as preferências com o sistema de notificações existente",
-      "Expandir dashboard com novas visualizações e métricas",
-      "Resolver problema dos produtos não exibidos",
-      "Resolver erro de classes não encontradas",
-      "Corrigir o problema com CURRENCY_SYMBOL"
+      "Corrigir o problema com CURRENCY_SYMBOL",
+      "Verificar se há outros controllers que não estendem Controller",
+      "Testar a exibição de produtos nas páginas de categoria"
     ],
     "lastEditedFiles": [
+      "app/controllers/CategoryController.php",
+      "project-status.json",
       "public/uploads/products/.gitkeep",
       "public/uploads/categories/.gitkeep",
       "public/uploads/customization/.gitkeep",
-      "project-status.json",
-      "app/controllers/CustomizationController.php",
-      "app/controllers/NotificationPreferenceController.php",
-      "app/views/account/notification_preferences.php"
+      "app/controllers/CustomizationController.php"
     ],
     "onlineTestResults": {
       "workingTests": [
@@ -148,8 +145,9 @@
           "description": "Classes não encontradas",
           "details": "Fatal error: Class \"ProductModel\" not found no CategoryController e 'Classe Database não encontrada!' em diagnostico-erros.php",
           "severity": "critical",
-          "status": "pendente",
-          "affectedFiles": ["app/controllers/CategoryController.php", "app/diagnostico-erros.php"]
+          "status": "parcialmente resolvido",
+          "affectedFiles": ["app/controllers/CategoryController.php", "app/diagnostico-erros.php"],
+          "resolution": "Modificado CategoryController para estender a classe Controller, o que resolve o problema do método db() não encontrado e permite a inicialização correta de dependências."
         },
         {
           "id": "BUG-004",
@@ -184,8 +182,11 @@
         },
         {
           "bugId": "BUG-003",
-          "solution": "Verificar autoloader e incluir require_once para classes necessárias",
-          "description": "Verificar se ProductModel.php existe no servidor, garantir que o autoloader está carregando as classes corretamente, adicionar método db() ao CategoryController ou revisar sua implementação"
+          "solution": "Modificar CategoryController para estender a classe Controller",
+          "description": "Alterar a definição da classe para 'class CategoryController extends Controller' para herdar os métodos necessários como db()",
+          "code": "class CategoryController extends Controller {\n    private $categoryModel;\n    private $productModel;\n    \n    public function __construct() {\n        try {\n            $this->categoryModel = new CategoryModel();\n            $this->productModel = new ProductModel();\n        } catch (Exception $e) {\n            $this->handleError($e, \"Erro ao inicializar CategoryController\");\n        }\n    }\n    \n    // ... resto do código\n}",
+          "status": "implementado",
+          "implementedAt": "2025-03-31T17:01:00.000Z"
         },
         {
           "bugId": "BUG-004",
@@ -203,7 +204,7 @@
       "implementationPlan": [
         "Primeiro, corrigir o erro mais visível da variável undefined no CustomizationController (CONCLUÍDO)",
         "Em seguida, criar os diretórios ausentes para evitar problemas com uploads (CONCLUÍDO)",
-        "Depois, resolver o problema do autoloader e classes não encontradas",
+        "Depois, resolver o problema do autoloader e classes não encontradas (PARCIALMENTE CONCLUÍDO - CategoryController corrigido)",
         "Por fim, corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL"
       ]
     },
@@ -266,7 +267,8 @@
         "app/controllers/CustomizationController.php",
         "public/uploads/products/.gitkeep",
         "public/uploads/categories/.gitkeep",
-        "public/uploads/customization/.gitkeep"
+        "public/uploads/customization/.gitkeep",
+        "app/controllers/CategoryController.php"
       ],
       "features": [
         "Correção de variável undefined no CustomizationController",
@@ -285,9 +287,14 @@
           "component": "Diretórios de Upload",
           "status": "completed",
           "description": "Criados os diretórios uploads/products, uploads/categories e uploads/customization com arquivos .gitkeep para garantir que sejam versionados no Git"
+        },
+        {
+          "component": "CategoryController.php",
+          "status": "completed",
+          "description": "Modificado CategoryController para estender a classe Controller, o que resolve o problema do método db() não encontrado"
         }
       ],
-      "timestamp": "2025-03-31T16:33:00.000Z"
+      "timestamp": "2025-03-31T17:01:00.000Z"
     },
     "modelViewerCache": {
       "status": "completed",
@@ -703,14 +710,14 @@
       "findings": [
         "Problema identificado na página de produtos personalizáveis: variável não definida '$availability' - CORRIGIDO",
         "Produtos não estão sendo exibidos corretamente, apesar de existirem no banco de dados",
-        "Erro de classe não encontrada: ProductModel e Database em vários contextos",
+        "Erro de classe não encontrada: ProductModel e Database em vários contextos - PARCIALMENTE CORRIGIDO",
         "Diretórios de uploads ausentes causando erros ao tentar salvar arquivos - CORRIGIDO",
         "CURRENCY_SYMBOL configurado incorretamente como valor numérico em vez de string",
         "CustomizationController modificado para inicializar corretamente a variável availability, correção verificada e funcionando",
-        "CategoryController está tendo problemas ao tentar acessar o ProductModel",
+        "CategoryController modificado para estender a classe Controller, resolvendo o problema do método db() não encontrado",
         "Criados os diretórios uploads/products, uploads/categories e uploads/customization para resolver os erros de upload de arquivos"
       ],
-      "timestamp": "2025-03-31T16:33:00.000Z"
+      "timestamp": "2025-03-31T17:01:00.000Z"
     }
   },
   "roadmap": {
