@@ -21,7 +21,8 @@ function prettyJson($data) {
 // Inicializar teste de banco de dados
 $dbTest = [];
 try {
-    $db = new Database();
+    // Usar o método getInstance() em vez de construtor direto
+    $db = Database::getInstance();
     $dbTest['connection'] = "OK";
     
     // Verificar a versão do MySQL
@@ -127,7 +128,7 @@ try {
 // Testar acesso direto ao banco de dados para produtos
 $directDbTest = [];
 try {
-    $db = new Database();
+    $db = Database::getInstance();
     
     // Contar produtos totais
     $totalResult = $db->select("SELECT COUNT(*) as total FROM products");
@@ -166,7 +167,7 @@ $sqlAnalysis = [];
 $relatedTables = ['products', 'product_images', 'categories', 'customization_options'];
 foreach ($relatedTables as $table) {
     try {
-        $db = new Database();
+        $db = Database::getInstance();
         
         // Verificar estrutura da tabela
         $structResult = $db->select("DESCRIBE {$table}");
