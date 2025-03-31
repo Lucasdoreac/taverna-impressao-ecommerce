@@ -30,6 +30,8 @@ class SQLOptimizationHelper {
             'products' => $this->applyProductIndices(),
             'product_images' => $this->applyProductImagesIndices(),
             'categories' => $this->applyCategoryIndices(),
+            'orders' => $this->applyOrderIndices(),
+            'order_items' => $this->applyOrderItemsIndices(),
         ];
         
         return $results;
@@ -167,6 +169,227 @@ class SQLOptimizationHelper {
     }
     
     /**
+     * Aplica índices para a tabela orders
+     * 
+     * @return array Resultado da aplicação
+     */
+    private function applyOrderIndices() {
+        $result = ['success' => true, 'applied' => [], 'errors' => []];
+        
+        $indices = [
+            'idx_orders_user_id' => 'ALTER TABLE orders ADD INDEX idx_orders_user_id (user_id)',
+            'idx_orders_status' => 'ALTER TABLE orders ADD INDEX idx_orders_status (status)',
+            'idx_orders_payment_status' => 'ALTER TABLE orders ADD INDEX idx_orders_payment_status (payment_status)',
+            'idx_orders_created_at' => 'ALTER TABLE orders ADD INDEX idx_orders_created_at (created_at)',
+            'idx_orders_print_start_date' => 'ALTER TABLE orders ADD INDEX idx_orders_print_start_date (print_start_date)',
+            'idx_orders_status_created_at' => 'ALTER TABLE orders ADD INDEX idx_orders_status_created_at (status, created_at)',
+            'idx_orders_payment_status_created_at' => 'ALTER TABLE orders ADD INDEX idx_orders_payment_status_created_at (payment_status, created_at)'
+        ];
+        
+        foreach ($indices as $indexName => $sql) {
+            try {
+                // Verificar se o índice já existe
+                $checkSql = "SHOW INDEX FROM orders WHERE Key_name = :index_name";
+                $indexExists = $this->db->select($checkSql, ['index_name' => $indexName]);
+                
+                if (empty($indexExists)) {
+                    // Aplicar índice
+                    $this->db->execute($sql);
+                    $result['applied'][] = $indexName;
+                } else {
+                    // Índice já existe
+                    $result['applied'][] = $indexName . ' (já existente)';
+                }
+            } catch (Exception $e) {
+                $result['success'] = false;
+                $result['errors'][] = [
+                    'index' => $indexName,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Aplica índices para a tabela order_items
+     * 
+     * @return array Resultado da aplicação
+     */
+    private function applyOrderItemsIndices() {
+        $result = ['success' => true, 'applied' => [], 'errors' => []];
+        
+        $indices = [
+            'idx_order_items_order_id' => 'ALTER TABLE order_items ADD INDEX idx_order_items_order_id (order_id)',
+            'idx_order_items_product_id' => 'ALTER TABLE order_items ADD INDEX idx_order_items_product_id (product_id)',
+            'idx_order_items_is_stock_item' => 'ALTER TABLE order_items ADD INDEX idx_order_items_is_stock_item (is_stock_item)'
+        ];
+        
+        foreach ($indices as $indexName => $sql) {
+            try {
+                // Verificar se o índice já existe
+                $checkSql = "SHOW INDEX FROM order_items WHERE Key_name = :index_name";
+                $indexExists = $this->db->select($checkSql, ['index_name' => $indexName]);
+                
+                if (empty($indexExists)) {
+                    // Aplicar índice
+                    $this->db->execute($sql);
+                    $result['applied'][] = $indexName;
+                } else {
+                    // Índice já existe
+                    $result['applied'][] = $indexName . ' (já existente)';
+                }
+            } catch (Exception $e) {
+                $result['success'] = false;
+                $result['errors'][] = [
+                    'index' => $indexName,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Aplica os índices definidos em um arquivo SQL
+     * 
+     * @param string $filePath Caminho para o arquivo SQL
+     * @return array Resultado da aplicação
+     */
+    public function applyIndicesFromFile($filePath = null) {
+        if ($filePath === null) {
+            $filePath = APP_PATH . '/../database/migrations/indices_otimizacao_sql.sql';
+        }
+        
+        $result = ['success' => true, 'applied' => [], 'errors' => []];
+        
+        // Verificar se o arquivo existe
+        if (!file_exists($filePath)) {
+            $result['success'] = false;
+            $result['errors'][] = [
+                'error' => 'Arquivo de índices não encontrado: ' . $filePath
+            ];
+            return $result;
+        }
+        
+        // Ler o arquivo
+        $sql = file_get_contents($filePath);
+        
+        // Dividir em comandos individuais
+        $commands = explode(';', $sql);
+        
+        // Executar cada comando
+        foreach ($commands as $command) {
+            $command = trim($command);
+            
+            // Ignorar linhas vazias e comentários
+            if (empty($command) || strpos($command, '--') === 0) {
+                continue;
+            }
+            
+            try {
+                // Extrair nome do índice
+                if (preg_match('/CREATE\s+INDEX\s+.*?(\w+)\s+ON\s+(\w+)/i', $command, $matches)) {
+                    $indexName = $matches[1];
+                    $tableName = $matches[2];
+                    
+                    // Verificar se o índice já existe
+                    $checkSql = "SHOW INDEX FROM {$tableName} WHERE Key_name = :index_name";
+                    $indexExists = $this->db->select($checkSql, ['index_name' => $indexName]);
+                    
+                    if (empty($indexExists)) {
+                        // Aplicar índice
+                        $this->db->execute($command);
+                        $result['applied'][] = "{$indexName} ({$tableName})";
+                    } else {
+                        // Índice já existe
+                        $result['applied'][] = "{$indexName} ({$tableName}) - já existente";
+                    }
+                }
+            } catch (Exception $e) {
+                $result['errors'][] = [
+                    'command' => $command,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+        
+        // Verificar se houve erros
+        if (!empty($result['errors'])) {
+            $result['success'] = false;
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Testa a performance das consultas otimizadas no OrderModel
+     * 
+     * @return array Resultados dos testes
+     */
+    public function testOrderModelPerformance() {
+        $orderModel = new OrderModel();
+        $results = [];
+        $iterations = 5;
+        
+        // Teste 1: getOrdersByUser
+        $test1Times = [];
+        for ($i = 0; $i < $iterations; $i++) {
+            $startTime = microtime(true);
+            $orderModel->getOrdersByUser(1); // assumindo que existe um usuário com ID 1
+            $test1Times[] = microtime(true) - $startTime;
+        }
+        $results['getOrdersByUser'] = [
+            'avg_time' => array_sum($test1Times) / count($test1Times),
+            'min_time' => min($test1Times),
+            'max_time' => max($test1Times)
+        ];
+        
+        // Teste 2: getOrderItems
+        $test2Times = [];
+        for ($i = 0; $i < $iterations; $i++) {
+            $startTime = microtime(true);
+            $orderModel->getOrderItems(1); // assumindo que existe um pedido com ID 1
+            $test2Times[] = microtime(true) - $startTime;
+        }
+        $results['getOrderItems'] = [
+            'avg_time' => array_sum($test2Times) / count($test2Times),
+            'min_time' => min($test2Times),
+            'max_time' => max($test2Times)
+        ];
+        
+        // Teste 3: getSalesByCategory
+        $test3Times = [];
+        for ($i = 0; $i < $iterations; $i++) {
+            $startTime = microtime(true);
+            $orderModel->getSalesByCategory();
+            $test3Times[] = microtime(true) - $startTime;
+        }
+        $results['getSalesByCategory'] = [
+            'avg_time' => array_sum($test3Times) / count($test3Times),
+            'min_time' => min($test3Times),
+            'max_time' => max($test3Times)
+        ];
+        
+        // Teste 4: getCurrentlyPrintingOrders
+        $test4Times = [];
+        for ($i = 0; $i < $iterations; $i++) {
+            $startTime = microtime(true);
+            $orderModel->getCurrentlyPrintingOrders();
+            $test4Times[] = microtime(true) - $startTime;
+        }
+        $results['getCurrentlyPrintingOrders'] = [
+            'avg_time' => array_sum($test4Times) / count($test4Times),
+            'min_time' => min($test4Times),
+            'max_time' => max($test4Times)
+        ];
+        
+        return $results;
+    }
+    
+    /**
      * Testa a performance antes e depois das otimizações
      * 
      * @param array $tests Lista de testes a executar
@@ -211,6 +434,24 @@ class SQLOptimizationHelper {
                     'model' => 'CategoryModel',
                     'method' => 'getCategoryWithProducts',
                     'args' => ['categoria-teste', 1, 12, true]
+                ],
+                [
+                    'name' => 'Pedidos de um usuário',
+                    'model' => 'OrderModel',
+                    'method' => 'getOrdersByUser',
+                    'args' => [1]
+                ],
+                [
+                    'name' => 'Itens de um pedido',
+                    'model' => 'OrderModel',
+                    'method' => 'getOrderItems',
+                    'args' => [1]
+                ],
+                [
+                    'name' => 'Vendas por categoria',
+                    'model' => 'OrderModel',
+                    'method' => 'getSalesByCategory',
+                    'args' => []
                 ]
             ];
         }
@@ -413,6 +654,45 @@ class SQLOptimizationHelper {
             
             foreach ($categoryIndices as $index) {
                 $checkSql = "SHOW INDEX FROM categories WHERE Key_name = :index_name";
+                $indexExists = $this->db->select($checkSql, ['index_name' => $index]);
+                
+                if (empty($indexExists)) {
+                    $allApplied = false;
+                    break;
+                }
+            }
+        }
+        
+        // Se ainda todos estão aplicados, verificar pedidos
+        if ($allApplied) {
+            $orderIndices = [
+                'idx_orders_user_id',
+                'idx_orders_status',
+                'idx_orders_payment_status',
+                'idx_orders_created_at',
+                'idx_orders_print_start_date'
+            ];
+            
+            foreach ($orderIndices as $index) {
+                $checkSql = "SHOW INDEX FROM orders WHERE Key_name = :index_name";
+                $indexExists = $this->db->select($checkSql, ['index_name' => $index]);
+                
+                if (empty($indexExists)) {
+                    $allApplied = false;
+                    break;
+                }
+            }
+        }
+        
+        // Se ainda todos estão aplicados, verificar items de pedidos
+        if ($allApplied) {
+            $orderItemIndices = [
+                'idx_order_items_order_id',
+                'idx_order_items_product_id'
+            ];
+            
+            foreach ($orderItemIndices as $index) {
+                $checkSql = "SHOW INDEX FROM order_items WHERE Key_name = :index_name";
                 $indexExists = $this->db->select($checkSql, ['index_name' => $index]);
                 
                 if (empty($indexExists)) {
