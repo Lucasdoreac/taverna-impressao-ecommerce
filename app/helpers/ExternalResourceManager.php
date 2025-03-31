@@ -204,7 +204,7 @@ class ExternalResourceManager {
         $localizable = 0;
         
         // Encontrar todos os scripts externos
-        preg_match_all('/<script[^>]*src=["\']([^"\']+)["\'][^>]*>/i', $html, $scriptMatches);
+        preg_match_all('/<script[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $scriptMatches);
         if (!empty($scriptMatches[1])) {
             foreach ($scriptMatches[1] as $src) {
                 if (self::isExternalResource($src)) {
@@ -221,7 +221,7 @@ class ExternalResourceManager {
         }
         
         // Encontrar todos os links de CSS externos
-        preg_match_all('/<link[^>]*href=["\']([^"\']+)["\'][^>]*>/i', $html, $linkMatches);
+        preg_match_all('/<link[^>]*href=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $linkMatches);
         if (!empty($linkMatches[1])) {
             foreach ($linkMatches[1] as $href) {
                 if (strpos($href, '.css') !== false && self::isExternalResource($href)) {
@@ -238,7 +238,7 @@ class ExternalResourceManager {
         }
         
         // Encontrar todos os iframes externos
-        preg_match_all('/<iframe[^>]*src=["\']([^"\']+)["\'][^>]*>/i', $html, $iframeMatches);
+        preg_match_all('/<iframe[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $iframeMatches);
         if (!empty($iframeMatches[1])) {
             foreach ($iframeMatches[1] as $src) {
                 if (self::isExternalResource($src)) {
@@ -249,7 +249,7 @@ class ExternalResourceManager {
         }
         
         // Encontrar imagens externas
-        preg_match_all('/<img[^>]*src=["\']([^"\']+)["\'][^>]*>/i', $html, $imgMatches);
+        preg_match_all('/<img[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i', $html, $imgMatches);
         if (!empty($imgMatches[1])) {
             foreach ($imgMatches[1] as $src) {
                 if (self::isExternalResource($src)) {
@@ -402,7 +402,7 @@ class ExternalResourceManager {
     public static function optimizeAllExternalResources($html) {
         // Substituir scripts externos
         $html = preg_replace_callback(
-            '/<script[^>]*src=["\']([^"\']+)["\'][^>]*><\/script>/i',
+            '/<script[^>]*src=[\"\\']([^\"\\']+)[\"\\'][^>]*><\/script>/i',
             function($matches) {
                 $url = $matches[1];
                 if (self::isExternalResource($url)) {
@@ -415,7 +415,7 @@ class ExternalResourceManager {
         
         // Substituir links CSS externos
         $html = preg_replace_callback(
-            '/<link[^>]*href=["\']([^"\']+)["\'][^>]*>/i',
+            '/<link[^>]*href=[\"\\']([^\"\\']+)[\"\\'][^>]*>/i',
             function($matches) {
                 $url = $matches[1];
                 if (strpos($matches[0], 'stylesheet') !== false && self::isExternalResource($url)) {
@@ -430,14 +430,5 @@ class ExternalResourceManager {
     }
 }
 
-/**
- * Função helper para otimizar recursos externos
- * 
- * @param string $url URL do recurso
- * @param string $type Tipo (css, js)
- * @param array $options Opções adicionais
- * @return string HTML otimizado
- */
-function optimizeExternalResource($url, $type = '', $options = []) {
-    return ExternalResourceManager::optimizeExternalResource($url, $type, $options);
-}
+// Nota: A função global optimizeExternalResource() foi removida para evitar conflito
+// com a mesma função definida em app/helpers/init_helpers.php
