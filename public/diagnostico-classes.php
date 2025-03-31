@@ -1,237 +1,208 @@
 <?php
-/**
- * Diagnóstico de carregamento de classes
- * 
- * Este script verifica se as classes principais do sistema estão sendo
- * carregadas corretamente. Útil para identificar problemas com o autoloader.
- */
-
-// Definir exibição de erros
+// Arquivo para diagnóstico específico de problemas com carregamento de classes
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Incluir configurações e autoloader
-require_once __DIR__ . '/../app/config/config.php';
-require_once __DIR__ . '/../app/autoload.php';
-
-/**
- * Testa o carregamento de uma classe
- * 
- * @param string $className Nome da classe a ser testada
- * @return array Resultado do teste
- */
-function testClass($className) {
-    $result = [
-        'class' => $className,
-        'exists' => class_exists($className),
-        'file' => null,
-        'methods' => []
-    ];
-    
-    if ($result['exists']) {
-        $reflector = new ReflectionClass($className);
-        $result['file'] = $reflector->getFileName();
-        $methods = $reflector->getMethods(ReflectionMethod::IS_PUBLIC);
-        
-        foreach ($methods as $method) {
-            if ($method->class === $className) {
-                $result['methods'][] = $method->name;
-            }
-        }
-    }
-    
-    return $result;
-}
-
-// Classes a serem testadas
-$classes = [
-    'Database',
-    'ProductModel',
-    'CategoryModel',
-    'FilamentModel',
-    'Model',
-    'Controller',
-    'ProductController',
-    'CategoryController',
-    'CustomizationController',
-    'Router',
-    'Request',
-    'Response'
-];
-
-$results = [];
-foreach ($classes as $class) {
-    $results[] = testClass($class);
-}
-
-// Headers para evitar cache
-header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-header("Cache-Control: post-check=0, pre-check=0", false);
-header("Pragma: no-cache");
+// Definir cabeçalhos para página HTML
+header('Content-Type: text/html; charset=utf-8');
 ?>
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diagnóstico de Classes - Taverna da Impressão</title>
+    <title>Diagnóstico de Classes - TAVERNA DA IMPRESSÃO</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 20px;
-            padding: 0;
-            color: #333;
-        }
-        h1 {
-            color: #2c3e50;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-        .diagnostics {
-            margin: 20px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        th, td {
-            padding: 10px;
-            border: 1px solid #ddd;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        .success {
-            color: #27ae60;
-            font-weight: bold;
-        }
-        .error {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-        .methods {
-            margin-top: 5px;
-            font-size: 0.9em;
-            color: #7f8c8d;
-        }
-        .summary {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        h1, h2, h3 { color: #333; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow: auto; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
     </style>
 </head>
 <body>
-    <h1>Diagnóstico de Classes - Taverna da Impressão</h1>
+    <h1>Diagnóstico de Classes - TAVERNA DA IMPRESSÃO</h1>
     
-    <div class="diagnostics">
-        <h2>Status de Carregamento das Classes</h2>
+    <h2>Informações do Ambiente</h2>
+    <?php
+    // Exibir informações do PHP
+    echo "<p>PHP Version: " . phpversion() . "</p>";
+    echo "<p>Sistema Operacional: " . PHP_OS . "</p>";
+    echo "<p>Diretório Atual: " . getcwd() . "</p>";
+    ?>
+
+    <h2>Estrutura do Projeto</h2>
+    <?php
+    // Definir diretórios importantes a verificar
+    $directories = [
+        'ROOT' => dirname(__DIR__),
+        'app' => dirname(__DIR__) . '/app',
+        'app/core' => dirname(__DIR__) . '/app/core',
+        'app/models' => dirname(__DIR__) . '/app/models',
+        'app/controllers' => dirname(__DIR__) . '/app/controllers',
+        'app/views' => dirname(__DIR__) . '/app/views',
+        'app/helpers' => dirname(__DIR__) . '/app/helpers',
+        'public' => dirname(__DIR__) . '/public',
+    ];
+
+    echo "<table>";
+    echo "<tr><th>Diretório</th><th>Caminho</th><th>Existe</th><th>Permissões</th></tr>";
+    
+    foreach ($directories as $name => $path) {
+        echo "<tr>";
+        echo "<td>{$name}</td>";
+        echo "<td>{$path}</td>";
         
-        <table>
-            <tr>
-                <th>Classe</th>
-                <th>Status</th>
-                <th>Arquivo</th>
-                <th>Métodos Públicos</th>
-            </tr>
-            <?php foreach ($results as $result): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($result['class']); ?></td>
-                <td class="<?php echo $result['exists'] ? 'success' : 'error'; ?>">
-                    <?php echo $result['exists'] ? 'Carregada' : 'Não Encontrada'; ?>
-                </td>
-                <td>
-                    <?php echo $result['file'] ? htmlspecialchars($result['file']) : 'N/A'; ?>
-                </td>
-                <td>
-                    <?php if (!empty($result['methods'])): ?>
-                        <?php echo htmlspecialchars(implode(', ', $result['methods'])); ?>
-                    <?php else: ?>
-                        <span class="error">Nenhum método público encontrado</span>
-                    <?php endif; ?>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-        </table>
+        if (file_exists($path)) {
+            echo "<td class='success'>Sim</td>";
+            echo "<td>" . substr(sprintf('%o', fileperms($path)), -4) . "</td>";
+        } else {
+            echo "<td class='error'>Não</td>";
+            echo "<td>-</td>";
+        }
         
-        <div class="summary">
-            <h3>Resumo do Diagnóstico</h3>
-            <?php
-            $totalClasses = count($classes);
-            $loadedClasses = array_filter($results, function($item) { return $item['exists']; });
-            $loadedCount = count($loadedClasses);
-            $failedCount = $totalClasses - $loadedCount;
-            $successRate = ($loadedCount / $totalClasses) * 100;
-            ?>
-            <p>
-                <strong>Total de classes testadas:</strong> <?php echo $totalClasses; ?><br>
-                <strong>Classes carregadas com sucesso:</strong> <?php echo $loadedCount; ?><br>
-                <strong>Classes não encontradas:</strong> <?php echo $failedCount; ?><br>
-                <strong>Taxa de sucesso:</strong> <?php echo number_format($successRate, 2); ?>%
-            </p>
-            
-            <?php if ($failedCount > 0): ?>
-            <div class="error">
-                <h4>Classes com problemas:</h4>
-                <ul>
-                    <?php foreach ($results as $result): ?>
-                        <?php if (!$result['exists']): ?>
-                        <li><?php echo htmlspecialchars($result['class']); ?></li>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </ul>
-                <p>
-                    <strong>Possíveis soluções:</strong>
-                </p>
-                <ol>
-                    <li>Verifique se os arquivos das classes existem nos diretórios corretos</li>
-                    <li>Confirme se o autoloader está configurado corretamente em <code>app/autoload.php</code></li>
-                    <li>Verifique se há erros de sintaxe nos arquivos das classes</li>
-                    <li>Certifique-se de que a declaração da classe corresponde ao nome do arquivo</li>
-                </ol>
-            </div>
-            <?php else: ?>
-            <p class="success">
-                Todas as classes estão sendo carregadas corretamente!
-            </p>
-            <?php endif; ?>
-        </div>
-    </div>
+        echo "</tr>";
+    }
     
-    <h2>Informações do Sistema</h2>
-    <table>
-        <tr>
-            <th>Item</th>
-            <th>Valor</th>
-        </tr>
-        <tr>
-            <td>PHP Version</td>
-            <td><?php echo phpversion(); ?></td>
-        </tr>
-        <tr>
-            <td>Web Server</td>
-            <td><?php echo $_SERVER['SERVER_SOFTWARE'] ?? 'N/A'; ?></td>
-        </tr>
-        <tr>
-            <td>Document Root</td>
-            <td><?php echo $_SERVER['DOCUMENT_ROOT'] ?? 'N/A'; ?></td>
-        </tr>
-        <tr>
-            <td>Autoloader Path</td>
-            <td><?php echo realpath(__DIR__ . '/../app/autoload.php'); ?></td>
-        </tr>
-        <tr>
-            <td>Include Path</td>
-            <td><?php echo get_include_path(); ?></td>
-        </tr>
-    </table>
+    echo "</table>";
+    ?>
+
+    <h2>Verificação de Arquivos de Classe</h2>
+    <?php
+    // Classes essenciais a verificar
+    $classes = [
+        'Controller' => 'app/core/Controller.php',
+        'Model' => 'app/core/Model.php',
+        'Database' => 'app/helpers/Database.php',
+        'ProductModel' => 'app/models/ProductModel.php',
+        'CategoryModel' => 'app/models/CategoryModel.php',
+        'Router' => 'app/helpers/Router.php',
+    ];
+
+    echo "<table>";
+    echo "<tr><th>Classe</th><th>Arquivo</th><th>Existe</th><th>Tamanho</th><th>Última Modificação</th></tr>";
     
-    <p><a href="index.php">Voltar para a página inicial</a></p>
+    foreach ($classes as $class => $file) {
+        $fullPath = dirname(__DIR__) . '/' . $file;
+        echo "<tr>";
+        echo "<td>{$class}</td>";
+        echo "<td>{$file}</td>";
+        
+        if (file_exists($fullPath)) {
+            echo "<td class='success'>Sim</td>";
+            echo "<td>" . filesize($fullPath) . " bytes</td>";
+            echo "<td>" . date("Y-m-d H:i:s", filemtime($fullPath)) . "</td>";
+        } else {
+            echo "<td class='error'>Não</td>";
+            echo "<td>-</td>";
+            echo "<td>-</td>";
+        }
+        
+        echo "</tr>";
+    }
+    
+    echo "</table>";
+    ?>
+
+    <h2>Testes de Include</h2>
+    <?php
+    // Primeiro vamos incluir o config.php para definir constantes
+    include_once dirname(__DIR__) . '/app/config/config.php';
+
+    echo "<p>APP_PATH definido como: " . (defined('APP_PATH') ? APP_PATH : 'Não definido') . "</p>";
+    
+    // Agora verifica se o autoloader existe
+    $autoloaderPath = dirname(__DIR__) . '/app/autoload.php';
+    if (file_exists($autoloaderPath)) {
+        echo "<p class='success'>✓ Autoloader encontrado em {$autoloaderPath}</p>";
+        include_once $autoloaderPath;
+        echo "<p class='success'>✓ Autoloader incluído</p>";
+    } else {
+        echo "<p class='error'>✗ Autoloader não encontrado em {$autoloaderPath}</p>";
+    }
+
+    // Testar carregamento direto das classes essenciais
+    echo "<h3>Carregamento direto sem autoloader:</h3>";
+    
+    // Testar Controller e Model diretamente
+    $controllerPath = dirname(__DIR__) . '/app/core/Controller.php';
+    if (file_exists($controllerPath)) {
+        echo "<p>Tentando carregar Controller de {$controllerPath}...</p>";
+        try {
+            include_once $controllerPath;
+            echo "<p class='success'>✓ Controller.php incluído com sucesso</p>";
+            if (class_exists('Controller')) {
+                echo "<p class='success'>✓ Classe Controller encontrada</p>";
+            } else {
+                echo "<p class='error'>✗ Classe Controller não encontrada após inclusão</p>";
+                // Verificar o conteúdo do arquivo
+                echo "<p>Primeiras 200 caracteres do arquivo Controller.php:</p>";
+                echo "<pre>" . htmlspecialchars(substr(file_get_contents($controllerPath), 0, 200)) . "...</pre>";
+            }
+        } catch (Exception $e) {
+            echo "<p class='error'>✗ Erro ao incluir Controller.php: " . $e->getMessage() . "</p>";
+        }
+    }
+
+    $modelPath = dirname(__DIR__) . '/app/core/Model.php';
+    if (file_exists($modelPath)) {
+        echo "<p>Tentando carregar Model de {$modelPath}...</p>";
+        try {
+            include_once $modelPath;
+            echo "<p class='success'>✓ Model.php incluído com sucesso</p>";
+            if (class_exists('Model')) {
+                echo "<p class='success'>✓ Classe Model encontrada</p>";
+            } else {
+                echo "<p class='error'>✗ Classe Model não encontrada após inclusão</p>";
+                // Verificar o conteúdo do arquivo
+                echo "<p>Primeiras 200 caracteres do arquivo Model.php:</p>";
+                echo "<pre>" . htmlspecialchars(substr(file_get_contents($modelPath), 0, 200)) . "...</pre>";
+            }
+        } catch (Exception $e) {
+            echo "<p class='error'>✗ Erro ao incluir Model.php: " . $e->getMessage() . "</p>";
+        }
+    }
+
+    // Testar carregamento de uma classe de modelo e controlador que dependem de Model e Controller
+    if (class_exists('Model') && class_exists('Controller')) {
+        echo "<h3>Testando classes dependentes:</h3>";
+        
+        // Testar ProductModel
+        try {
+            include_once dirname(__DIR__) . '/app/models/ProductModel.php';
+            echo "<p class='success'>✓ ProductModel.php incluído com sucesso</p>";
+        } catch (Exception $e) {
+            echo "<p class='error'>✗ Erro ao incluir ProductModel.php: " . $e->getMessage() . "</p>";
+        }
+        
+        // Testar CategoryController
+        try {
+            include_once dirname(__DIR__) . '/app/controllers/CategoryController.php';
+            echo "<p class='success'>✓ CategoryController.php incluído com sucesso</p>";
+        } catch (Exception $e) {
+            echo "<p class='error'>✗ Erro ao incluir CategoryController.php: " . $e->getMessage() . "</p>";
+        }
+    }
+    ?>
+    
+    <h2>Classes Declaradas</h2>
+    <?php
+    $declaredClasses = get_declared_classes();
+    $appClasses = array_filter($declaredClasses, function($class) {
+        return !strpos($class, '\\') && 
+               !in_array($class, ['stdClass', 'Exception', 'Error', 'PDO', 'DateTime']);
+    });
+    
+    echo "<p>Total de classes declaradas: " . count($declaredClasses) . "</p>";
+    echo "<p>Classes relevantes encontradas: " . count($appClasses) . "</p>";
+    echo "<pre>" . print_r($appClasses, true) . "</pre>";
+    ?>
+
+    <p><strong>IMPORTANTE:</strong> Por segurança, remova este arquivo após concluir o diagnóstico.</p>
 </body>
 </html>
