@@ -4,6 +4,16 @@
  * Corrige problemas com classes não encontradas
  */
 
+// Log para diagnóstico
+error_log("Inicializando autoloader - " . date('Y-m-d H:i:s'));
+if (defined('APP_PATH')) {
+    error_log("APP_PATH definido como: " . APP_PATH);
+} else {
+    error_log("ATENÇÃO: APP_PATH não está definido no autoloader!");
+    // Definir APP_PATH localmente caso não esteja definido globalmente
+    define('APP_PATH', dirname(__FILE__)); // Define app/autoload.php parent directory
+}
+
 // Mapear classes a caminhos de arquivo
 $classMap = [
     // Models
@@ -29,8 +39,8 @@ $classMap = [
     'NotificationPreferenceController' => APP_PATH . '/controllers/NotificationPreferenceController.php',
     
     // Helpers e Utilitários
-    'Database' => APP_PATH . '/helpers/Database.php', // CORREÇÃO: Caminho corrigido do helpers, não core
-    'Router' => APP_PATH . '/core/Router.php',
+    'Database' => APP_PATH . '/helpers/Database.php',
+    'Router' => APP_PATH . '/helpers/Router.php',
     'Request' => APP_PATH . '/core/Request.php',
     'Response' => APP_PATH . '/core/Response.php',
     'Security' => APP_PATH . '/helpers/Security.php',
@@ -41,6 +51,27 @@ $classMap = [
     'ProductionMonitoringHelper' => APP_PATH . '/helpers/ProductionMonitoringHelper.php',
 ];
 
+// Verificar existência de arquivos críticos
+$criticalClasses = ['Controller', 'Model', 'Database'];
+foreach ($criticalClasses as $class) {
+    if (isset($classMap[$class])) {
+        if (file_exists($classMap[$class])) {
+            error_log("OK: Arquivo '{$classMap[$class]}' para a classe '{$class}' existe");
+        } else {
+            error_log("ERRO: Arquivo '{$classMap[$class]}' para a classe '{$class}' NÃO existe!");
+            
+            // Tentar caminhos alternativos para classes críticas
+            if ($class === 'Controller' || $class === 'Model') {
+                $altPath = dirname(APP_PATH) . "/app/core/{$class}.php";
+                if (file_exists($altPath)) {
+                    error_log("Encontrado caminho alternativo para {$class}: {$altPath}");
+                    $classMap[$class] = $altPath;
+                }
+            }
+        }
+    }
+}
+
 /**
  * Função de autoload
  * 
@@ -50,13 +81,16 @@ $classMap = [
 function app_autoload($class) {
     global $classMap;
     
+    // Log para diagnóstico
+    error_log("Tentando carregar classe: " . $class);
+    
     // Verificar se a classe está no mapa de classes
     if (isset($classMap[$class])) {
         if (file_exists($classMap[$class])) {
             require_once $classMap[$class];
+            error_log("Classe {$class} carregada com sucesso de {$classMap[$class]}");
             return true;
         } else {
-            // Log para auxiliar na depuração
             error_log("Autoloader: Arquivo {$classMap[$class]} não encontrado para a classe {$class}");
         }
     }
@@ -66,18 +100,23 @@ function app_autoload($class) {
         APP_PATH . '/models/',
         APP_PATH . '/controllers/',
         APP_PATH . '/helpers/',
-        APP_PATH . '/core/'
+        APP_PATH . '/core/',
+        // CORREÇÃO: Adicionar caminhos alternativos para ambiente de produção
+        dirname(APP_PATH) . '/app/models/',
+        dirname(APP_PATH) . '/app/controllers/',
+        dirname(APP_PATH) . '/app/helpers/',
+        dirname(APP_PATH) . '/app/core/'
     ];
     
     foreach ($directories as $directory) {
         $file = $directory . $class . '.php';
         if (file_exists($file)) {
             require_once $file;
+            error_log("Classe {$class} carregada de diretório padrão: {$file}");
             return true;
         }
     }
     
-    // Log para auxiliar na depuração
     error_log("Autoloader: Classe {$class} não encontrada em nenhum diretório padrão");
     
     return false;
@@ -87,19 +126,44 @@ function app_autoload($class) {
 spl_autoload_register('app_autoload');
 
 // Carregar diretamente classes essenciais (fallback caso o autoloader falhe)
-if (!class_exists('Database')) {
-    if (file_exists(APP_PATH . '/helpers/Database.php')) {
-        require_once APP_PATH . '/helpers/Database.php';
-    } else if (file_exists(APP_PATH . '/core/Database.php')) {
-        require_once APP_PATH . '/core/Database.php';
-    }
-}
+// CORREÇÃO: Verificar múltiplos caminhos possíveis para as classes cruciais
+$essentialClasses = [
+    'Database' => [
+        APP_PATH . '/helpers/Database.php',
+        APP_PATH . '/core/Database.php',
+        dirname(APP_PATH) . '/app/helpers/Database.php',
+        dirname(APP_PATH) . '/app/core/Database.php'
+    ],
+    'Model' => [
+        APP_PATH . '/core/Model.php',
+        dirname(APP_PATH) . '/app/core/Model.php'
+    ],
+    'Controller' => [
+        APP_PATH . '/core/Controller.php',
+        dirname(APP_PATH) . '/app/core/Controller.php'
+    ]
+];
 
-if (!class_exists('Model')) {
-    require_once APP_PATH . '/core/Model.php';
+foreach ($essentialClasses as $class => $paths) {
+    if (!class_exists($class)) {
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                require_once $path;
+                error_log("Classe essencial {$class} carregada manualmente de {$path}");
+                break;
+            }
+        }
+    }
 }
 
 // Log de inicialização
 if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
     error_log("Autoloader inicializado com " . count($classMap) . " classes mapeadas");
 }
+
+// Log das classes carregadas após o autoload 
+$loadedClasses = get_declared_classes();
+$appClasses = array_filter($loadedClasses, function($class) {
+    return !strpos($class, '\\') && !in_array($class, ['stdClass', 'Exception', 'Error', 'PDO', 'DateTime']);
+});
+error_log("Classes disponíveis após autoload: " . implode(', ', $appClasses));
