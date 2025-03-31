@@ -112,6 +112,29 @@ $routes = [
     '/rastrear' => ['PrintQueueController', 'customerTrack'],
     '/rastrear/resultado' => ['PrintQueueController', 'trackResult'],
     
+    // Sistema de Monitoramento em Tempo Real do Status da Impressão - Cliente
+    '/print-monitor' => ['PrintMonitorController', 'index'],
+    '/print-monitor/details/:id' => ['PrintMonitorController', 'details'],
+    '/print-monitor/order/:id' => ['PrintMonitorController', 'order'],
+    '/api/print-status/:id' => ['PrintMonitorController', 'apiStatus'],
+    '/api/print-monitor/add-message' => ['PrintMonitorController', 'apiAddMessage'],
+    
+    // Sistema de Monitoramento em Tempo Real do Status da Impressão - Admin
+    '/admin/impressoes' => ['AdminPrintMonitorController', 'index'],
+    '/admin/impressoes/list' => ['AdminPrintMonitorController', 'list'],
+    '/admin/impressao/:id' => ['AdminPrintMonitorController', 'details'],
+    '/admin/impressoes/add-status' => ['AdminPrintMonitorController', 'addOrUpdateStatus'],
+    '/admin/impressoes/add-message' => ['AdminPrintMonitorController', 'addMessage'],
+    '/admin/impressoes/add-metrics' => ['AdminPrintMonitorController', 'addMetrics'],
+    '/admin/impressoes/action' => ['AdminPrintMonitorController', 'action'],
+    '/admin/impressoes/batch-action' => ['AdminPrintMonitorController', 'batchAction'],
+    
+    // API para Sistema de Monitoramento em Tempo Real do Status da Impressão
+    '/api/status/update' => ['PrintStatusApiController', 'update'],
+    '/api/status/start' => ['PrintStatusApiController', 'start'],
+    '/api/status/:id' => ['PrintStatusApiController', 'get'],
+    '/api/status/printer/:id' => ['PrintStatusApiController', 'printerJobs'],
+    
     // Termos e políticas
     '/termos-modelos-3d' => ['PageController', 'termsModels3d'],
     
