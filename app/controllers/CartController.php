@@ -43,8 +43,8 @@ class CartController {
             $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
             $sessionId = session_id();
             
-            // Obter ou criar carrinho no banco de dados
-            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            // Obter ou criar carrinho no banco de dados - CORRIGIDO: invertida a ordem dos parâmetros
+            $cart = $this->cartModel->getOrCreate($sessionId, $userId);
             
             if ($cart) {
                 // Obter itens do carrinho do banco de dados
@@ -319,8 +319,8 @@ class CartController {
             $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
             $sessionId = session_id();
             
-            // Obter ou criar carrinho
-            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            // Obter ou criar carrinho - CORRIGIDO: invertida a ordem dos parâmetros
+            $cart = $this->cartModel->getOrCreate($sessionId, $userId);
             if ($cart) {
                 // Adicionar item ao carrinho no banco de dados
                 $this->cartModel->addItem(
@@ -398,7 +398,7 @@ class CartController {
                         // Atualizar contagem no cabeçalho
                         $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
                         $sessionId = session_id();
-                        $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+                        $cart = $this->cartModel->getOrCreate($sessionId, $userId);
                         $_SESSION['cart_count'] = $this->cartModel->countItems($cart['id']);
                     } else {
                         $_SESSION['error'] = 'Quantidade solicitada não disponível em estoque.';
@@ -504,7 +504,7 @@ class CartController {
                 // Atualizar contagem no cabeçalho
                 $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
                 $sessionId = session_id();
-                $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+                $cart = $this->cartModel->getOrCreate($sessionId, $userId);
                 if ($cart) {
                     $_SESSION['cart_count'] = $this->cartModel->countItems($cart['id']);
                 }
@@ -540,7 +540,7 @@ class CartController {
             // Limpar carrinho no banco de dados
             $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
             $sessionId = session_id();
-            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            $cart = $this->cartModel->getOrCreate($sessionId, $userId);
             
             if ($cart) {
                 $this->cartModel->clearItems($cart['id']);
@@ -570,8 +570,8 @@ class CartController {
             $userId = $_SESSION['user']['id'];
             $sessionId = session_id();
             
-            // Obter ou criar carrinho
-            $cart = $this->cartModel->getOrCreate($userId, $sessionId);
+            // Obter ou criar carrinho - CORRIGIDO: invertida a ordem dos parâmetros
+            $cart = $this->cartModel->getOrCreate($sessionId, $userId);
             
             if ($cart) {
                 // Migrar itens da sessão para o banco
