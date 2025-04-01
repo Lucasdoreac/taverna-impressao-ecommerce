@@ -25,14 +25,14 @@ class ProductModel extends Model {
             // Adicionar log de diagnóstico
             error_log("ProductModel::getFeatured - Iniciando busca de produtos em destaque (limit: $limit)");
             
-            // CORREÇÃO: Remover filtro is_featured para mostrar todos os produtos quando não houver destacados
-            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, 
+            // CORREÇÃO: Remover dependência de colunas que possam não existir
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock, 
                            pi.image, 
-                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                           CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE p.is_active = 1
-                    ORDER BY p.is_featured DESC, p.is_tested DESC, p.created_at DESC
+                    ORDER BY p.created_at DESC
                     LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
@@ -43,6 +43,7 @@ class ProductModel extends Model {
             return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos em destaque: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -58,14 +59,14 @@ class ProductModel extends Model {
             // Adicionar log de diagnóstico
             error_log("ProductModel::getTestedProducts - Iniciando busca de produtos testados (limit: $limit)");
             
-            // CORREÇÃO: Ajustar consulta para retornar produtos mesmo sem a flag is_tested
-            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
+            // CORREÇÃO: Ajustar consulta para não depender de flags
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock,
                            pi.image,
                            'Pronta Entrega' as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE p.stock > 0 AND p.is_active = 1
-                    ORDER BY p.is_tested DESC, p.created_at DESC
+                    ORDER BY p.created_at DESC
                     LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
@@ -76,6 +77,7 @@ class ProductModel extends Model {
             return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos testados: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -91,14 +93,14 @@ class ProductModel extends Model {
             // Adicionar log de diagnóstico
             error_log("ProductModel::getCustomProducts - Iniciando busca de produtos sob encomenda (limit: $limit)");
             
-            // CORREÇÃO: Mostrar todos os produtos ativos, ordenados por is_tested para preferir produtos não testados
-            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.created_at,
+            // CORREÇÃO: Mostrar todos os produtos ativos
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock, p.created_at,
                           pi.image,
                           'Sob Encomenda' as availability
                    FROM {$this->table} p
                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                    WHERE p.is_active = 1
-                   ORDER BY p.is_tested ASC, p.created_at DESC
+                   ORDER BY p.created_at DESC
                    LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
@@ -109,6 +111,7 @@ class ProductModel extends Model {
             return $result;
         } catch (Exception $e) {
             error_log("Erro ao buscar produtos sob encomenda: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -132,12 +135,12 @@ class ProductModel extends Model {
             
             $offset = ($page - 1) * $limit;
             
-            // Filtro de disponibilidade
+            // Filtro de disponibilidade - CORREÇÃO: simplificar para depender apenas de stock
             $availabilityFilter = "";
             if ($availability === 'tested') {
-                $availabilityFilter = " AND p.is_tested = 1 AND p.stock > 0";
+                $availabilityFilter = " AND p.stock > 0"; // Pronta entrega = tem estoque
             } else if ($availability === 'custom') {
-                $availabilityFilter = " AND (p.is_tested = 0 OR p.stock = 0)";
+                $availabilityFilter = " AND p.stock = 0"; // Sob encomenda = não tem estoque
             }
             
             // Contar total de registros
@@ -150,13 +153,13 @@ class ProductModel extends Model {
             error_log("ProductModel::paginate - Total de registros encontrados: $total");
             
             // Buscar registros paginados com imagens e dados de disponibilidade
-            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock, p.short_description,
                            pi.image,
-                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                           CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE {$conditions}" . $availabilityFilter . "
-                    ORDER BY " . ($availability === 'tested' ? "p.is_tested DESC, " : "") . $orderBy . "
+                    ORDER BY " . $orderBy . "
                     LIMIT :offset, :limit";
             
             $queryParams = array_merge($params, ['offset' => $offset, 'limit' => $limit]);
@@ -206,23 +209,23 @@ class ProductModel extends Model {
             $offset = ($page - 1) * $limit;
             $params = ['category_id' => $categoryId];
             
-            // Filtro de disponibilidade
+            // Filtro de disponibilidade - CORREÇÃO: simplificar para depender apenas de stock
             $availabilityFilter = "";
             if ($availability === 'tested') {
-                $availabilityFilter = " AND p.is_tested = 1 AND p.stock > 0";
+                $availabilityFilter = " AND p.stock > 0"; // Pronta entrega = tem estoque
             } else if ($availability === 'custom') {
-                $availabilityFilter = " AND (p.is_tested = 0 OR p.stock = 0)";
+                $availabilityFilter = " AND p.stock = 0"; // Sob encomenda = não tem estoque
             }
             
             // Otimização: Usar SQL_CALC_FOUND_ROWS para evitar consulta COUNT(*) separada
             // Buscar produtos
-            $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+            $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.stock, p.short_description,
                            pi.image,
-                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                           CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE p.category_id = :category_id AND p.is_active = 1" . $availabilityFilter . "
-                    ORDER BY p.is_tested DESC, p.created_at DESC
+                    ORDER BY p.created_at DESC
                     LIMIT :offset, :limit";
             
             $params['offset'] = $offset;
@@ -270,11 +273,32 @@ class ProductModel extends Model {
         try {
             error_log("ProductModel::getBySlug - Iniciando busca por slug: $slug");
             
-            $sql = "SELECT p.id, p.name, p.slug, p.description, p.short_description, 
-                           p.price, p.sale_price, p.stock, p.dimensions, p.sku, 
-                           p.is_featured, p.is_active, p.is_customizable, 
-                           p.print_time_hours, p.filament_type, p.filament_usage_grams, 
-                           p.scale, p.model_file, p.is_tested, 
+            // CORREÇÃO: Usar consulta dinâmica para verificar quais colunas existem
+            $columns = [];
+            try {
+                $columnsQuery = $this->db()->select("SHOW COLUMNS FROM {$this->table}");
+                foreach ($columnsQuery as $column) {
+                    $columns[] = $column['Field'];
+                }
+                error_log("ProductModel::getBySlug - Colunas disponíveis: " . implode(", ", $columns));
+            } catch (Exception $e) {
+                error_log("ProductModel::getBySlug - Erro ao obter colunas: " . $e->getMessage());
+                // Usar colunas mínimas necessárias
+                $columns = ['id', 'name', 'slug', 'description', 'short_description', 'price', 'sale_price', 'stock', 'category_id', 'is_active'];
+            }
+            
+            // Construir consulta com colunas disponíveis
+            $selectColumns = "p.id, p.name, p.slug, p.description, p.short_description, p.price, p.sale_price, p.stock";
+            
+            // Adicionar colunas opcionais se existirem
+            $optionalColumns = ['dimensions', 'sku', 'is_featured', 'is_active', 'is_customizable', 'print_time_hours', 'filament_type', 'filament_usage_grams', 'scale', 'model_file', 'is_tested'];
+            foreach ($optionalColumns as $column) {
+                if (in_array($column, $columns)) {
+                    $selectColumns .= ", p.$column";
+                }
+            }
+            
+            $sql = "SELECT $selectColumns, 
                            c.name as category_name, c.slug as category_slug
                     FROM {$this->table} p
                     LEFT JOIN categories c ON p.category_id = c.id
@@ -294,9 +318,9 @@ class ProductModel extends Model {
             $product = $result[0];
             error_log("ProductModel::getBySlug - Produto encontrado, ID: " . $product['id']);
             
-            // Definir disponibilidade
-            $product['availability'] = (isset($product['is_tested']) && $product['is_tested'] && $product['stock'] > 0) ? 'Pronta Entrega' : 'Sob Encomenda';
-            $product['estimated_delivery'] = (isset($product['is_tested']) && $product['is_tested'] && $product['stock'] > 0) ? '2 a 5 dias úteis' : '7 a 15 dias úteis';
+            // Definir disponibilidade - CORREÇÃO: Simplificar para depender apenas de stock
+            $product['availability'] = ($product['stock'] > 0) ? 'Pronta Entrega' : 'Sob Encomenda';
+            $product['estimated_delivery'] = ($product['stock'] > 0) ? '2 a 5 dias úteis' : '7 a 15 dias úteis';
             
             // Buscar imagens
             try {
@@ -313,15 +337,27 @@ class ProductModel extends Model {
                 $product['images'] = [];
             }
             
-            // Buscar opções de personalização
+            // Buscar opções de personalização apenas se a coluna is_customizable existir e for true
             if (isset($product['is_customizable']) && $product['is_customizable']) {
                 try {
-                    $sql = "SELECT id, product_id, name, description, required, type, options_json  
-                            FROM customization_options 
-                            WHERE product_id = :id";
-                    error_log("ProductModel::getBySlug - Buscando opções de personalização para produto ID: " . $product['id']);
-                    $product['customization_options'] = $this->db()->select($sql, ['id' => $product['id']]);
-                    error_log("ProductModel::getBySlug - Opções de personalização encontradas: " . count($product['customization_options']));
+                    $customizationTableExists = false;
+                    try {
+                        $tableCheck = $this->db()->select("SHOW TABLES LIKE 'customization_options'");
+                        $customizationTableExists = !empty($tableCheck);
+                    } catch (Exception $e) {
+                        error_log("ProductModel::getBySlug - Erro ao verificar tabela customization_options: " . $e->getMessage());
+                    }
+                    
+                    if ($customizationTableExists) {
+                        $sql = "SELECT id, product_id, name, description, required, type, options_json  
+                                FROM customization_options 
+                                WHERE product_id = :id";
+                        error_log("ProductModel::getBySlug - Buscando opções de personalização para produto ID: " . $product['id']);
+                        $product['customization_options'] = $this->db()->select($sql, ['id' => $product['id']]);
+                        error_log("ProductModel::getBySlug - Opções de personalização encontradas: " . count($product['customization_options']));
+                    } else {
+                        $product['customization_options'] = [];
+                    }
                 } catch (Exception $e) {
                     error_log("Erro ao buscar opções de personalização: " . $e->getMessage());
                     error_log("Stack trace: " . $e->getTraceAsString());
@@ -331,15 +367,28 @@ class ProductModel extends Model {
             
             // Obter cores de filamento disponíveis para este tipo de produto
             try {
-                error_log("ProductModel::getBySlug - Tentando obter instância de FilamentModel");
-                $filamentModel = new FilamentModel();
-                error_log("ProductModel::getBySlug - FilamentModel instanciado com sucesso");
+                // Verificar se FilamentModel existe
+                $filamentModelExists = false;
+                try {
+                    $classExists = class_exists('FilamentModel');
+                    $filamentModelExists = $classExists;
+                } catch (Exception $e) {
+                    error_log("ProductModel::getBySlug - Erro ao verificar classe FilamentModel: " . $e->getMessage());
+                }
                 
-                $filamentType = isset($product['filament_type']) ? $product['filament_type'] : 'PLA';
-                error_log("ProductModel::getBySlug - Buscando cores de filamento para tipo: $filamentType");
-                
-                $product['filament_colors'] = $filamentModel->getColors($filamentType);
-                error_log("ProductModel::getBySlug - Cores de filamento encontradas: " . count($product['filament_colors']));
+                if ($filamentModelExists) {
+                    error_log("ProductModel::getBySlug - Tentando obter instância de FilamentModel");
+                    $filamentModel = new FilamentModel();
+                    error_log("ProductModel::getBySlug - FilamentModel instanciado com sucesso");
+                    
+                    $filamentType = isset($product['filament_type']) ? $product['filament_type'] : 'PLA';
+                    error_log("ProductModel::getBySlug - Buscando cores de filamento para tipo: $filamentType");
+                    
+                    $product['filament_colors'] = $filamentModel->getColors($filamentType);
+                    error_log("ProductModel::getBySlug - Cores de filamento encontradas: " . count($product['filament_colors']));
+                } else {
+                    $product['filament_colors'] = [];
+                }
             } catch (Exception $e) {
                 error_log("Erro ao buscar cores de filamento: " . $e->getMessage());
                 error_log("Stack trace: " . $e->getTraceAsString());
@@ -392,12 +441,12 @@ class ProductModel extends Model {
             $searchTerm = "%{$query}%";
             $params = ['term' => $searchTerm, 'termExact' => $query];
             
-            // Filtro de disponibilidade
+            // Filtro de disponibilidade - CORREÇÃO: simplificar para depender apenas de stock
             $availabilityFilter = "";
             if ($availability === 'tested') {
-                $availabilityFilter = " AND p.is_tested = 1 AND p.stock > 0";
+                $availabilityFilter = " AND p.stock > 0"; // Pronta entrega = tem estoque
             } else if ($availability === 'custom') {
-                $availabilityFilter = " AND (p.is_tested = 0 OR p.stock = 0)";
+                $availabilityFilter = " AND p.stock = 0"; // Sob encomenda = não tem estoque
             }
             
             // Verificar se temos um índice FULLTEXT
@@ -406,20 +455,20 @@ class ProductModel extends Model {
             
             // Buscar produtos com SQL_CALC_FOUND_ROWS para eliminar a consulta COUNT separada
             if ($hasFulltext) {
-                $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.stock, p.short_description,
                                pi.image,
-                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability,
+                               CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability,
                                MATCH(p.name, p.description) AGAINST(:termExact) as relevance
                         FROM {$this->table} p
                         LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                         WHERE MATCH(p.name, p.description) AGAINST(:termExact IN BOOLEAN MODE) 
                         AND p.is_active = 1" . $availabilityFilter . "
-                        ORDER BY relevance DESC, p.is_tested DESC, p.name ASC
+                        ORDER BY relevance DESC, p.name ASC
                         LIMIT :offset, :limit";
             } else {
-                $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+                $sql = "SELECT SQL_CALC_FOUND_ROWS p.id, p.name, p.slug, p.price, p.sale_price, p.stock, p.short_description,
                                pi.image,
-                               CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                               CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                         FROM {$this->table} p
                         LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                         WHERE (p.name LIKE :term OR p.description LIKE :term) AND p.is_active = 1" . $availabilityFilter . "
@@ -428,7 +477,7 @@ class ProductModel extends Model {
                                WHEN p.name LIKE CONCAT(:termExact, '%') THEN 2
                                ELSE 3
                           END,
-                          p.is_tested DESC, p.name ASC
+                          p.name ASC
                         LIMIT :offset, :limit";
             }
             
@@ -482,13 +531,13 @@ class ProductModel extends Model {
         try {
             error_log("ProductModel::getRelated - Iniciando busca de produtos relacionados (productId: $productId, categoryId: $categoryId, limit: $limit)");
             
-            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, p.short_description,
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock, p.short_description,
                           pi.image,
-                          CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                          CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                    FROM {$this->table} p
                    LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                    WHERE p.id != :product_id AND p.category_id = :category_id AND p.is_active = 1
-                   ORDER BY p.is_tested DESC, p.id DESC
+                   ORDER BY p.id DESC
                    LIMIT :limit";
             
             // Obter produtos relacionados
@@ -534,6 +583,7 @@ class ProductModel extends Model {
             return $this->update($productId, ['stock' => $newStock]);
         } catch (Exception $e) {
             error_log("Erro ao atualizar estoque: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return false;
         }
     }
@@ -555,6 +605,7 @@ class ProductModel extends Model {
             return $product['print_time_hours'] * $quantity;
         } catch (Exception $e) {
             error_log("Erro ao calcular tempo de impressão: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return 0;
         }
     }
@@ -576,6 +627,7 @@ class ProductModel extends Model {
             return $product['filament_usage_grams'] * $quantity;
         } catch (Exception $e) {
             error_log("Erro ao calcular uso de filamento: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return 0;
         }
     }
@@ -599,14 +651,14 @@ class ProductModel extends Model {
         try {
             error_log("ProductModel::getCustomizableProducts - Iniciando busca de produtos personalizáveis (limit: $limit)");
             
-            // CORREÇÃO: Remover o filtro is_customizable se não houver produtos personalizáveis
-            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock,
+            // CORREÇÃO: Remover dependência de colunas que possam não existir
+            $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock,
                            pi.image,
-                           CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
+                           CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE p.is_active = 1
-                    ORDER BY p.is_customizable DESC, p.is_tested DESC, p.created_at DESC
+                    ORDER BY p.created_at DESC
                     LIMIT :limit";
             
             $result = $this->db()->select($sql, ['limit' => $limit]);
