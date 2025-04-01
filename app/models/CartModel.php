@@ -14,11 +14,11 @@ class CartModel extends Model {
     /**
      * Obtém ou cria um carrinho para o usuário/sessão atual
      *
-     * @param int|null $userId ID do usuário se estiver logado
      * @param string $sessionId ID da sessão atual
+     * @param int|null $userId ID do usuário se estiver logado (opcional)
      * @return array Dados do carrinho
      */
-    public function getOrCreate($userId = null, $sessionId) {
+    public function getOrCreate($sessionId, $userId = null) {
         // Primeiro, tenta encontrar por usuário (se estiver logado)
         if ($userId) {
             $cart = $this->findByUser($userId);
