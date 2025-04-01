@@ -648,19 +648,34 @@ class CategoryController extends Controller {
     
     /**
      * Tratamento de erros centralizado
+     * CORREÇÃO: Alterada a assinatura do método para compatibilidade com a classe Controller
      * 
-     * CORREÇÃO: Alterado o nível de acesso de 'private' para 'protected'
-     * para compatibilidade com a classe Controller pai
+     * @param mixed $e Exceção ou erro
+     * @param string $message Mensagem amigável para o usuário
+     * @param bool $isJson Se verdadeiro, retorna erro como JSON
      */
-    protected function handleError(Exception $e, $context = '') {
+    protected function handleError($e, $message = "Ocorreu um erro", $isJson = false) {
         // Registrar erro no log
-        error_log("$context: " . $e->getMessage());
+        error_log("$message: " . $e->getMessage());
         error_log("Stack trace: " . $e->getTraceAsString());
+        
+        if ($isJson) {
+            // Retornar erro em formato JSON
+            header('Content-Type: application/json');
+            http_response_code(500);
+            
+            echo json_encode([
+                'success' => false,
+                'message' => $message,
+                'error' => ENVIRONMENT === 'development' ? $e->getMessage() : null
+            ]);
+            exit;
+        }
         
         // Variáveis para a view de erro (visíveis apenas em ambiente de desenvolvimento)
         $error_message = ENVIRONMENT === 'development' ? $e->getMessage() : 'Ocorreu um erro interno. Por favor, tente novamente mais tarde.';
         $error_trace = ENVIRONMENT === 'development' ? $e->getTraceAsString() : '';
-        $error_context = ENVIRONMENT === 'development' ? $context : '';
+        $error_context = ENVIRONMENT === 'development' ? $message : '';
         
         // Renderizar página de erro
         header("HTTP/1.0 500 Internal Server Error");
@@ -673,7 +688,7 @@ class CategoryController extends Controller {
             echo '<h1>Erro 500 - Erro Interno do Servidor</h1>';
             
             if (ENVIRONMENT === 'development') {
-                echo '<h2>' . htmlspecialchars($context) . '</h2>';
+                echo '<h2>' . htmlspecialchars($message) . '</h2>';
                 echo '<p>' . htmlspecialchars($e->getMessage()) . '</p>';
                 echo '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';
             } else {
