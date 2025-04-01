@@ -648,8 +648,11 @@ class CategoryController extends Controller {
     
     /**
      * Tratamento de erros centralizado
+     * 
+     * CORREÇÃO: Alterado o nível de acesso de 'private' para 'protected'
+     * para compatibilidade com a classe Controller pai
      */
-    private function handleError(Exception $e, $context = '') {
+    protected function handleError(Exception $e, $context = '') {
         // Registrar erro no log
         error_log("$context: " . $e->getMessage());
         error_log("Stack trace: " . $e->getTraceAsString());
