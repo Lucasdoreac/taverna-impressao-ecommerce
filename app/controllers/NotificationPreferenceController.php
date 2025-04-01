@@ -26,7 +26,7 @@ class NotificationPreferenceController extends Controller {
         $this->checkAuthentication();
         
         // Verificar permissões de admin para ações administrativas
-        $adminActions = ['admin', 'adminSave', 'metrics'];
+        $adminActions = ['admin', 'adminSave', 'metrics', 'preview'];
         if (in_array($this->getCurrentAction(), $adminActions)) {
             $this->checkAdminPermission();
         }
@@ -229,10 +229,108 @@ class NotificationPreferenceController extends Controller {
             exit;
         }
         
-        // TODO: Implementar a lógica de salvamento das configurações administrativas
-        // Esta função será implementada quando for criada a view de administração
+        // Inicializar resultado para monitorar o sucesso das operações
+        $result = true;
         
-        $_SESSION['success'] = 'Configurações administrativas atualizadas com sucesso!';
+        // Processar formulário para novos tipos de notificação
+        if (isset($_POST['new_type']) && is_array($_POST['new_type'])) {
+            $newType = $_POST['new_type'];
+            
+            // Verificar se todos os campos necessários existem
+            if (!empty($newType['name']) && !empty($newType['code']) && !empty($newType['category'])) {
+                $typeData = [
+                    'name' => trim($newType['name']),
+                    'code' => trim($newType['code']),
+                    'category' => trim($newType['category']),
+                    'description' => isset($newType['description']) ? trim($newType['description']) : '',
+                    'is_critical' => isset($newType['is_critical']) ? 1 : 0,
+                    'is_active' => isset($newType['is_active']) ? 1 : 0
+                ];
+                
+                // Adicionar novo tipo de notificação
+                $addResult = $this->notificationPreferenceModel->addNotificationType($typeData);
+                if (!$addResult) {
+                    $_SESSION['error'] = 'Erro ao adicionar novo tipo de notificação.';
+                    $result = false;
+                }
+            }
+        }
+        
+        // Processar edições de tipos existentes
+        if (isset($_POST['edit_type']) && is_array($_POST['edit_type'])) {
+            foreach ($_POST['edit_type'] as $typeId => $typeData) {
+                if (!empty($typeData['name']) && !empty($typeData['code'])) {
+                    $updateData = [
+                        'id' => (int)$typeId,
+                        'name' => trim($typeData['name']),
+                        'code' => trim($typeData['code']),
+                        'category' => trim($typeData['category']),
+                        'description' => isset($typeData['description']) ? trim($typeData['description']) : '',
+                        'is_critical' => isset($typeData['is_critical']) ? 1 : 0,
+                        'is_active' => isset($typeData['is_active']) ? 1 : 0
+                    ];
+                    
+                    // Atualizar tipo de notificação
+                    $updateResult = $this->notificationPreferenceModel->updateNotificationType($updateData);
+                    if (!$updateResult) {
+                        $_SESSION['error'] = 'Erro ao atualizar tipo de notificação.';
+                        $result = false;
+                    }
+                }
+            }
+        }
+        
+        // Processar novos canais de notificação
+        if (isset($_POST['new_channel']) && is_array($_POST['new_channel'])) {
+            $newChannel = $_POST['new_channel'];
+            
+            if (!empty($newChannel['name']) && !empty($newChannel['code'])) {
+                $channelData = [
+                    'name' => trim($newChannel['name']),
+                    'code' => trim($newChannel['code']),
+                    'description' => isset($newChannel['description']) ? trim($newChannel['description']) : '',
+                    'supports_frequency' => isset($newChannel['supports_frequency']) ? 1 : 0,
+                    'is_active' => isset($newChannel['is_active']) ? 1 : 0
+                ];
+                
+                // Adicionar novo canal
+                $addResult = $this->notificationPreferenceModel->addNotificationChannel($channelData);
+                if (!$addResult) {
+                    $_SESSION['error'] = 'Erro ao adicionar novo canal de notificação.';
+                    $result = false;
+                }
+            }
+        }
+        
+        // Processar edições de canais existentes
+        if (isset($_POST['edit_channel']) && is_array($_POST['edit_channel'])) {
+            foreach ($_POST['edit_channel'] as $channelId => $channelData) {
+                if (!empty($channelData['name']) && !empty($channelData['code'])) {
+                    $updateData = [
+                        'id' => (int)$channelId,
+                        'name' => trim($channelData['name']),
+                        'code' => trim($channelData['code']),
+                        'description' => isset($channelData['description']) ? trim($channelData['description']) : '',
+                        'supports_frequency' => isset($channelData['supports_frequency']) ? 1 : 0,
+                        'is_active' => isset($channelData['is_active']) ? 1 : 0
+                    ];
+                    
+                    // Atualizar canal
+                    $updateResult = $this->notificationPreferenceModel->updateNotificationChannel($updateData);
+                    if (!$updateResult) {
+                        $_SESSION['error'] = 'Erro ao atualizar canal de notificação.';
+                        $result = false;
+                    }
+                }
+            }
+        }
+        
+        // Mensagem de sucesso se tudo ocorreu bem
+        if ($result && !isset($_SESSION['error'])) {
+            $_SESSION['success'] = 'Configurações administrativas atualizadas com sucesso!';
+        }
+        
+        // Redirecionar de volta para a página de administração
         header('Location: ' . BASE_URL . 'admin/notificacoes/preferencias');
         exit;
     }
@@ -254,6 +352,155 @@ class NotificationPreferenceController extends Controller {
                 'metrics' => $metrics,
                 'title' => 'Métricas de Preferências de Notificação'
             ]);
+        }
+    }
+    
+    /**
+     * Exibe uma página de preview de notificações
+     */
+    public function preview() {
+        // Obter todos os tipos de notificação e canais disponíveis
+        $notificationTypes = $this->notificationPreferenceModel->getAllNotificationTypes();
+        $notificationChannels = $this->notificationPreferenceModel->getAllNotificationChannels();
+        
+        // Criar exemplos de notificações para preview
+        $previewNotifications = $this->generatePreviewNotifications($notificationTypes);
+        
+        // Renderizar a view
+        $this->view('admin/notification_preview', [
+            'notificationTypes' => $notificationTypes,
+            'notificationChannels' => $notificationChannels,
+            'previewNotifications' => $previewNotifications,
+            'title' => 'Preview de Notificações'
+        ]);
+    }
+    
+    /**
+     * Gera exemplos de notificações para preview
+     * 
+     * @param array $notificationTypes Tipos de notificação disponíveis
+     * @return array Exemplos de notificações
+     */
+    private function generatePreviewNotifications($notificationTypes) {
+        $previewNotifications = [];
+        
+        // Gerar exemplos para cada tipo de notificação
+        foreach ($notificationTypes as $type) {
+            $notification = [
+                'id' => 'preview_' . $type['id'],
+                'type' => $type,
+                'title' => 'Exemplo de ' . $type['name'],
+                'content' => $this->generatePreviewContent($type['category'], $type['code']),
+                'created_at' => date('Y-m-d H:i:s'),
+                'image_url' => $this->getPreviewImageUrl($type['category']),
+                'action_url' => $this->getPreviewActionUrl($type['category'])
+            ];
+            
+            $previewNotifications[] = $notification;
+        }
+        
+        return $previewNotifications;
+    }
+    
+    /**
+     * Gera conteúdo para preview de notificação baseado na categoria e código
+     * 
+     * @param string $category Categoria da notificação
+     * @param string $code Código do tipo de notificação
+     * @return string Conteúdo da notificação
+     */
+    private function generatePreviewContent($category, $code) {
+        // Conteúdo específico baseado na categoria e código
+        $content = '';
+        
+        switch ($category) {
+            case 'order':
+                if (strpos($code, 'new') !== false) {
+                    $content = 'Seu pedido #12345 foi recebido e está em processamento. Agradecemos pela sua compra!';
+                } else if (strpos($code, 'status') !== false) {
+                    $content = 'Seu pedido #12345 teve o status atualizado para "Em produção". Estamos trabalhando nele!';
+                } else if (strpos($code, 'shipped') !== false) {
+                    $content = 'Seu pedido #12345 foi enviado! Acompanhe a entrega com o código de rastreio AB123456789XYZ.';
+                } else {
+                    $content = 'Notificação relacionada ao seu pedido #12345.';
+                }
+                break;
+                
+            case 'print':
+                if (strpos($code, 'queue') !== false) {
+                    $content = 'Seu projeto "Miniatura de Dragão" entrou na fila de impressão. Posição atual: 3.';
+                } else if (strpos($code, 'started') !== false) {
+                    $content = 'A impressão do seu projeto "Miniatura de Dragão" foi iniciada! Tempo estimado: 4h30min.';
+                } else if (strpos($code, 'completed') !== false) {
+                    $content = 'Seu projeto "Miniatura de Dragão" foi impresso com sucesso e está em fase de acabamento.';
+                } else {
+                    $content = 'Notificação relacionada à sua impressão 3D do projeto "Miniatura de Dragão".';
+                }
+                break;
+                
+            case 'account':
+                if (strpos($code, 'login') !== false) {
+                    $content = 'Novo acesso à sua conta detectado em 01/04/2025 às 10:35 (São Paulo, Brasil).';
+                } else if (strpos($code, 'password') !== false) {
+                    $content = 'Sua senha foi alterada em 01/04/2025. Se não foi você, entre em contato imediatamente.';
+                } else {
+                    $content = 'Notificação relacionada à sua conta na Taverna da Impressão.';
+                }
+                break;
+                
+            case 'promotion':
+                $content = 'Nova promoção! Aproveite 15% de desconto em todos os modelos 3D da categoria "Fantasia" até 10/04/2025.';
+                break;
+                
+            default:
+                $content = 'Exemplo de notificação para demonstração.';
+                break;
+        }
+        
+        return $content;
+    }
+    
+    /**
+     * Obtém URL de imagem para preview baseado na categoria
+     * 
+     * @param string $category Categoria da notificação
+     * @return string URL da imagem
+     */
+    private function getPreviewImageUrl($category) {
+        // URLs de imagens de exemplo baseadas na categoria
+        switch ($category) {
+            case 'order':
+                return BASE_URL . 'assets/img/previews/order_notification.png';
+            case 'print':
+                return BASE_URL . 'assets/img/previews/print_notification.png';
+            case 'account':
+                return BASE_URL . 'assets/img/previews/account_notification.png';
+            case 'promotion':
+                return BASE_URL . 'assets/img/previews/promotion_notification.png';
+            default:
+                return BASE_URL . 'assets/img/previews/default_notification.png';
+        }
+    }
+    
+    /**
+     * Obtém URL de ação para preview baseado na categoria
+     * 
+     * @param string $category Categoria da notificação
+     * @return string URL da ação
+     */
+    private function getPreviewActionUrl($category) {
+        // URLs de ação de exemplo baseadas na categoria
+        switch ($category) {
+            case 'order':
+                return BASE_URL . 'account/orders/12345';
+            case 'print':
+                return BASE_URL . 'account/print-jobs/67890';
+            case 'account':
+                return BASE_URL . 'account/security';
+            case 'promotion':
+                return BASE_URL . 'promocoes/fantasia';
+            default:
+                return BASE_URL;
         }
     }
     
@@ -282,6 +529,8 @@ class NotificationPreferenceController extends Controller {
                 return 'adminSave';
             } else if (count($parts) >= 4 && $parts[3] === 'metricas') {
                 return 'metrics';
+            } else if (count($parts) >= 4 && $parts[3] === 'preview') {
+                return 'preview';
             } else {
                 return 'admin';
             }
