@@ -9,6 +9,12 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
 RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
 
+# IMPORTANTE: Permitir acesso direto a arquivos de diagnóstico
+RewriteRule ^diag\.php$ - [L]
+RewriteRule ^diagnostico-classes\.php$ - [L]
+RewriteRule ^verificar-constantes\.php$ - [L]
+RewriteRule ^status\.php$ - [L]
+
 # IMPORTANTE: Regra de roteamento principal, funcionando com URL amigáveis no Hostinger
 # Redirecionamento para index.php se o arquivo/diretório solicitado não existir
 RewriteCond %{REQUEST_FILENAME} !-f
@@ -142,10 +148,16 @@ Options -Indexes
   RewriteRule ^cdn/(.*)three(.*)$ /vendor/threejs/three.min.js [L]
 </IfModule>
 
-# Proteção adicional
+# Proteção adicional - Excluindo arquivos de diagnóstico da proteção
 <FilesMatch "^\.htaccess|\.env|\.git|config\.php$">
   Order Allow,Deny
   Deny from all
+</FilesMatch>
+
+# Permitir acesso explícito aos arquivos de diagnóstico
+<FilesMatch "^diag\.php|diagnostico-classes\.php|verificar-constantes\.php|status\.php$">
+  Order Allow,Deny
+  Allow from all
 </FilesMatch>
 
 # PHP configurações
@@ -153,3 +165,24 @@ php_value upload_max_filesize 10M
 php_value post_max_size 10M
 php_value max_execution_time 300
 php_value max_input_time 300
+
+# Exibir erros para páginas de diagnóstico
+<Files "diag.php">
+  php_flag display_errors on
+  php_value error_reporting E_ALL
+</Files>
+
+<Files "diagnostico-classes.php">
+  php_flag display_errors on
+  php_value error_reporting E_ALL
+</Files>
+
+<Files "verificar-constantes.php">
+  php_flag display_errors on
+  php_value error_reporting E_ALL
+</Files>
+
+<Files "status.php">
+  php_flag display_errors on
+  php_value error_reporting E_ALL
+</Files>
