@@ -2,13 +2,14 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-04-01T02:58:00.000Z",
+    "lastUpdated": "2025-04-01T12:30:00.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
-    "currentFile": "project-status.json",
-    "currentComponent": "Configurações Avançadas para Preferências de Notificação",
-    "inProgress": true
+    "currentFile": "app/models/ProductModel.php",
+    "currentComponent": "Sincronização e Correção de Exibição de Produtos",
+    "inProgress": true,
+    "focus": "debug"
   },
   "components": {
     "completed": [
@@ -71,21 +72,23 @@
     ],
     "pending": []
   },
+  "debugging": {
+    "inProgress": [
+      "Sincronização e Correção de Exibição de Produtos"
+    ],
+    "completed": []
+  },
   "context": {
-    "lastThought": "Foram implementadas ferramentas abrangentes de teste para validação das correções: cart-test.php, checkout-test.php, e view-directory-test.php. Estas ferramentas verificam detalhadamente a funcionalidade do carrinho de compras, o fluxo completo de checkout, e a configuração correta do diretório app/views/compiled. As correções previamente implementadas (método getAll() no FilamentModel, correção dos parâmetros no CartModel.php, e criação do diretório app/views/compiled) foram bem-sucedidas. O componente 'Correção de Bugs em Ambiente de Produção' pode ser considerado concluído, e o foco agora deve passar para o desenvolvimento das 'Configurações Avançadas para Preferências de Notificação'.",
+    "lastThought": "Iniciando processo de sincronização entre ambiente local e produção para resolver problema de exibição de produtos. O problema principal está nas consultas SQL do ProductModel.php que estão filtrando produtos usando flags que podem não existir na tabela de produtos do ambiente de produção.",
     "nextSteps": [
-      "Implementar página de configuração para usuários selecionarem tipos de notificações",
-      "Desenvolver interface administrativa para gerenciar tipos de notificações disponíveis",
-      "Criar tela de preferências com toggles intuitivos para cada canal",
-      "Implementar persistência de preferências em banco de dados",
-      "Integrar preferências com o sistema de envio de notificações existente",
-      "Implementar página de preview para demonstração de notificações"
+      "Criar ferramenta de diagnóstico para produtos",
+      "Comparar esquema de banco de dados local e de produção",
+      "Identificar e corrigir filtros SQL incorretos em ProductModel.php",
+      "Testar em ambos ambientes para garantir consistência"
     ],
     "lastEditedFiles": [
-      "public/cart-test.php",
-      "public/checkout-test.php",
-      "public/view-directory-test.php",
-      "project-status.json"
+      "app/models/ProductModel.php",
+      "public/diagnostico-produtos.php"
     ],
     "onlineTestResults": {
       "workingTests": [
@@ -123,7 +126,7 @@
         "Classe Database não encontrada em alguns contextos - RESOLVIDO",
         "Erro ao acessar arquivos que precisam de autenticação - PARCIALMENTE RESOLVIDO",
         "Algumas páginas de teste retornando 404 - RESOLVIDO",
-        "Produtos não estão sendo exibidos (mensagem 'Nenhum produto encontrado' em todas as páginas) - RESOLVIDO",
+        "Produtos não estão sendo exibidos no ambiente de produção, mas funcionam localmente - EM ANÁLISE",
         "Fatal error: Class \"ProductModel\" not found no CategoryController - RESOLVIDO",
         "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string - RESOLVIDO",
         "Classe Controller não encontrada - RESOLVIDO",
@@ -135,254 +138,39 @@
     "bugFixes": {
       "identifiedBugs": [
         {
-          "id": "BUG-001",
-          "description": "Variável indefinida na página de produtos personalizáveis",
-          "details": "Warning: Undefined variable $availability na função list() do CustomizationController.php",
-          "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["app/controllers/CustomizationController.php", "app/views/customization/list.php"],
-          "resolution": "Adicionada inicialização da variável $availability na função list() do CustomizationController.php com valor padrão obtido do GET ou 'all' como fallback."
-        },
-        {
-          "id": "BUG-002",
-          "description": "Produtos não são exibidos",
-          "details": "A mensagem 'Nenhum produto encontrado' aparece em todas as páginas apesar de existirem 4 produtos no banco",
-          "severity": "high",
-          "status": "resolvido",
+          "id": "BUG-015",
+          "description": "Produtos não são exibidos no ambiente de produção, mas funcionam no ambiente local",
+          "details": "As consultas SQL em ProductModel.php estão filtrando produtos com condições que podem não existir ou não estão preenchidas no banco de dados de produção",
+          "severity": "critical",
+          "status": "em análise",
           "affectedFiles": ["app/models/ProductModel.php"],
           "diagnosticTools": ["public/diagnostico-produtos.php"],
-          "resolution": "Corrigidas as consultas SQL em ProductModel.php para mostrar produtos independentemente das flags is_featured, is_tested e is_customizable."
-        },
-        {
-          "id": "BUG-003",
-          "description": "Classes não encontradas",
-          "details": "Fatal error: Class \"ProductModel\" not found no CategoryController e 'Classe Database não encontrada!' em diagnostico-erros.php",
-          "severity": "critical",
-          "status": "resolvido",
-          "affectedFiles": ["app/controllers/CategoryController.php", "app/diagnostico-erros.php", "app/autoload.php"],
-          "resolution": "Modificado CategoryController para estender a classe Controller e melhorado o autoloader para buscar em múltiplos diretórios e caminhos alternativos."
-        },
-        {
-          "id": "BUG-004",
-          "description": "Diretórios ausentes",
-          "details": "Vários diretórios essenciais não existem (/uploads/products, /uploads/categories, etc.)",
-          "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["public/uploads/products/.gitkeep", "public/uploads/categories/.gitkeep", "public/uploads/customization/.gitkeep"],
-          "resolution": "Criados os diretórios /uploads/products, /uploads/categories e /uploads/customization com arquivos .gitkeep para garantir que sejam versionados corretamente no Git."
-        },
-        {
-          "id": "BUG-005",
-          "description": "Problema com CURRENCY_SYMBOL",
-          "details": "A constante está definida como '262145' (um valor numérico) em vez de 'R$'",
-          "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["app/config/config.php", "public/verificar-constantes.php"],
-          "resolution": "Corrigido o valor da constante CURRENCY_SYMBOL no config.php, adicionada uma confirmação extra para garantir que seja tratada como string, e criada ferramenta de diagnóstico específica para constantes."
-        },
-        {
-          "id": "BUG-006",
-          "description": "Método db() protegido não acessível",
-          "details": "A ferramenta de diagnóstico não consegue acessar o método db() da classe Model por ser protegido",
-          "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["app/models/Model.php", "public/diagnostico-produtos.php"],
-          "resolution": "Adicionado método público getDb() na classe Model que encapsula o db() protegido, e atualizada a ferramenta de diagnóstico para usar getDb() em vez de db()."
-        },
-        {
-          "id": "BUG-007",
-          "description": "Classes base não encontradas em diretório correto",
-          "details": "Fatal error: Class 'Controller' not found em diagnostico-classes.php",
-          "severity": "high",
-          "status": "resolvido",
-          "affectedFiles": ["app/core/Controller.php", "app/core/Model.php", "app/autoload.php", "app/config/config.php"],
-          "resolution": "Criadas as classes Controller.php e Model.php no diretório app/core/, corrigido o autoloader para buscar em múltiplos caminhos, e ajustado o config.php para definir caminhos corretos."
-        },
-        {
-          "id": "BUG-008",
-          "description": "Caminhos incorretos definidos no config.php",
-          "details": "Constantes como APP_PATH e ROOT_PATH estão apontando para diretórios incorretos",
-          "severity": "high",
-          "status": "resolvido",
-          "affectedFiles": ["app/config/config.php", "public/verificar-constantes.php"],
-          "resolution": "Corrigida a definição de caminhos no config.php usando dirname(__FILE__, 3) para garantir caminhos absolutos corretos e consistentes."
-        },
-        {
-          "id": "BUG-009",
-          "description": "Problemas no sistema de roteamento",
-          "details": "Páginas como diagnostico-classes.php e verificar-constantes.php retornam 404, indicando problemas no sistema de roteamento",
-          "severity": "critical",
-          "status": "resolvido",
-          "affectedFiles": [
-            "public/diag.php",
-            ".htaccess",
-            "public/.htaccess",
-            "app/core/Router.php",
-            "public/index.php"
-          ],
-          "diagnosticTools": ["public/diag.php"],
-          "resolution": "Implementadas melhorias com diagnóstico independente, correções nos .htaccess, Router bridge e tratamento de erros melhorado no index.php."
-        },
-        {
-          "id": "BUG-010",
-          "description": "Inconsistência no nível de acesso do método handleError()",
-          "details": "O método handleError() no CategoryController está definido como private, mas na classe Controller pai é protected",
-          "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["app/controllers/CategoryController.php"],
-          "resolution": "Alterado o nível de acesso do método handleError() de 'private' para 'protected' no CategoryController para corresponder à classe Controller pai."
-        },
-        {
-          "id": "BUG-011",
-          "description": "Arquivo status.php ausente",
-          "details": "O arquivo status.php é referenciado no .htaccess mas não existe no sistema",
-          "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["public/status.php"],
-          "resolution": "Criado o arquivo status.php como uma ferramenta de diagnóstico completa que verifica arquivos, configurações, banco de dados e muito mais."
-        },
-        {
-          "id": "BUG-012",
-          "description": "Erro no carrinho de compras",
-          "details": "Fatal error: Call to undefined method FilamentModel::getAll() em CartController.php linha 186 e problema com parâmetro opcional declarado antes de parâmetro obrigatório em CartModel.php",
-          "severity": "critical",
-          "status": "resolvido",
-          "affectedFiles": ["app/controllers/CartController.php", "app/models/CartModel.php", "app/models/FilamentModel.php"],
-          "diagnosticTools": ["public/cart-test.php"],
-          "resolution": "Implementado método getAll() em FilamentModel e corrigida a ordem dos parâmetros em CartModel.php, movendo o parâmetro opcional $userId para depois do obrigatório $sessionId. Atualizado CartController para usar a nova ordem de parâmetros."
-        },
-        {
-          "id": "BUG-013",
-          "description": "Diretório app/views/compiled ausente",
-          "details": "O diretório app/views/compiled não existe mas é necessário para a funcionalidade de views compiladas",
-          "severity": "medium",
-          "status": "resolvido",
-          "affectedFiles": ["app/views/compiled/.gitkeep"],
-          "diagnosticTools": ["public/view-directory-test.php"],
-          "resolution": "Criado diretório app/views/compiled com arquivo .gitkeep para garantir que seja versionado corretamente no Git."
-        },
-        {
-          "id": "BUG-014",
-          "description": "Fluxo de checkout não validado após correções no carrinho",
-          "details": "Necessário verificar se as correções implementadas no carrinho não afetaram o funcionamento do checkout",
-          "severity": "high",
-          "status": "resolvido",
-          "affectedFiles": ["app/controllers/CheckoutController.php", "app/models/OrderModel.php"],
-          "diagnosticTools": ["public/checkout-test.php"],
-          "resolution": "Criada ferramenta de teste completa para validar o fluxo de checkout, confirmando que as correções no carrinho não afetaram o funcionamento do checkout."
+          "resolution": "Em andamento - Criando ferramenta de diagnóstico e analisando diferenças entre ambientes local e de produção"
         }
       ],
       "proposedSolutions": [
         {
-          "bugId": "BUG-001",
-          "solution": "Adicionar 'availability' como variável no método list() do CustomizationController.php com valor padrão",
-          "code": "public function list() {\n    try {\n        // Adicionar esta linha para corrigir o erro\n        $availability = $_GET['availability'] ?? 'all';\n        \n        // Buscar produtos personalizáveis\n        $customizableProducts = $this->productModel->getCustomizableProducts(24);\n        \n        // Renderizar a view\n        require_once VIEWS_PATH . '/customization/list.php';\n    } catch (Exception $e) {\n        $this->handleError($e, \"Erro ao listar produtos personalizáveis\");\n    }\n}",
-          "status": "implementado",
-          "implementedAt": "2025-03-31T16:03:26.000Z"
-        },
-        {
-          "bugId": "BUG-002",
-          "solution": "Corrigir as consultas SQL em ProductModel para não filtrar por flags",
-          "description": "Remover ou ajustar os filtros is_featured, is_tested e is_customizable nas consultas SQL para exibir todos os produtos ativos",
-          "code": "// Exemplo da consulta corrigida getFeatured()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_tested, p.stock, \n       pi.image, \n       CASE WHEN p.is_tested = 1 AND p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.is_active = 1\nORDER BY p.is_featured DESC, p.is_tested DESC, p.created_at DESC\nLIMIT :limit\";",
-          "status": "implementado",
-          "implementedAt": "2025-03-31T22:48:15.000Z"
-        },
-        {
-          "bugId": "BUG-003",
-          "solution": "Melhorar autoloader para buscar em múltiplos diretórios",
-          "description": "Modificar o autoloader para procurar classes em caminhos alternativos, adicionando log detalhado para diagnóstico e carregando diretamente classes cruciais",
-          "code": "/**\n * Função de autoload\n * \n * @param string $class Nome da classe a ser carregada\n * @return bool True se a classe foi carregada, false caso contrário\n */\nfunction app_autoload($class) {\n    global $classMap;\n    \n    // Log para diagnóstico\n    error_log(\"Tentando carregar classe: \" . $class);\n    \n    // Verificar se a classe está no mapa de classes\n    if (isset($classMap[$class])) {\n        if (file_exists($classMap[$class])) {\n            require_once $classMap[$class];\n            error_log(\"Classe {$class} carregada com sucesso de {$classMap[$class]}\");\n            return true;\n        } else {\n            error_log(\"Autoloader: Arquivo {$classMap[$class]} não encontrado para a classe {$class}\");\n        }\n    }\n    \n    // Verificar diretórios padrão para a classe\n    $directories = [\n        APP_PATH . '/models/',\n        APP_PATH . '/controllers/',\n        APP_PATH . '/helpers/',\n        APP_PATH . '/core/',\n        // CORREÇÃO: Adicionar caminhos alternativos para ambiente de produção\n        dirname(APP_PATH) . '/app/models/',\n        dirname(APP_PATH) . '/app/controllers/',\n        dirname(APP_PATH) . '/app/helpers/',\n        dirname(APP_PATH) . '/app/core/'\n    ];\n    \n    foreach ($directories as $directory) {\n        $file = $directory . $class . '.php';\n        if (file_exists($file)) {\n            require_once $file;\n            error_log(\"Classe {$class} carregada de diretório padrão: {$file}\");\n            return true;\n        }\n    }\n    \n    error_log(\"Autoloader: Classe {$class} não encontrada em nenhum diretório padrão\");\n    \n    return false;\n}",
-          "status": "implementado",
-          "implementedAt": "2025-03-31T23:34:44.000Z"
-        },
-        {
-          "bugId": "BUG-005",
-          "solution": "Corrigir definição de CURRENCY_SYMBOL para garantir tipo string",
-          "description": "Melhorar a definição de CURRENCY_SYMBOL no config.php e criar ferramenta de diagnóstico para constantes",
-          "code": "// CORREÇÃO: Restaurar CURRENCY_SYMBOL com definição explícita como string\n// Primeiro, remove a definição existente se possível\nif (defined('CURRENCY_SYMBOL')) {\n    // Não podemos remover constantes definidas, mas podemos evitar redefini-la\n    error_log(\"ATENÇÃO: CURRENCY_SYMBOL já está definido com valor: \" . CURRENCY_SYMBOL);\n    error_log(\"Tipo atual: \" . gettype(CURRENCY_SYMBOL));\n} else {\n    // Define apenas se não estiver definido ainda\n    define('CURRENCY_SYMBOL', 'R$');  // Valor correto como string literal\n    error_log(\"CURRENCY_SYMBOL definido como 'R$' com tipo: \" . gettype(CURRENCY_SYMBOL));\n}",
-          "status": "implementado",
-          "implementedAt": "2025-03-31T23:33:33.000Z"
-        },
-        {
-          "bugId": "BUG-009",
-          "solution": "Implementar melhorias no sistema de roteamento",
-          "description": "Criar ferramenta de diagnóstico independente, corrigir o .htaccess, criar Router bridge e melhorar index.php",
-          "code": "// Ver os arquivos completos nos commits:\n// - public/diag.php\n// - .htaccess\n// - public/.htaccess\n// - app/core/Router.php\n// - public/index.php",
-          "status": "implementado",
-          "implementedAt": "2025-04-01T00:18:30.000Z"
-        },
-        {
-          "bugId": "BUG-010",
-          "solution": "Corrigir nível de acesso do método handleError() em CategoryController",
-          "description": "Alterar o nível de acesso do método handleError() de 'private' para 'protected' no CategoryController para corresponder à classe Controller pai",
-          "code": "/**\n * Tratamento de erros centralizado\n * \n * CORREÇÃO: Alterado o nível de acesso de 'private' para 'protected'\n * para compatibilidade com a classe Controller pai\n */\nprotected function handleError(Exception $e, $context = '') {\n    // Registrar erro no log\n    error_log(\"$context: \" . $e->getMessage());\n    error_log(\"Stack trace: \" . $e->getTraceAsString());\n    \n    // Variáveis para a view de erro (visíveis apenas em ambiente de desenvolvimento)\n    $error_message = ENVIRONMENT === 'development' ? $e->getMessage() : 'Ocorreu um erro interno. Por favor, tente novamente mais tarde.';\n    $error_trace = ENVIRONMENT === 'development' ? $e->getTraceAsString() : '';\n    $error_context = ENVIRONMENT === 'development' ? $context : '';\n    \n    // Renderizar página de erro\n    header(\"HTTP/1.0 500 Internal Server Error\");\n    \n    // Verificar se a view de erro existe\n    if (file_exists(VIEWS_PATH . '/errors/500.php')) {\n        include VIEWS_PATH . '/errors/500.php';\n    } else {\n        // Fallback para erro simples se a view não existir\n        echo '<h1>Erro 500 - Erro Interno do Servidor</h1>';\n        \n        if (ENVIRONMENT === 'development') {\n            echo '<h2>' . htmlspecialchars($context) . '</h2>';\n            echo '<p>' . htmlspecialchars($e->getMessage()) . '</p>';\n            echo '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';\n        } else {\n            echo '<p>Ocorreu um erro interno. Por favor, tente novamente mais tarde.</p>';\n        }\n    }\n    \n    exit;\n}",
-          "status": "implementado",
-          "implementedAt": "2025-04-01T00:35:45.000Z"
-        },
-        {
-          "bugId": "BUG-011",
-          "solution": "Criar arquivo status.php para diagnóstico completo",
-          "description": "Implementar uma ferramenta de diagnóstico completa que verifique arquivos, configurações, banco de dados e muito mais",
-          "code": "<?php\n/**\n * Status - Página de diagnóstico completo do sistema\n * \n * Esta ferramenta fornece uma visão detalhada do status do sistema,\n * incluindo verificação de arquivos, banco de dados, configurações e mais.\n */\n\n// Desabilitar cache para sempre obter versão atualizada\nheader(\"Cache-Control: no-store, no-cache, must-revalidate, max-age=0\");\nheader(\"Cache-Control: post-check=0, pre-check=0\", false);\nheader(\"Pragma: no-cache\");\n\n// Habilitar exibição de erros\nini_set('display_errors', 1);\nerror_reporting(E_ALL);\n\n// Definir mime type para HTML\nheader('Content-Type: text/html; charset=utf-8');\n\n// ... (conteúdo completo do arquivo)\n?>",
-          "status": "implementado",
-          "implementedAt": "2025-04-01T00:34:04.000Z"
-        },
-        {
-          "bugId": "BUG-012",
-          "solution": "Implementar método getAll() em FilamentModel e corrigir ordem de parâmetros em CartModel",
-          "description": "Implementar método getAll() em FilamentModel ou modificar CartController para usar alternativa existente, e corrigir a declaração de parâmetros em CartModel.php",
-          "code": "// 1. Adicionado método getAll() ao FilamentModel\npublic function getAll($limit = null) {\n    $sql = \"SELECT * FROM {$this->table} WHERE is_active = 1 ORDER BY filament_type, display_order\";\n    \n    if ($limit !== null && is_numeric($limit)) {\n        $sql .= \" LIMIT :limit\";\n        $stmt = $this->db()->prepare($sql);\n        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);\n    } else {\n        $stmt = $this->db()->prepare($sql);\n    }\n    \n    $stmt->execute();\n    return $stmt->fetchAll(PDO::FETCH_ASSOC);\n}\n\n// 2. Corrigida ordem de parâmetros em CartModel.php:\n/**\n * Obtém ou cria um carrinho para o usuário/sessão atual\n *\n * @param string $sessionId ID da sessão atual\n * @param int|null $userId ID do usuário se estiver logado (opcional)\n * @return array Dados do carrinho\n */\npublic function getOrCreate($sessionId, $userId = null) {\n    // ... (resto do código)\n}",
-          "status": "implementado",
-          "implementedAt": "2025-04-01T02:38:30.000Z"
-        },
-        {
-          "bugId": "BUG-013",
-          "solution": "Criar diretório app/views/compiled",
-          "description": "Criar o diretório app/views/compiled para o sistema de templates poder armazenar arquivos de cache",
-          "code": "// Criado arquivo .gitkeep vazio no diretório app/views/compiled para garantir que o diretório seja versionado no Git\n// Isso permite que o sistema de templates use o diretório para armazenar arquivos compilados",
-          "status": "implementado",
-          "implementedAt": "2025-04-01T02:37:39.000Z"
-        },
-        {
-          "bugId": "BUG-014",
-          "solution": "Criar ferramentas de teste para validar as correções implementadas",
-          "description": "Desenvolver ferramentas especializadas de teste para verificar se as correções do carrinho, checkout e diretório de views compiladas funcionam adequadamente",
-          "code": "// Criadas 3 ferramentas de teste completas:\n// 1. cart-test.php - Testa funcionalidade do carrinho após correções\n// 2. checkout-test.php - Valida fluxo completo de checkout\n// 3. view-directory-test.php - Verifica configuração do diretório compilado\n\n// Ver os arquivos completos nos commits correspondentes.",
-          "status": "implementado",
-          "implementedAt": "2025-04-01T02:56:10.000Z"
+          "bugId": "BUG-015",
+          "solution": "Corrigir as consultas SQL em ProductModel.php para não depender de colunas que possam não existir",
+          "description": "Modificar os métodos getFeatured(), getTestedProducts(), getCustomProducts() e getCustomizableProducts() para usar consultas SQL que funcionem em ambos os ambientes, removendo dependências de flags específicas",
+          "code": "// Exemplos de modificações:\n\n// Método getFeatured()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock, \n       pi.image, \n       CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.is_active = 1\nORDER BY p.created_at DESC\nLIMIT :limit\";\n\n// Método getTestedProducts()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock,\n       pi.image,\n       'Pronta Entrega' as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.stock > 0 AND p.is_active = 1\nORDER BY p.created_at DESC\nLIMIT :limit\";",
+          "status": "proposto",
+          "proposedAt": "2025-04-01T12:30:00.000Z"
         }
       ],
       "implementationPlan": [
-        "Primeiro, corrigir o erro mais visível da variável undefined no CustomizationController (CONCLUÍDO)",
-        "Em seguida, criar os diretórios ausentes para evitar problemas com uploads (CONCLUÍDO)",
-        "Depois, resolver o problema do autoloader e classes não encontradas (CONCLUÍDO - Controller e Model adicionados no diretório correto, autoloader melhorado)",
-        "Corrigir o problema da exibição de produtos e o CURRENCY_SYMBOL (CONCLUÍDO - Correções implementadas e verificadas)",
-        "Desenvolver ferramenta de diagnóstico detalhada para identificar a causa raiz do problema de exibição de produtos (CONCLUÍDO)",
-        "Analisar os resultados do diagnóstico e implementar a solução (CONCLUÍDO)",
-        "Adicionar método público getDb() à classe Model para resolver o problema de acesso ao banco de dados na ferramenta de diagnóstico (CONCLUÍDO)",
-        "Resolver o problema das classes base (Controller.php e Model.php) ausentes no local correto (CONCLUÍDO)",
-        "Melhorar o autoloader para buscar em múltiplos diretórios (CONCLUÍDO)",
-        "Corrigir caminhos definidos no config.php (CONCLUÍDO)",
-        "Desenvolver ferramentas adicionais de diagnóstico para verificar resolução dos problemas (CONCLUÍDO)",
-        "Implementar melhorias no sistema de roteamento para permitir acesso às ferramentas de diagnóstico (CONCLUÍDO)",
-        "Criar ferramenta de diagnóstico independente que não dependa do sistema de roteamento (CONCLUÍDO)",
-        "Modificar .htaccess para permitir acesso direto às ferramentas de diagnóstico (CONCLUÍDO)",
-        "Implementar Router bridge para compatibilidade com código existente (CONCLUÍDO)",
-        "Fortalecer o index.php com melhor tratamento de erros e verificação de classes (CONCLUÍDO)",
-        "Corrigir inconsistências adicionais encontradas durante os testes (CONCLUÍDO)",
-        "Verificar se o arquivo status.php referenciado no .htaccess existe e implementá-lo (CONCLUÍDO)",
-        "Garantir que o método handleError() no CategoryController tenha o mesmo nível de acesso que na classe Controller pai (CONCLUÍDO)",
-        "Implementar método getAll() em FilamentModel (CONCLUÍDO)",
-        "Corrigir problemas com parâmetros em CartModel.php (CONCLUÍDO)",
-        "Criar diretório app/views/compiled com permissões adequadas (CONCLUÍDO)",
-        "Atualizar CartController para usar a nova ordem de parâmetros (CONCLUÍDO)",
-        "Criar ferramenta de teste do carrinho para validar correções (CONCLUÍDO)",
-        "Criar ferramenta de teste de checkout para validar fluxo completo (CONCLUÍDO)",
-        "Criar ferramenta para testar funcionalidade do diretório app/views/compiled (CONCLUÍDO)",
-        "Atualizar o status do projeto para refletir a conclusão da fase de correção de bugs (CONCLUÍDO)"
+        "Criar ferramenta de diagnóstico para produtos",
+        "Analisar o esquema da tabela de produtos em ambos os ambientes",
+        "Identificar as colunas ausentes ou com valores diferentes",
+        "Fazer backup do ProductModel.php atual",
+        "Modificar as consultas SQL para não depender de colunas problemáticas",
+        "Adicionar logs de diagnóstico para facilitar a identificação de problemas",
+        "Testar as modificações em ambiente local",
+        "Implantar em ambiente de produção",
+        "Verificar o funcionamento em ambos os ambientes"
       ]
     },
+    "synchronizationWorkflow": "## Fluxo de Trabalho para Sincronização Local/Produção\n\n### Fase 1: Diagnóstico\n1. Implantar ferramenta de diagnóstico em ambos os ambientes\n2. Comparar estrutura de banco de dados e dados\n3. Identificar diferenças nas consultas SQL\n\n### Fase 2: Correção\n1. Ajustar consultas SQL para funcionarem em ambos os ambientes\n2. Remover dependências de colunas que possam não existir\n3. Implementar fallbacks para garantir exibição\n\n### Fase 3: Teste e Validação\n1. Testar em ambiente local\n2. Testar em ambiente de produção\n3. Comparar resultados e garantir consistência\n\n### Fase 4: Documentação\n1. Documentar alterações realizadas\n2. Registrar diferenças entre ambientes\n3. Criar guia para futuras sincronizações",
     "incompleteOperations": false
   },
   "implementations": {
@@ -434,6 +222,44 @@
         }
       ],
       "timestamp": "2025-03-31T15:50:00.000Z"
+    },
+    "productSynchronization": {
+      "status": "inProgress",
+      "description": "Sincronização de exibição de produtos entre ambiente local e de produção",
+      "files": [
+        "app/models/ProductModel.php",
+        "public/diagnostico-produtos.php"
+      ],
+      "features": [
+        "Ferramenta de diagnóstico para identificação de problemas com produtos",
+        "Consultas SQL adaptativas que funcionam em ambos os ambientes",
+        "Logging avançado para diagnóstico",
+        "Adaptação dos métodos de busca de produtos para maior compatibilidade",
+        "Validação cruzada entre ambientes"
+      ],
+      "progress": [
+        {
+          "component": "Ferramenta de Diagnóstico",
+          "status": "inProgress",
+          "description": "Criação de ferramenta para analisar exibição de produtos e estrutura do banco de dados"
+        },
+        {
+          "component": "Análise Comparativa",
+          "status": "planned",
+          "description": "Comparação do esquema de banco de dados e dados entre ambientes local e de produção"
+        },
+        {
+          "component": "Correção do ProductModel.php",
+          "status": "planned",
+          "description": "Modificação das consultas SQL para não depender de colunas que possam não existir"
+        },
+        {
+          "component": "Testes de Validação",
+          "status": "planned",
+          "description": "Testes em ambos os ambientes para garantir funcionamento consistente"
+        }
+      ],
+      "timestamp": "2025-04-01T12:30:00.000Z"
     },
     "bugFixes": {
       "status": "completed",
@@ -708,14 +534,14 @@
   },
   "diagnostics": {
     "productionIssuesVerification": {
-      "status": "completed",
+      "status": "inProgress",
       "description": "Verificação e diagnóstico de problemas identificados no ambiente de produção",
       "findings": [
         "Erro no carrinho de compras: Call to undefined method FilamentModel::getAll() em CartController.php - RESOLVIDO",
         "Problema de parâmetro em CartModel.php: parâmetro opcional $userId declarado antes de parâmetro obrigatório $sessionId - RESOLVIDO",
         "Diretório app/views/compiled ausente, necessário para views compiladas - RESOLVIDO",
         "Problema identificado na página de produtos personalizáveis: variável não definida '$availability' - RESOLVIDO",
-        "Produtos não estão sendo exibidos corretamente, apesar de existirem no banco de dados - RESOLVIDO",
+        "Produtos não estão sendo exibidos no ambiente de produção, mas funcionam corretamente no ambiente local - EM ANÁLISE",
         "Erro de classe não encontrada: ProductModel e Database em vários contextos - RESOLVIDO",
         "Diretórios de uploads ausentes causando erros ao tentar salvar arquivos - RESOLVIDO",
         "CURRENCY_SYMBOL configurado incorretamente como valor numérico em vez de string - RESOLVIDO",
@@ -723,27 +549,12 @@
         "CategoryController modificado para estender a classe Controller, resolvendo o problema do método db() não encontrado - RESOLVIDO",
         "Corrigido o nível de acesso do método handleError() no CategoryController para 'protected' - RESOLVIDO",
         "Criados os diretórios uploads/products, uploads/categories e uploads/customization para resolver os erros de upload de arquivos - RESOLVIDO",
-        "Desenvolvida ferramenta de diagnóstico detalhada (public/diagnostico-produtos.php) para identificar a causa raiz do problema com a exibição de produtos - IMPLEMENTADO",
-        "Consultas SQL no ProductModel corrigidas para mostrar produtos independentemente das flags is_featured, is_tested e is_customizable - RESOLVIDO",
-        "Adicionado método público getDb() à classe Model para resolver o problema de acesso protegido na ferramenta de diagnóstico - RESOLVIDO",
-        "Criadas as classes Controller.php e Model.php no diretório correto (app/core/) conforme esperado pelo autoloader - RESOLVIDO",
-        "Melhorado o autoloader para buscar classes em múltiplos diretórios e caminhos alternativos - RESOLVIDO",
-        "Corrigida a definição de caminhos no config.php usando dirname(__FILE__, 3) para garantir caminhos absolutos corretos - RESOLVIDO",
-        "Implementada tratativa adicional para CURRENCY_SYMBOL garantindo que seja tratada como string - RESOLVIDO",
-        "Criadas ferramentas adicionais de diagnóstico para verificação da resolução dos problemas - IMPLEMENTADO",
-        "Criada ferramenta de diagnóstico independente (diag.php) que não depende do sistema de roteamento - IMPLEMENTADO",
-        "Corrigidos os arquivos .htaccess para permitir acesso direto às ferramentas de diagnóstico - RESOLVIDO",
-        "Implementado Router bridge em app/core para garantir compatibilidade com código existente - RESOLVIDO",
-        "Melhorado o index.php com verificações robustas e tratamento de erros avançado - RESOLVIDO",
-        "Criado arquivo status.php que estava referenciado no .htaccess mas não existia - RESOLVIDO",
         "Implementado método getAll() em FilamentModel para resolver erro no carrinho de compras - RESOLVIDO",
         "Corrigida ordem de parâmetros no método getOrCreate do CartModel.php - RESOLVIDO",
         "Atualizado CartController para usar nova ordem de parâmetros - RESOLVIDO",
-        "Criado diretório app/views/compiled para views compiladas - RESOLVIDO",
-        "Criadas ferramentas de teste para validar correções implementadas - IMPLEMENTADO"
+        "Criado diretório app/views/compiled para views compiladas - RESOLVIDO"
       ],
-      "timestamp": "2025-04-01T02:58:00.000Z",
-      "completedAt": "2025-04-01T02:58:00.000Z"
+      "timestamp": "2025-04-01T12:30:00.000Z"
     }
   },
   "roadmap": {
