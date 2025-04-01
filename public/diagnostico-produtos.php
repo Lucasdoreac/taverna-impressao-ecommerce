@@ -1,553 +1,230 @@
 <?php
-// Definir exibição de erros
+/**
+ * Ferramenta de Diagnóstico para Produtos
+ * 
+ * Esta ferramenta analisa os produtos no banco de dados e identifica potenciais
+ * problemas relacionados à exibição de produtos nos ambientes local e de produção.
+ * 
+ * Verifica:
+ * - Estrutura da tabela products
+ * - Presença de produtos no banco
+ * - Funcionamento dos métodos de busca de produtos
+ * - Consultas SQL executadas
+ */
+
+// Habilitar exibição de erros
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Incluir configurações
-require_once __DIR__ . '/../app/config/config.php';
-require_once __DIR__ . '/../app/autoload.php';
+// Incluir arquivos essenciais
+require_once '../app/config/config.php';
+require_once '../app/core/Database.php';
+require_once '../app/models/Model.php';
+require_once '../app/models/ProductModel.php';
 
-// Headers para evitar cache
-header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-header("Cache-Control: post-check=0, pre-check=0", false);
-header("Pragma: no-cache");
+echo "<h1>Diagnóstico de Produtos</h1>";
+echo "<p>Ambiente: " . ENVIRONMENT . "</p>";
+echo "<p>URL do Site: " . (defined('SITE_URL') ? SITE_URL : 'Não definida') . "</p>";
 
-// Funções auxiliares
-function prettyJson($data) {
-    return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+// Inicializar ProductModel
+$productModel = new ProductModel();
+
+// Função para exibir produtos
+function displayProducts($products, $title) {
+    echo "<h2>$title</h2>";
+    
+    if (empty($products)) {
+        echo "<p style='color: red; font-weight: bold;'>Nenhum produto encontrado</p>";
+    } else {
+        echo "<p>Total: <strong>" . count($products) . "</strong> produtos</p>";
+        echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>";
+        echo "<tr style='background-color: #f2f2f2;'><th>ID</th><th>Nome</th><th>Preço</th><th>Estoque</th><th>Is Featured</th><th>Is Tested</th><th>Is Customizable</th><th>Is Active</th></tr>";
+        
+        foreach ($products as $product) {
+            echo "<tr>";
+            echo "<td>" . $product['id'] . "</td>";
+            echo "<td>" . $product['name'] . "</td>";
+            echo "<td>" . $product['price'] . "</td>";
+            echo "<td>" . $product['stock'] . "</td>";
+            echo "<td>" . (isset($product['is_featured']) ? $product['is_featured'] : 'N/A') . "</td>";
+            echo "<td>" . (isset($product['is_tested']) ? $product['is_tested'] : 'N/A') . "</td>";
+            echo "<td>" . (isset($product['is_customizable']) ? $product['is_customizable'] : 'N/A') . "</td>";
+            echo "<td>" . (isset($product['is_active']) ? $product['is_active'] : 'N/A') . "</td>";
+            echo "</tr>";
+        }
+        
+        echo "</table>";
+    }
 }
 
-// Inicializar teste de banco de dados
-$dbTest = [];
+// Verificar produtos no banco de dados
 try {
-    // Usar o método getInstance() em vez de construtor direto
-    $db = Database::getInstance();
-    $dbTest['connection'] = "OK";
-    
-    // Verificar a versão do MySQL
-    $versionResult = $db->select("SELECT VERSION() as version");
-    $dbTest['version'] = $versionResult[0]['version'] ?? 'Não disponível';
-    
-    // Verificar tabelas existentes
-    $tablesResult = $db->select("SHOW TABLES");
-    $tables = [];
-    foreach ($tablesResult as $row) {
-        $tables[] = reset($row); // Pega o primeiro valor do array associativo
-    }
-    $dbTest['tables'] = $tables;
-    $dbTest['tables_count'] = count($tables);
+    // Obter instância do banco de dados
+    $db = $productModel->getDb();
     
     // Verificar se a tabela products existe
-    $dbTest['products_table_exists'] = in_array('products', $tables);
-    
-    // Contar número de produtos na tabela
-    if ($dbTest['products_table_exists']) {
-        $countResult = $db->select("SELECT COUNT(*) as total FROM products");
-        $dbTest['products_count'] = $countResult[0]['total'] ?? 0;
-        
-        // Listar alguns produtos para amostra
-        $productsResult = $db->select("SELECT id, name, price, is_active, is_tested, stock FROM products LIMIT 5");
-        $dbTest['sample_products'] = $productsResult;
+    $tableCheck = $db->select("SHOW TABLES LIKE 'products'");
+    if (empty($tableCheck)) {
+        echo "<h2 style='color: red;'>ERRO: Tabela 'products' não encontrada!</h2>";
+        exit;
     }
-} catch (Exception $e) {
-    $dbTest['connection'] = "FALHA: " . $e->getMessage();
-}
-
-// Testar carregamento da classe ProductModel
-$modelTest = [];
-try {
-    $modelTest['class_exists'] = class_exists('ProductModel') ? 'SIM' : 'NÃO';
     
-    if (class_exists('ProductModel')) {
-        $productModel = new ProductModel();
-        $modelTest['instantiation'] = 'OK';
+    echo "<hr>";
+    
+    // Obter todos os produtos (consulta direta)
+    $allProducts = $db->select("SELECT * FROM products");
+    displayProducts($allProducts, "Todos os Produtos (consulta direta)");
+    
+    // Verificar produtos por método do ProductModel
+    displayProducts($productModel->getFeatured(50), "Produtos em Destaque (getFeatured)");
+    displayProducts($productModel->getTestedProducts(50), "Produtos Testados (getTestedProducts)");
+    displayProducts($productModel->getCustomProducts(50), "Produtos Sob Encomenda (getCustomProducts)");
+    displayProducts($productModel->getCustomizableProducts(50), "Produtos Personalizáveis (getCustomizableProducts)");
+    
+    echo "<hr>";
+    
+    // Verificar estrutura da tabela
+    echo "<h2>Estrutura da tabela 'products'</h2>";
+    $tableInfo = $db->select("DESCRIBE products");
+    echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>";
+    echo "<tr style='background-color: #f2f2f2;'><th>Campo</th><th>Tipo</th><th>Nulo</th><th>Chave</th><th>Padrão</th><th>Extra</th></tr>";
+    
+    // Variáveis para verificar a presença de campos críticos
+    $hasIsFeatured = false;
+    $hasIsTested = false;
+    $hasIsCustomizable = false;
+    $hasIsActive = false;
+    
+    foreach ($tableInfo as $column) {
+        // Verificar campos críticos
+        if ($column['Field'] == 'is_featured') $hasIsFeatured = true;
+        if ($column['Field'] == 'is_tested') $hasIsTested = true;
+        if ($column['Field'] == 'is_customizable') $hasIsCustomizable = true;
+        if ($column['Field'] == 'is_active') $hasIsActive = true;
         
-        // Testar métodos principais
-        // getFeatured
-        try {
-            $featured = $productModel->getFeatured(4);
-            $modelTest['getFeatured'] = [
-                'status' => 'OK',
-                'count' => count($featured),
-                'items' => $featured
-            ];
-        } catch (Exception $e) {
-            $modelTest['getFeatured'] = [
-                'status' => 'FALHA',
-                'message' => $e->getMessage()
-            ];
+        echo "<tr>";
+        foreach ($column as $key => $value) {
+            echo "<td>" . $value . "</td>";
         }
+        echo "</tr>";
+    }
+    
+    echo "</table>";
+    
+    // Verificar e destacar problemas com campos críticos
+    echo "<h2>Verificação de Campos Críticos</h2>";
+    echo "<ul>";
+    echo "<li>is_featured: " . ($hasIsFeatured ? "<span style='color: green;'>Presente</span>" : "<span style='color: red;'>AUSENTE!</span>") . "</li>";
+    echo "<li>is_tested: " . ($hasIsTested ? "<span style='color: green;'>Presente</span>" : "<span style='color: red;'>AUSENTE!</span>") . "</li>";
+    echo "<li>is_customizable: " . ($hasIsCustomizable ? "<span style='color: green;'>Presente</span>" : "<span style='color: red;'>AUSENTE!</span>") . "</li>";
+    echo "<li>is_active: " . ($hasIsActive ? "<span style='color: green;'>Presente</span>" : "<span style='color: red;'>AUSENTE!</span>") . "</li>";
+    echo "</ul>";
+    
+    // Se algum campo crítico estiver faltando, mostrar mensagem de aviso
+    if (!$hasIsFeatured || !$hasIsTested || !$hasIsCustomizable || !$hasIsActive) {
+        echo "<div style='background-color: #ffe0e0; padding: 10px; border: 1px solid red;'>";
+        echo "<h3 style='color: red;'>ATENÇÃO: Campos críticos ausentes!</h3>";
+        echo "<p>Os métodos de busca de produtos podem estar filtrando por campos que não existem neste ambiente.</p>";
+        echo "<p>Recomendação: Modifique os métodos em ProductModel.php para não depender de campos ausentes.</p>";
+        echo "</div>";
+    }
+    
+    // Verificar valores dos campos críticos (se existirem)
+    if ($hasIsFeatured || $hasIsTested || $hasIsCustomizable) {
+        echo "<h2>Análise de Valores dos Campos Críticos</h2>";
+        $flagsAnalysis = $db->select("SELECT 
+            SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as total_active,
+            " . ($hasIsFeatured ? "SUM(CASE WHEN is_featured = 1 THEN 1 ELSE 0 END) as total_featured," : "") . "
+            " . ($hasIsTested ? "SUM(CASE WHEN is_tested = 1 THEN 1 ELSE 0 END) as total_tested," : "") . "
+            " . ($hasIsCustomizable ? "SUM(CASE WHEN is_customizable = 1 THEN 1 ELSE 0 END) as total_customizable," : "") . "
+            COUNT(*) as total
+            FROM products");
         
-        // getTestedProducts
-        try {
-            $tested = $productModel->getTestedProducts(4);
-            $modelTest['getTestedProducts'] = [
-                'status' => 'OK',
-                'count' => count($tested),
-                'items' => $tested
-            ];
-        } catch (Exception $e) {
-            $modelTest['getTestedProducts'] = [
-                'status' => 'FALHA',
-                'message' => $e->getMessage()
-            ];
-        }
-        
-        // getCustomProducts
-        try {
-            $custom = $productModel->getCustomProducts(4);
-            $modelTest['getCustomProducts'] = [
-                'status' => 'OK',
-                'count' => count($custom),
-                'items' => $custom
-            ];
-        } catch (Exception $e) {
-            $modelTest['getCustomProducts'] = [
-                'status' => 'FALHA',
-                'message' => $e->getMessage()
-            ];
-        }
-        
-        // Verificar se o método getDb() existe e retorna um objeto
-        try {
-            $db = $productModel->getDb();
-            $modelTest['db_method'] = $db ? 'OK' : 'FALHA (retornou null)';
-        } catch (Exception $e) {
-            $modelTest['db_method'] = 'FALHA: ' . $e->getMessage();
-        } catch (Error $e) {
-            $modelTest['db_method'] = 'ERRO: ' . $e->getMessage();
+        if (!empty($flagsAnalysis)) {
+            $analysis = $flagsAnalysis[0];
+            echo "<ul>";
+            echo "<li>Total de produtos: <strong>" . $analysis['total'] . "</strong></li>";
+            echo "<li>Produtos ativos: <strong>" . $analysis['total_active'] . "</strong></li>";
+            if ($hasIsFeatured) echo "<li>Produtos em destaque: <strong>" . $analysis['total_featured'] . "</strong></li>";
+            if ($hasIsTested) echo "<li>Produtos testados: <strong>" . $analysis['total_tested'] . "</strong></li>";
+            if ($hasIsCustomizable) echo "<li>Produtos personalizáveis: <strong>" . $analysis['total_customizable'] . "</strong></li>";
+            echo "</ul>";
+            
+            // Verificar se existem produtos com flags setadas
+            $hasFeaturedProducts = $hasIsFeatured && $analysis['total_featured'] > 0;
+            $hasTestedProducts = $hasIsTested && $analysis['total_tested'] > 0;
+            $hasCustomizableProducts = $hasIsCustomizable && $analysis['total_customizable'] > 0;
+            
+            // Mostrar alerta se não houver produtos com flags setadas
+            if ($hasIsFeatured && !$hasFeaturedProducts) {
+                echo "<div style='background-color: #ffe0e0; padding: 10px; border: 1px solid red;'>";
+                echo "<p><strong>ALERTA:</strong> Nenhum produto está marcado como destaque (is_featured = 1)!</p>";
+                echo "<p>Se o método getFeatured() filtrar por is_featured = 1, nenhum produto será exibido.</p>";
+                echo "</div>";
+            }
+            
+            if ($hasIsTested && !$hasTestedProducts) {
+                echo "<div style='background-color: #ffe0e0; padding: 10px; border: 1px solid red;'>";
+                echo "<p><strong>ALERTA:</strong> Nenhum produto está marcado como testado (is_tested = 1)!</p>";
+                echo "<p>Se o método getTestedProducts() filtrar por is_tested = 1, nenhum produto será exibido.</p>";
+                echo "</div>";
+            }
+            
+            if ($hasIsCustomizable && !$hasCustomizableProducts) {
+                echo "<div style='background-color: #ffe0e0; padding: 10px; border: 1px solid red;'>";
+                echo "<p><strong>ALERTA:</strong> Nenhum produto está marcado como personalizável (is_customizable = 1)!</p>";
+                echo "<p>Se o método getCustomizableProducts() filtrar por is_customizable = 1, nenhum produto será exibido.</p>";
+                echo "</div>";
+            }
         }
     }
-} catch (Exception $e) {
-    $modelTest['instantiation'] = 'FALHA: ' . $e->getMessage();
-} catch (Error $e) {
-    $modelTest['instantiation'] = 'ERRO: ' . $e->getMessage();
-}
-
-// Testar acesso direto ao banco de dados para produtos
-$directDbTest = [];
-try {
-    $db = Database::getInstance();
     
-    // Contar produtos totais
-    $totalResult = $db->select("SELECT COUNT(*) as total FROM products");
-    $directDbTest['total_products'] = $totalResult[0]['total'] ?? 0;
+    echo "<hr>";
     
-    // Contar produtos ativos
-    $activeResult = $db->select("SELECT COUNT(*) as total FROM products WHERE is_active = 1");
-    $directDbTest['active_products'] = $activeResult[0]['total'] ?? 0;
+    // Recomendações para solução de problemas
+    echo "<h2>Recomendações</h2>";
+    echo "<ol>";
+    echo "<li>Verifique se os campos críticos (is_featured, is_tested, is_customizable) existem nos dois ambientes.</li>";
+    echo "<li>Modifique os métodos em ProductModel.php para não depender de campos que possam não existir.</li>";
+    echo "<li>Use ORDER BY para priorizar produtos com flags setadas, em vez de filtrar por elas.</li>";
+    echo "<li>Adicione logs de diagnóstico aos métodos para facilitar a identificação de problemas.</li>";
+    echo "<li>Implemente consultas SQL mais tolerantes que funcionem mesmo quando campos não existem.</li>";
+    echo "</ol>";
     
-    // Contar produtos testados
-    $testedResult = $db->select("SELECT COUNT(*) as total FROM products WHERE is_tested = 1");
-    $directDbTest['tested_products'] = $testedResult[0]['total'] ?? 0;
-    
-    // Verificar produtos com estoque
-    $stockResult = $db->select("SELECT COUNT(*) as total FROM products WHERE stock > 0");
-    $directDbTest['products_with_stock'] = $stockResult[0]['total'] ?? 0;
-    
-    // Obter amostra de produtos diretamente
-    $sampleResult = $db->select("
-        SELECT p.id, p.name, p.price, p.is_active, p.is_tested, p.stock,
-               pi.image
-        FROM products p
-        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
-        WHERE p.is_active = 1
-        LIMIT 5
-    ");
-    $directDbTest['sample_products'] = $sampleResult;
-} catch (Exception $e) {
-    $directDbTest['error'] = $e->getMessage();
-}
-
-// Verificar queries SQL dos métodos críticos
-$sqlAnalysis = [];
-
-// Analisar todas as tabelas relacionadas a produtos
-$relatedTables = ['products', 'product_images', 'categories', 'customization_options'];
-foreach ($relatedTables as $table) {
+    echo "<h2>Exemplo de Correção (para getFeatured)</h2>";
+    echo "<pre style='background-color: #f8f8f8; padding: 10px; border: 1px solid #ddd;'>";
+    echo htmlspecialchars('
+public function getFeatured($limit = 8) {
     try {
-        $db = Database::getInstance();
+        // Adicionar log de diagnóstico
+        error_log("ProductModel::getFeatured - Iniciando busca de produtos em destaque (limit: $limit)");
         
-        // Verificar estrutura da tabela
-        $structResult = $db->select("DESCRIBE {$table}");
-        $sqlAnalysis[$table]['structure'] = $structResult;
+        // CORREÇÃO: Remover filtro is_featured para mostrar todos os produtos quando não houver destacados
+        $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock, 
+                       pi.image, 
+                       CASE WHEN p.stock > 0 THEN \'Pronta Entrega\' ELSE \'Sob Encomenda\' END as availability
+                FROM {$this->table} p
+                LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
+                WHERE p.is_active = 1
+                ORDER BY p.created_at DESC
+                LIMIT :limit";
         
-        // Contar registros
-        $countResult = $db->select("SELECT COUNT(*) as total FROM {$table}");
-        $sqlAnalysis[$table]['count'] = $countResult[0]['total'] ?? 0;
+        $result = $this->db()->select($sql, [\'limit\' => $limit]);
+        
+        // Adicionar log com o resultado
+        error_log("ProductModel::getFeatured - Encontrados " . count($result) . " produtos em destaque");
+        
+        return $result;
     } catch (Exception $e) {
-        $sqlAnalysis[$table]['error'] = $e->getMessage();
+        error_log("Erro ao buscar produtos em destaque: " . $e->getMessage());
+        return [];
     }
-}
-
-// Recomendações baseadas na análise
-$recommendations = [];
-
-// Verificar problema com ProductModel
-if ($modelTest['class_exists'] == 'SIM' && isset($modelTest['db_method']) && $modelTest['db_method'] != 'OK') {
-    $recommendations[] = "Verifique se a classe ProductModel estende corretamente a classe Model e se o método getDb() está disponível.";
-}
-
-// Verificar problema com produtos retornados
-if (isset($modelTest['getFeatured']['count']) && $modelTest['getFeatured']['count'] == 0 && 
-    isset($directDbTest['active_products']) && $directDbTest['active_products'] > 0) {
-    $recommendations[] = "Existe um problema nas consultas SQL. Produtos existem no banco de dados, mas não são retornados pelos métodos do ProductModel.";
-    $recommendations[] = "Verifique a condição WHERE nas consultas SQL do ProductModel, especialmente no método getFeatured().";
-}
-
-// Verificar estoque zerado
-if (isset($directDbTest['products_with_stock']) && $directDbTest['products_with_stock'] == 0 && 
-    isset($directDbTest['total_products']) && $directDbTest['total_products'] > 0) {
-    $recommendations[] = "Todos os produtos têm estoque zero. Isso pode estar causando produtos não aparecerem com disponibilidade 'Pronta Entrega'.";
-    $recommendations[] = "Atualize o estoque de alguns produtos para testar a exibição correta.";
-}
-
-// Verificar imagens de produtos
-if (isset($directDbTest['sample_products']) && !empty($directDbTest['sample_products'])) {
-    $hasImages = false;
-    foreach ($directDbTest['sample_products'] as $product) {
-        if (!empty($product['image'])) {
-            $hasImages = true;
-            break;
-        }
-    }
+}');
+    echo "</pre>";
     
-    if (!$hasImages) {
-        $recommendations[] = "Nenhum produto possui imagem principal definida. Verifique a tabela product_images.";
-    }
+} catch (Exception $e) {
+    echo "<h2 style='color: red;'>Erro</h2>";
+    echo "<p>Ocorreu um erro: <strong>" . $e->getMessage() . "</strong></p>";
+    echo "<pre>" . $e->getTraceAsString() . "</pre>";
 }
-
-// Recomendação para depuração no ProductModel
-$recommendations[] = "Adicione logs detalhados nos métodos do ProductModel para verificar exatamente onde está o problema.";
-$recommendations[] = "Verifique se a extensão PDO do PHP está ativada e funcionando corretamente.";
 ?>
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diagnóstico de Produtos - Taverna da Impressão</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 20px;
-            padding: 0;
-            color: #333;
-        }
-        h1 {
-            color: #2c3e50;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .card {
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .card h2 {
-            margin-top: 0;
-            color: #2c3e50;
-        }
-        pre {
-            background-color: #f4f4f4;
-            padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
-        }
-        .success {
-            color: #27ae60;
-            font-weight: bold;
-        }
-        .error {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-        .warning {
-            color: #f39c12;
-            font-weight: bold;
-        }
-        .info {
-            color: #3498db;
-            font-weight: bold;
-        }
-        .btn {
-            display: inline-block;
-            padding: 8px 16px;
-            background-color: #3498db;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            margin-right: 10px;
-        }
-        .btn:hover {
-            background-color: #2980b9;
-        }
-        .actions {
-            margin-top: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        th, td {
-            padding: 10px;
-            border: 1px solid #ddd;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Diagnóstico de Produtos - Taverna da Impressão</h1>
-        
-        <div class="card">
-            <h2>1. Conexão com Banco de Dados</h2>
-            <table>
-                <tr>
-                    <th>Item</th>
-                    <th>Resultado</th>
-                </tr>
-                <tr>
-                    <td>Conexão</td>
-                    <td class="<?php echo strpos($dbTest['connection'] ?? '', 'FALHA') === false ? 'success' : 'error'; ?>">
-                        <?php echo htmlspecialchars($dbTest['connection'] ?? 'N/A'); ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Versão MySQL</td>
-                    <td><?php echo htmlspecialchars($dbTest['version'] ?? 'N/A'); ?></td>
-                </tr>
-                <tr>
-                    <td>Tabelas encontradas</td>
-                    <td><?php echo htmlspecialchars($dbTest['tables_count'] ?? 'N/A'); ?></td>
-                </tr>
-                <tr>
-                    <td>Tabela products</td>
-                    <td class="<?php echo ($dbTest['products_table_exists'] ?? false) ? 'success' : 'error'; ?>">
-                        <?php echo ($dbTest['products_table_exists'] ?? false) ? 'Existe' : 'Não existe'; ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Quantidade de produtos</td>
-                    <td>
-                        <?php 
-                        $count = $dbTest['products_count'] ?? 0;
-                        $class = $count > 0 ? 'success' : 'warning';
-                        echo "<span class='{$class}'>{$count}</span>";
-                        ?>
-                    </td>
-                </tr>
-            </table>
-            
-            <?php if (!empty($dbTest['sample_products'])): ?>
-            <h3>Amostra de Produtos</h3>
-            <table>
-                <tr>
-                    <th>ID</th>
-                    <th>Nome</th>
-                    <th>Preço</th>
-                    <th>Ativo</th>
-                    <th>Testado</th>
-                    <th>Estoque</th>
-                </tr>
-                <?php foreach ($dbTest['sample_products'] as $product): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($product['id'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($product['name'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($product['price'] ?? 'N/A'); ?></td>
-                    <td class="<?php echo ($product['is_active'] ?? 0) ? 'success' : 'error'; ?>">
-                        <?php echo ($product['is_active'] ?? 0) ? 'Sim' : 'Não'; ?>
-                    </td>
-                    <td class="<?php echo ($product['is_tested'] ?? 0) ? 'success' : 'warning'; ?>">
-                        <?php echo ($product['is_tested'] ?? 0) ? 'Sim' : 'Não'; ?>
-                    </td>
-                    <td class="<?php echo ($product['stock'] ?? 0) > 0 ? 'success' : 'warning'; ?>">
-                        <?php echo htmlspecialchars($product['stock'] ?? '0'); ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </table>
-            <?php endif; ?>
-        </div>
-        
-        <div class="card">
-            <h2>2. Classe ProductModel</h2>
-            <table>
-                <tr>
-                    <th>Item</th>
-                    <th>Resultado</th>
-                </tr>
-                <tr>
-                    <td>Classe existe</td>
-                    <td class="<?php echo $modelTest['class_exists'] == 'SIM' ? 'success' : 'error'; ?>">
-                        <?php echo htmlspecialchars($modelTest['class_exists'] ?? 'N/A'); ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Instanciação</td>
-                    <td class="<?php echo strpos($modelTest['instantiation'] ?? '', 'OK') === 0 ? 'success' : 'error'; ?>">
-                        <?php echo htmlspecialchars($modelTest['instantiation'] ?? 'N/A'); ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td>Método getDb()</td>
-                    <td class="<?php echo strpos($modelTest['db_method'] ?? '', 'OK') === 0 ? 'success' : 'error'; ?>">
-                        <?php echo htmlspecialchars($modelTest['db_method'] ?? 'N/A'); ?>
-                    </td>
-                </tr>
-            </table>
-            
-            <?php if (isset($modelTest['getFeatured'])): ?>
-            <h3>Teste do método getFeatured()</h3>
-            <p>Status: 
-                <span class="<?php echo $modelTest['getFeatured']['status'] == 'OK' ? 'success' : 'error'; ?>">
-                    <?php echo htmlspecialchars($modelTest['getFeatured']['status']); ?>
-                </span>
-            </p>
-            <?php if ($modelTest['getFeatured']['status'] == 'OK'): ?>
-                <p>Produtos encontrados: 
-                    <span class="<?php echo $modelTest['getFeatured']['count'] > 0 ? 'success' : 'warning'; ?>">
-                        <?php echo htmlspecialchars($modelTest['getFeatured']['count']); ?>
-                    </span>
-                </p>
-                <?php if ($modelTest['getFeatured']['count'] > 0): ?>
-                <pre><?php echo htmlspecialchars(prettyJson($modelTest['getFeatured']['items'])); ?></pre>
-                <?php else: ?>
-                <p class="warning">Nenhum produto em destaque encontrado.</p>
-                <?php endif; ?>
-            <?php else: ?>
-                <p class="error">Erro: <?php echo htmlspecialchars($modelTest['getFeatured']['message'] ?? 'Erro desconhecido'); ?></p>
-            <?php endif; ?>
-            <?php endif; ?>
-            
-            <?php if (isset($modelTest['getTestedProducts'])): ?>
-            <h3>Teste do método getTestedProducts()</h3>
-            <p>Status: 
-                <span class="<?php echo $modelTest['getTestedProducts']['status'] == 'OK' ? 'success' : 'error'; ?>">
-                    <?php echo htmlspecialchars($modelTest['getTestedProducts']['status']); ?>
-                </span>
-            </p>
-            <?php if ($modelTest['getTestedProducts']['status'] == 'OK'): ?>
-                <p>Produtos encontrados: 
-                    <span class="<?php echo $modelTest['getTestedProducts']['count'] > 0 ? 'success' : 'warning'; ?>">
-                        <?php echo htmlspecialchars($modelTest['getTestedProducts']['count']); ?>
-                    </span>
-                </p>
-                <?php if ($modelTest['getTestedProducts']['count'] > 0): ?>
-                <pre><?php echo htmlspecialchars(prettyJson($modelTest['getTestedProducts']['items'])); ?></pre>
-                <?php else: ?>
-                <p class="warning">Nenhum produto testado encontrado.</p>
-                <?php endif; ?>
-            <?php else: ?>
-                <p class="error">Erro: <?php echo htmlspecialchars($modelTest['getTestedProducts']['message'] ?? 'Erro desconhecido'); ?></p>
-            <?php endif; ?>
-            <?php endif; ?>
-            
-            <?php if (isset($modelTest['getCustomProducts'])): ?>
-            <h3>Teste do método getCustomProducts()</h3>
-            <p>Status: 
-                <span class="<?php echo $modelTest['getCustomProducts']['status'] == 'OK' ? 'success' : 'error'; ?>">
-                    <?php echo htmlspecialchars($modelTest['getCustomProducts']['status']); ?>
-                </span>
-            </p>
-            <?php if ($modelTest['getCustomProducts']['status'] == 'OK'): ?>
-                <p>Produtos encontrados: 
-                    <span class="<?php echo $modelTest['getCustomProducts']['count'] > 0 ? 'success' : 'warning'; ?>">
-                        <?php echo htmlspecialchars($modelTest['getCustomProducts']['count']); ?>
-                    </span>
-                </p>
-                <?php if ($modelTest['getCustomProducts']['count'] > 0): ?>
-                <pre><?php echo htmlspecialchars(prettyJson($modelTest['getCustomProducts']['items'])); ?></pre>
-                <?php else: ?>
-                <p class="warning">Nenhum produto sob encomenda encontrado.</p>
-                <?php endif; ?>
-            <?php else: ?>
-                <p class="error">Erro: <?php echo htmlspecialchars($modelTest['getCustomProducts']['message'] ?? 'Erro desconhecido'); ?></p>
-            <?php endif; ?>
-            <?php endif; ?>
-        </div>
-        
-        <div class="card">
-            <h2>3. Acesso Direto aos Dados</h2>
-            <?php if (!isset($directDbTest['error'])): ?>
-            <table>
-                <tr>
-                    <th>Item</th>
-                    <th>Resultado</th>
-                </tr>
-                <tr>
-                    <td>Total de produtos</td>
-                    <td><?php echo htmlspecialchars($directDbTest['total_products'] ?? 0); ?></td>
-                </tr>
-                <tr>
-                    <td>Produtos ativos</td>
-                    <td><?php echo htmlspecialchars($directDbTest['active_products'] ?? 0); ?></td>
-                </tr>
-                <tr>
-                    <td>Produtos testados</td>
-                    <td><?php echo htmlspecialchars($directDbTest['tested_products'] ?? 0); ?></td>
-                </tr>
-                <tr>
-                    <td>Produtos com estoque</td>
-                    <td><?php echo htmlspecialchars($directDbTest['products_with_stock'] ?? 0); ?></td>
-                </tr>
-            </table>
-            
-            <?php if (!empty($directDbTest['sample_products'])): ?>
-            <h3>Amostra de Produtos (Acesso Direto)</h3>
-            <pre><?php echo htmlspecialchars(prettyJson($directDbTest['sample_products'])); ?></pre>
-            <?php endif; ?>
-            
-            <?php else: ?>
-            <p class="error">Erro ao acessar diretamente o banco de dados: <?php echo htmlspecialchars($directDbTest['error']); ?></p>
-            <?php endif; ?>
-        </div>
-        
-        <div class="card">
-            <h2>4. Análise das Tabelas</h2>
-            <?php foreach ($sqlAnalysis as $table => $data): ?>
-            <h3>Tabela: <?php echo htmlspecialchars($table); ?></h3>
-            <?php if (!isset($data['error'])): ?>
-            <p>Registros: <strong><?php echo htmlspecialchars($data['count']); ?></strong></p>
-            <h4>Estrutura:</h4>
-            <pre><?php echo htmlspecialchars(prettyJson($data['structure'])); ?></pre>
-            <?php else: ?>
-            <p class="error">Erro: <?php echo htmlspecialchars($data['error']); ?></p>
-            <?php endif; ?>
-            <?php endforeach; ?>
-        </div>
-        
-        <div class="card">
-            <h2>5. Recomendações</h2>
-            <?php if (!empty($recommendations)): ?>
-            <ol>
-                <?php foreach ($recommendations as $recommendation): ?>
-                <li><?php echo htmlspecialchars($recommendation); ?></li>
-                <?php endforeach; ?>
-            </ol>
-            <?php else: ?>
-            <p>Nenhuma recomendação específica baseada na análise atual.</p>
-            <?php endif; ?>
-        </div>
-        
-        <div class="actions">
-            <a href="index.php" class="btn">Página Inicial</a>
-            <a href="correcoes-aplicadas.php" class="btn">Correções Aplicadas</a>
-            <a href="diagnostico-classes.php" class="btn">Diagnóstico de Classes</a>
-        </div>
-    </div>
-</body>
-</html>
