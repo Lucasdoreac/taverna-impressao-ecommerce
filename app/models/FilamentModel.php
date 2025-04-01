@@ -9,6 +9,27 @@ class FilamentModel extends Model {
     ];
     
     /**
+     * Obtém todos os filamentos disponíveis
+     * 
+     * @param int|null $limit Limite de registros (opcional)
+     * @return array Lista de todos os filamentos
+     */
+    public function getAll($limit = null) {
+        $sql = "SELECT * FROM {$this->table} WHERE is_active = 1 ORDER BY filament_type, display_order";
+        
+        if ($limit !== null && is_numeric($limit)) {
+            $sql .= " LIMIT :limit";
+            $stmt = $this->db()->prepare($sql);
+            $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+        } else {
+            $stmt = $this->db()->prepare($sql);
+        }
+        
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
+    /**
      * Obtém os tipos de filamento disponíveis
      * 
      * @return array Tipos de filamento
