@@ -2,7 +2,7 @@
   "projectInfo": {
     "name": "TAVERNA DA IMPRESSÃO E-commerce",
     "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-04-01T00:36:30.000Z",
+    "lastUpdated": "2025-03-31T22:15:30.000Z",
     "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
   },
   "development": {
@@ -72,14 +72,14 @@
     "pending": []
   },
   "context": {
-    "lastThought": "As modificações nas ferramentas de diagnóstico foram concluídas com sucesso. Foram implementados os seguintes ajustes: (1) Criação do arquivo status.php que estava referenciado no .htaccess mas não existia, (2) Correção do nível de acesso do método handleError() em CategoryController.php para 'protected' para corresponder à classe Controller pai, (3) Atualização do project-status.json com as correções realizadas.",
+    "lastThought": "A análise detalhada do site revelou problemas adicionais: (1) Erro crítico no carrinho de compras devido a chamada de método inexistente FilamentModel::getAll(), (2) Problema de parâmetro opcional declarado antes de obrigatório em CartModel.php, (3) Diretório app/views/compiled ausente, necessário para views compiladas. Estes problemas precisam ser corrigidos para restaurar completamente a funcionalidade do e-commerce.",
     "nextSteps": [
-      "Verificar o funcionamento de todas as ferramentas de diagnóstico no ambiente de produção",
-      "Testar especificamente o CategoryController com a correção do método handleError()",
-      "Validar o funcionamento da nova ferramenta status.php",
-      "Verificar se todas as ferramentas existentes estão funcionando adequadamente com a estrutura atual",
-      "Continuar a correção de outros bugs identificados",
-      "Após validar todas as correções, retomar o trabalho em 'Configurações Avançadas para Preferências de Notificação'"
+      "Implementar método getAll() em FilamentModel ou modificar CartController para usar alternativa",
+      "Corrigir declaração de parâmetros em CartModel.php, movendo parâmetro opcional $userId para depois do obrigatório $sessionId",
+      "Criar diretório app/views/compiled com permissões adequadas (0755)",
+      "Continuar verificando outras páginas críticas como checkout e detalhe de produto",
+      "Validar funcionamento das ferramentas de diagnóstico após correções",
+      "Atualizar relatório de status com resultados das correções implementadas"
     ],
     "lastEditedFiles": [
       "public/status.php",
@@ -114,6 +114,9 @@
         "customization/list.php"
       ],
       "mainIssues": [
+        "Fatal error no carrinho: Call to undefined method FilamentModel::getAll() em CartController.php",
+        "Parâmetro opcional $userId declarado antes de parâmetro obrigatório $sessionId em CartModel.php",
+        "Diretório app/views/compiled ausente, necessário para views compiladas",
         "Classe FilamentModel não encontrada em alguns contextos",
         "Classe Database não encontrada em alguns contextos",
         "Erro ao acessar arquivos que precisam de autenticação",
@@ -235,6 +238,24 @@
           "status": "resolvido",
           "affectedFiles": ["public/status.php"],
           "resolution": "Criado o arquivo status.php como uma ferramenta de diagnóstico completa que verifica arquivos, configurações, banco de dados e muito mais."
+        },
+        {
+          "id": "BUG-012",
+          "description": "Erro no carrinho de compras",
+          "details": "Fatal error: Call to undefined method FilamentModel::getAll() em CartController.php linha 186 e problema com parâmetro opcional declarado antes de parâmetro obrigatório em CartModel.php",
+          "severity": "critical",
+          "status": "pendente",
+          "affectedFiles": ["app/controllers/CartController.php", "app/models/CartModel.php"],
+          "resolution": "Pendente: Implementar método getAll() em FilamentModel ou usar alternativa existente, e corrigir a declaração de parâmetros em CartModel.php"
+        },
+        {
+          "id": "BUG-013",
+          "description": "Diretório app/views/compiled ausente",
+          "details": "O diretório app/views/compiled não existe mas é necessário para a funcionalidade de views compiladas",
+          "severity": "medium",
+          "status": "pendente",
+          "affectedFiles": ["app/views/compiled/.gitkeep"],
+          "resolution": "Pendente: Criar diretório app/views/compiled com permissões adequadas (0755)"
         }
       ],
       "proposedSolutions": [
@@ -292,6 +313,22 @@
           "code": "<?php\n/**\n * Status - Página de diagnóstico completo do sistema\n * \n * Esta ferramenta fornece uma visão detalhada do status do sistema,\n * incluindo verificação de arquivos, banco de dados, configurações e mais.\n */\n\n// Desabilitar cache para sempre obter versão atualizada\nheader(\"Cache-Control: no-store, no-cache, must-revalidate, max-age=0\");\nheader(\"Cache-Control: post-check=0, pre-check=0\", false);\nheader(\"Pragma: no-cache\");\n\n// Habilitar exibição de erros\nini_set('display_errors', 1);\nerror_reporting(E_ALL);\n\n// Definir mime type para HTML\nheader('Content-Type: text/html; charset=utf-8');\n\n// ... (conteúdo completo do arquivo)\n?>",
           "status": "implementado",
           "implementedAt": "2025-04-01T00:34:04.000Z"
+        },
+        {
+          "bugId": "BUG-012",
+          "solution": "Implementar método getAll() em FilamentModel e corrigir ordem de parâmetros em CartModel",
+          "description": "Implementar método getAll() em FilamentModel ou modificar CartController para usar alternativa existente, e corrigir a declaração de parâmetros em CartModel.php",
+          "code": "// Opção 1: Adicionar método getAll() ao FilamentModel\npublic function getAll($limit = null) {\n    $sql = \"SELECT * FROM {$this->table}\";\n    \n    if ($limit !== null && is_numeric($limit)) {\n        $sql .= \" LIMIT :limit\";\n        $stmt = $this->db()->prepare($sql);\n        $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);\n    } else {\n        $stmt = $this->db()->prepare($sql);\n    }\n    \n    $stmt->execute();\n    return $stmt->fetchAll(PDO::FETCH_ASSOC);\n}\n\n// Opção 2: Corrigir ordem de parâmetros em CartModel.php\n// Alterar de:\npublic function getCartItems($userId = null, $sessionId) {\n    // código...\n}\n\n// Para:\npublic function getCartItems($sessionId, $userId = null) {\n    // código...\n}",
+          "status": "proposto",
+          "proposedAt": "2025-03-31T22:15:30.000Z"
+        },
+        {
+          "bugId": "BUG-013",
+          "solution": "Criar diretório app/views/compiled",
+          "description": "Criar o diretório app/views/compiled para o sistema de templates poder armazenar arquivos de cache",
+          "code": "// Criar diretório via PHP\nif (!file_exists(APP_PATH . '/views/compiled')) {\n    mkdir(APP_PATH . '/views/compiled', 0755, true);\n    file_put_contents(APP_PATH . '/views/compiled/.gitkeep', '');\n    echo \"Diretório 'app/views/compiled' criado com sucesso.\";\n} else {\n    echo \"Diretório 'app/views/compiled' já existe.\";\n}\n\n// Verificar permissões\nif (is_writable(APP_PATH . '/views/compiled')) {\n    echo \"Diretório 'app/views/compiled' tem permissões de escrita.\";\n} else {\n    echo \"ERRO: Diretório 'app/views/compiled' não tem permissões de escrita.\";\n    // Tentar corrigir permissões\n    chmod(APP_PATH . '/views/compiled', 0755);\n}",
+          "status": "proposto",
+          "proposedAt": "2025-03-31T22:15:30.000Z"
         }
       ],
       "implementationPlan": [
@@ -314,7 +351,9 @@
         "Corrigir inconsistências adicionais encontradas durante os testes (CONCLUÍDO)",
         "Verificar se o arquivo status.php referenciado no .htaccess existe e implementá-lo (CONCLUÍDO)",
         "Garantir que o método handleError() no CategoryController tenha o mesmo nível de acesso que na classe Controller pai (CONCLUÍDO)",
-        "Validar as ferramentas de diagnóstico para garantir que estejam funcionando corretamente (PRÓXIMO PASSO)"
+        "Implementar método getAll() em FilamentModel ou modificar CartController (PRÓXIMO PASSO)",
+        "Corrigir problemas com parâmetros em CartModel.php (PRÓXIMO PASSO)",
+        "Criar diretório app/views/compiled com permissões adequadas (PRÓXIMO PASSO)"
       ]
     },
     "incompleteOperations": false
@@ -392,7 +431,9 @@
         "public/.htaccess",
         "app/core/Router.php",
         "public/index.php",
-        "public/status.php"
+        "public/status.php",
+        "app/models/FilamentModel.php",
+        "app/models/CartModel.php"
       ],
       "features": [
         "Correção de variável undefined no CustomizationController",
@@ -411,7 +452,10 @@
         "Router bridge em app/core para compatibilidade com código existente",
         "Index.php melhorado com verificações robustas e tratamento de erros",
         "Nível de acesso do método handleError() consistente entre classes",
-        "Ferramenta de diagnóstico completa status.php implementada"
+        "Ferramenta de diagnóstico completa status.php implementada",
+        "Correção do método getAll() ausente no FilamentModel",
+        "Correção de ordem de parâmetros em CartModel",
+        "Criação do diretório app/views/compiled"
       ],
       "progress": [
         {
@@ -500,12 +544,22 @@
           "description": "Criada página de status do sistema que fornece uma visão detalhada do status do sistema, incluindo verificação de arquivos, banco de dados, configurações e mais"
         },
         {
+          "component": "Correção do carrinho de compras",
+          "status": "inProgress",
+          "description": "Implementando método getAll() em FilamentModel e corrigindo ordem de parâmetros em CartModel.php para resolver o erro Fatal que ocorre ao acessar o carrinho"
+        },
+        {
+          "component": "app/views/compiled",
+          "status": "inProgress",
+          "description": "Criando diretório necessário para views compiladas com permissões adequadas"
+        },
+        {
           "component": "Verificação das Soluções",
           "status": "inProgress",
           "description": "Validando as ferramentas de diagnóstico e verificando se as correções implementadas resolveram efetivamente os problemas"
         }
       ],
-      "timestamp": "2025-04-01T00:36:30.000Z"
+      "timestamp": "2025-03-31T22:15:30.000Z"
     },
     "diagnosticTools": {
       "status": "inProgress",
@@ -585,7 +639,7 @@
           "description": "Testando as ferramentas de diagnóstico no ambiente de produção para verificar se estão funcionando corretamente e se as correções foram efetivas"
         }
       ],
-      "timestamp": "2025-04-01T00:36:30.000Z"
+      "timestamp": "2025-03-31T22:15:30.000Z"
     }
   },
   "diagnostics": {
@@ -593,6 +647,9 @@
       "status": "inProgress",
       "description": "Verificação e diagnóstico de problemas identificados no ambiente de produção",
       "findings": [
+        "Erro no carrinho de compras: Call to undefined method FilamentModel::getAll() em CartController.php linha 186",
+        "Problema de parâmetro em CartModel.php: parâmetro opcional $userId declarado antes de parâmetro obrigatório $sessionId",
+        "Diretório app/views/compiled ausente, necessário para views compiladas",
         "Problema identificado na página de produtos personalizáveis: variável não definida '$availability' - CORRIGIDO",
         "Produtos não estão sendo exibidos corretamente, apesar de existirem no banco de dados - CORRIGIDO",
         "Erro de classe não encontrada: ProductModel e Database em vários contextos - RESOLVIDO",
@@ -617,7 +674,7 @@
         "Melhorado o index.php com verificações robustas e tratamento de erros avançado",
         "Criado arquivo status.php que estava referenciado no .htaccess mas não existia"
       ],
-      "timestamp": "2025-04-01T00:36:30.000Z"
+      "timestamp": "2025-03-31T22:15:30.000Z"
     }
   },
   "roadmap": {
