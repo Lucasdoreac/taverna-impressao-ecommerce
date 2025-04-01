@@ -15,18 +15,13 @@ class FilamentModel extends Model {
      * @return array Lista de todos os filamentos
      */
     public function getAll($limit = null) {
-        $sql = "SELECT * FROM {$this->table} WHERE is_active = 1 ORDER BY filament_type, display_order";
-        
         if ($limit !== null && is_numeric($limit)) {
-            $sql .= " LIMIT :limit";
-            $stmt = $this->db()->prepare($sql);
-            $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+            $sql = "SELECT * FROM {$this->table} WHERE is_active = 1 ORDER BY filament_type, display_order LIMIT :limit";
+            return $this->db()->select($sql, ['limit' => $limit]);
         } else {
-            $stmt = $this->db()->prepare($sql);
+            $sql = "SELECT * FROM {$this->table} WHERE is_active = 1 ORDER BY filament_type, display_order";
+            return $this->db()->select($sql);
         }
-        
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     /**
