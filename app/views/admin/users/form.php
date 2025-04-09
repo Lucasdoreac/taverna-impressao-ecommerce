@@ -22,6 +22,7 @@ $pageTitle = $isEdit ? 'Editar Usuário' : 'Novo Usuário';
             </div>
             <div class="card-body">
                 <form action="<?= BASE_URL ?>admin/usuarios/save" method="post" class="needs-validation" novalidate>
+                    <?php echo CsrfProtection::getFormField(); ?>
                     <?php if ($isEdit): ?>
                     <input type="hidden" name="id" value="<?= $user['id'] ?>">
                     <?php endif; ?>

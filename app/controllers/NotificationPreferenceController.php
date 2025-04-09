@@ -5,8 +5,8 @@
  * Este controlador gerencia as preferências de notificação dos usuários,
  * permitindo a personalização dos tipos de notificações, canais de entrega e frequência.
  * 
- * @version 1.0.0
- * @author Taverna da Impressão
+ * @version     1.1.0
+ * @author      Taverna da Impressão
  */
 class NotificationPreferenceController extends Controller {
     private $notificationPreferenceModel;
@@ -30,6 +30,9 @@ class NotificationPreferenceController extends Controller {
         if (in_array($this->getCurrentAction(), $adminActions)) {
             $this->checkAdminPermission();
         }
+        
+        // Carregar biblioteca de segurança
+        require_once APP_PATH . '/lib/Security/SecurityManager.php';
     }
     
     /**
@@ -57,7 +60,8 @@ class NotificationPreferenceController extends Controller {
             'preferences' => $preferences,
             'notificationTypes' => $notificationTypes,
             'notificationChannels' => $notificationChannels,
-            'title' => 'Preferências de Notificação'
+            'title' => 'Preferências de Notificação',
+            'csrf_token' => SecurityManager::getCsrfToken() // Adicionado token CSRF
         ]);
     }
     
@@ -67,8 +71,15 @@ class NotificationPreferenceController extends Controller {
     public function save() {
         // Verificar método da requisição
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'preferencias-notificacao');
-            exit;
+            $this->redirect('preferencias-notificacao');
+            return;
+        }
+        
+        // Validar token CSRF
+        if (!SecurityManager::validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido. Por favor, tente novamente.';
+            $this->redirect('preferencias-notificacao');
+            return;
         }
         
         // Obter ID do usuário atual
@@ -81,7 +92,7 @@ class NotificationPreferenceController extends Controller {
             foreach ($_POST['preferences'] as $typeId => $channels) {
                 foreach ($channels as $channelId => $settings) {
                     $isEnabled = isset($settings['enabled']) ? true : false;
-                    $frequency = isset($settings['frequency']) ? $settings['frequency'] : 'realtime';
+                    $frequency = isset($settings['frequency']) ? SecurityManager::sanitize($settings['frequency']) : 'realtime';
                     
                     $preferences[] = [
                         'type_id' => (int)$typeId,
@@ -104,7 +115,7 @@ class NotificationPreferenceController extends Controller {
                 'success' => (bool)$result,
                 'message' => $result ? 'Preferências atualizadas com sucesso!' : 'Erro ao atualizar preferências. Por favor, tente novamente.'
             ]);
-            exit;
+            return;
         } else {
             // Responder com redirecionamento
             if ($result) {
@@ -113,8 +124,8 @@ class NotificationPreferenceController extends Controller {
                 $_SESSION['error'] = 'Erro ao atualizar preferências. Por favor, tente novamente.';
             }
             
-            header('Location: ' . BASE_URL . 'preferencias-notificacao');
-            exit;
+            $this->redirect('preferencias-notificacao');
+            return;
         }
     }
     
@@ -129,25 +140,48 @@ class NotificationPreferenceController extends Controller {
             
             header('HTTP/1.1 400 Bad Request');
             echo json_encode(['success' => false, 'message' => 'Método inválido ou requisição não AJAX']);
-            exit;
+            return;
         }
         
         // Obter ID do usuário atual
         $userId = $_SESSION['user']['id'];
         
-        // Obter dados da requisição
-        $data = json_decode(file_get_contents('php://input'), true);
+        // Obter dados da requisição com validação
+        $rawData = file_get_contents('php://input');
+        $data = json_decode($rawData, true);
         
         if (!$data || !isset($data['typeId']) || !isset($data['channelId']) || !isset($data['isEnabled'])) {
             header('HTTP/1.1 400 Bad Request');
             echo json_encode(['success' => false, 'message' => 'Dados incompletos']);
-            exit;
+            return;
         }
         
+        // Verificar token CSRF no corpo da requisição JSON
+        if (!isset($data['csrf_token']) || !SecurityManager::validateCsrfToken($data['csrf_token'])) {
+            header('HTTP/1.1 403 Forbidden');
+            echo json_encode(['success' => false, 'message' => 'Token de segurança inválido']);
+            return;
+        }
+        
+        // Validar e sanitizar dados
         $typeId = (int)$data['typeId'];
         $channelId = (int)$data['channelId'];
         $isEnabled = (bool)$data['isEnabled'];
-        $frequency = isset($data['frequency']) ? $data['frequency'] : 'realtime';
+        $frequency = isset($data['frequency']) ? SecurityManager::sanitize($data['frequency']) : 'realtime';
+        
+        // Verificar se o tipo e canal existem
+        if (!$this->notificationPreferenceModel->typeExists($typeId) || 
+            !$this->notificationPreferenceModel->channelExists($channelId)) {
+            header('HTTP/1.1 400 Bad Request');
+            echo json_encode(['success' => false, 'message' => 'Tipo ou canal de notificação inválido']);
+            return;
+        }
+        
+        // Validar frequência
+        $allowedFrequencies = ['realtime', 'daily', 'weekly', 'monthly'];
+        if (!in_array($frequency, $allowedFrequencies)) {
+            $frequency = 'realtime'; // Valor padrão seguro
+        }
         
         // Atualizar preferência
         $result = $this->notificationPreferenceModel->updatePreference(
@@ -164,13 +198,38 @@ class NotificationPreferenceController extends Controller {
             'success' => (bool)$result,
             'message' => $result ? 'Preferência atualizada com sucesso!' : 'Erro ao atualizar preferência.'
         ]);
-        exit;
+        return;
     }
     
     /**
      * Inicializa preferências padrão para o usuário atual
      */
     public function initialize() {
+        // Verificar método da requisição
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->redirect('preferencias-notificacao');
+            return;
+        }
+        
+        // Validar token CSRF para solicitações não-AJAX
+        if (!isset($_SERVER['HTTP_X_REQUESTED_WITH']) || $_SERVER['HTTP_X_REQUESTED_WITH'] !== 'XMLHttpRequest') {
+            if (!SecurityManager::validateCsrfToken($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token de segurança inválido. Por favor, tente novamente.';
+                $this->redirect('preferencias-notificacao');
+                return;
+            }
+        } else {
+            // Para AJAX, verificar token no corpo JSON
+            $rawData = file_get_contents('php://input');
+            $data = json_decode($rawData, true);
+            
+            if (!isset($data['csrf_token']) || !SecurityManager::validateCsrfToken($data['csrf_token'])) {
+                header('HTTP/1.1 403 Forbidden');
+                echo json_encode(['success' => false, 'message' => 'Token de segurança inválido']);
+                return;
+            }
+        }
+        
         // Obter ID do usuário atual
         $userId = $_SESSION['user']['id'];
         
@@ -185,7 +244,7 @@ class NotificationPreferenceController extends Controller {
                 'success' => (bool)$result,
                 'message' => $result ? 'Preferências inicializadas com sucesso!' : 'Erro ao inicializar preferências.'
             ]);
-            exit;
+            return;
         } else {
             // Responder com redirecionamento
             if ($result) {
@@ -194,8 +253,8 @@ class NotificationPreferenceController extends Controller {
                 $_SESSION['error'] = 'Erro ao inicializar preferências. Por favor, tente novamente.';
             }
             
-            header('Location: ' . BASE_URL . 'preferencias-notificacao');
-            exit;
+            $this->redirect('preferencias-notificacao');
+            return;
         }
     }
     
@@ -215,7 +274,8 @@ class NotificationPreferenceController extends Controller {
             'notificationTypes' => $notificationTypes,
             'notificationChannels' => $notificationChannels,
             'metrics' => $metrics,
-            'title' => 'Administração de Preferências de Notificação'
+            'title' => 'Administração de Preferências de Notificação',
+            'csrf_token' => SecurityManager::getCsrfToken() // Adicionado token CSRF
         ]);
     }
     
@@ -225,8 +285,15 @@ class NotificationPreferenceController extends Controller {
     public function adminSave() {
         // Verificar método da requisição
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'admin/notificacoes/preferencias');
-            exit;
+            $this->redirect('admin/notificacoes/preferencias');
+            return;
+        }
+        
+        // Validar token CSRF
+        if (!SecurityManager::validateCsrfToken($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de segurança inválido. Por favor, tente novamente.';
+            $this->redirect('admin/notificacoes/preferencias');
+            return;
         }
         
         // Inicializar resultado para monitorar o sucesso das operações
@@ -239,13 +306,20 @@ class NotificationPreferenceController extends Controller {
             // Verificar se todos os campos necessários existem
             if (!empty($newType['name']) && !empty($newType['code']) && !empty($newType['category'])) {
                 $typeData = [
-                    'name' => trim($newType['name']),
-                    'code' => trim($newType['code']),
-                    'category' => trim($newType['category']),
-                    'description' => isset($newType['description']) ? trim($newType['description']) : '',
+                    'name' => SecurityManager::sanitize(trim($newType['name'])),
+                    'code' => SecurityManager::sanitize(trim($newType['code'])),
+                    'category' => SecurityManager::sanitize(trim($newType['category'])),
+                    'description' => isset($newType['description']) ? SecurityManager::sanitize(trim($newType['description'])) : '',
                     'is_critical' => isset($newType['is_critical']) ? 1 : 0,
                     'is_active' => isset($newType['is_active']) ? 1 : 0
                 ];
+                
+                // Validar código (apenas letras, números e underscores)
+                if (!preg_match('/^[a-zA-Z0-9_]+$/', $typeData['code'])) {
+                    $_SESSION['error'] = 'O código deve conter apenas letras, números e underscores.';
+                    $this->redirect('admin/notificacoes/preferencias');
+                    return;
+                }
                 
                 // Adicionar novo tipo de notificação
                 $addResult = $this->notificationPreferenceModel->addNotificationType($typeData);
@@ -262,13 +336,20 @@ class NotificationPreferenceController extends Controller {
                 if (!empty($typeData['name']) && !empty($typeData['code'])) {
                     $updateData = [
                         'id' => (int)$typeId,
-                        'name' => trim($typeData['name']),
-                        'code' => trim($typeData['code']),
-                        'category' => trim($typeData['category']),
-                        'description' => isset($typeData['description']) ? trim($typeData['description']) : '',
+                        'name' => SecurityManager::sanitize(trim($typeData['name'])),
+                        'code' => SecurityManager::sanitize(trim($typeData['code'])),
+                        'category' => SecurityManager::sanitize(trim($typeData['category'])),
+                        'description' => isset($typeData['description']) ? SecurityManager::sanitize(trim($typeData['description'])) : '',
                         'is_critical' => isset($typeData['is_critical']) ? 1 : 0,
                         'is_active' => isset($typeData['is_active']) ? 1 : 0
                     ];
+                    
+                    // Validar código (apenas letras, números e underscores)
+                    if (!preg_match('/^[a-zA-Z0-9_]+$/', $updateData['code'])) {
+                        $_SESSION['error'] = 'O código deve conter apenas letras, números e underscores.';
+                        $this->redirect('admin/notificacoes/preferencias');
+                        return;
+                    }
                     
                     // Atualizar tipo de notificação
                     $updateResult = $this->notificationPreferenceModel->updateNotificationType($updateData);
@@ -286,12 +367,19 @@ class NotificationPreferenceController extends Controller {
             
             if (!empty($newChannel['name']) && !empty($newChannel['code'])) {
                 $channelData = [
-                    'name' => trim($newChannel['name']),
-                    'code' => trim($newChannel['code']),
-                    'description' => isset($newChannel['description']) ? trim($newChannel['description']) : '',
+                    'name' => SecurityManager::sanitize(trim($newChannel['name'])),
+                    'code' => SecurityManager::sanitize(trim($newChannel['code'])),
+                    'description' => isset($newChannel['description']) ? SecurityManager::sanitize(trim($newChannel['description'])) : '',
                     'supports_frequency' => isset($newChannel['supports_frequency']) ? 1 : 0,
                     'is_active' => isset($newChannel['is_active']) ? 1 : 0
                 ];
+                
+                // Validar código (apenas letras, números e underscores)
+                if (!preg_match('/^[a-zA-Z0-9_]+$/', $channelData['code'])) {
+                    $_SESSION['error'] = 'O código deve conter apenas letras, números e underscores.';
+                    $this->redirect('admin/notificacoes/preferencias');
+                    return;
+                }
                 
                 // Adicionar novo canal
                 $addResult = $this->notificationPreferenceModel->addNotificationChannel($channelData);
@@ -308,12 +396,19 @@ class NotificationPreferenceController extends Controller {
                 if (!empty($channelData['name']) && !empty($channelData['code'])) {
                     $updateData = [
                         'id' => (int)$channelId,
-                        'name' => trim($channelData['name']),
-                        'code' => trim($channelData['code']),
-                        'description' => isset($channelData['description']) ? trim($channelData['description']) : '',
+                        'name' => SecurityManager::sanitize(trim($channelData['name'])),
+                        'code' => SecurityManager::sanitize(trim($channelData['code'])),
+                        'description' => isset($channelData['description']) ? SecurityManager::sanitize(trim($channelData['description'])) : '',
                         'supports_frequency' => isset($channelData['supports_frequency']) ? 1 : 0,
                         'is_active' => isset($channelData['is_active']) ? 1 : 0
                     ];
+                    
+                    // Validar código (apenas letras, números e underscores)
+                    if (!preg_match('/^[a-zA-Z0-9_]+$/', $updateData['code'])) {
+                        $_SESSION['error'] = 'O código deve conter apenas letras, números e underscores.';
+                        $this->redirect('admin/notificacoes/preferencias');
+                        return;
+                    }
                     
                     // Atualizar canal
                     $updateResult = $this->notificationPreferenceModel->updateNotificationChannel($updateData);
@@ -331,8 +426,8 @@ class NotificationPreferenceController extends Controller {
         }
         
         // Redirecionar de volta para a página de administração
-        header('Location: ' . BASE_URL . 'admin/notificacoes/preferencias');
-        exit;
+        $this->redirect('admin/notificacoes/preferencias');
+        return;
     }
     
     /**
@@ -346,11 +441,12 @@ class NotificationPreferenceController extends Controller {
         if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
             header('Content-Type: application/json');
             echo json_encode($metrics);
-            exit;
+            return;
         } else {
             $this->view('admin/notification_metrics', [
                 'metrics' => $metrics,
-                'title' => 'Métricas de Preferências de Notificação'
+                'title' => 'Métricas de Preferências de Notificação',
+                'csrf_token' => SecurityManager::getCsrfToken()
             ]);
         }
     }
@@ -371,7 +467,8 @@ class NotificationPreferenceController extends Controller {
             'notificationTypes' => $notificationTypes,
             'notificationChannels' => $notificationChannels,
             'previewNotifications' => $previewNotifications,
-            'title' => 'Preview de Notificações'
+            'title' => 'Preview de Notificações',
+            'csrf_token' => SecurityManager::getCsrfToken()
         ]);
     }
     
@@ -389,11 +486,14 @@ class NotificationPreferenceController extends Controller {
             $notification = [
                 'id' => 'preview_' . $type['id'],
                 'type' => $type,
-                'title' => 'Exemplo de ' . $type['name'],
-                'content' => $this->generatePreviewContent($type['category'], $type['code']),
+                'title' => 'Exemplo de ' . SecurityManager::sanitize($type['name']),
+                'content' => $this->generatePreviewContent(
+                    SecurityManager::sanitize($type['category']), 
+                    SecurityManager::sanitize($type['code'])
+                ),
                 'created_at' => date('Y-m-d H:i:s'),
-                'image_url' => $this->getPreviewImageUrl($type['category']),
-                'action_url' => $this->getPreviewActionUrl($type['category'])
+                'image_url' => $this->getPreviewImageUrl(SecurityManager::sanitize($type['category'])),
+                'action_url' => $this->getPreviewActionUrl(SecurityManager::sanitize($type['category']))
             ];
             
             $previewNotifications[] = $notification;
@@ -457,7 +557,7 @@ class NotificationPreferenceController extends Controller {
                 break;
         }
         
-        return $content;
+        return SecurityManager::sanitize($content);
     }
     
     /**
@@ -468,7 +568,9 @@ class NotificationPreferenceController extends Controller {
      */
     private function getPreviewImageUrl($category) {
         // URLs de imagens de exemplo baseadas na categoria
-        switch ($category) {
+        $safeCategory = preg_replace('/[^a-zA-Z0-9_]/', '', $category); // Sanitize categoria
+        
+        switch ($safeCategory) {
             case 'order':
                 return BASE_URL . 'assets/img/previews/order_notification.png';
             case 'print':
@@ -490,7 +592,9 @@ class NotificationPreferenceController extends Controller {
      */
     private function getPreviewActionUrl($category) {
         // URLs de ação de exemplo baseadas na categoria
-        switch ($category) {
+        $safeCategory = preg_replace('/[^a-zA-Z0-9_]/', '', $category); // Sanitize categoria
+        
+        switch ($safeCategory) {
             case 'order':
                 return BASE_URL . 'account/orders/12345';
             case 'print':
@@ -546,8 +650,8 @@ class NotificationPreferenceController extends Controller {
         if (!isset($_SESSION['user_logged_in']) || !$_SESSION['user_logged_in']) {
             $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
             $_SESSION['error'] = 'É necessário fazer login para acessar esta página.';
-            header('Location: ' . BASE_URL . 'login');
-            exit;
+            $this->redirect('login');
+            return;
         }
     }
     
@@ -557,8 +661,19 @@ class NotificationPreferenceController extends Controller {
     private function checkAdminPermission() {
         if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
             $_SESSION['error'] = 'Você não tem permissão para acessar esta página.';
-            header('Location: ' . BASE_URL);
-            exit;
+            $this->redirect('');
+            return;
         }
+    }
+    
+    /**
+     * Redireciona para uma URL específica
+     * 
+     * @param string $path Caminho para redirecionamento
+     * @return void
+     */
+    private function redirect($path) {
+        header('Location: ' . BASE_URL . $path);
+        return;
     }
 }

@@ -1,0 +1,114 @@
+solid Figurine
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 0
+      vertex 5 0 0
+      vertex 5 10 0
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 0
+      vertex 5 10 0
+      vertex 0 10 0
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 10 0
+      vertex 5 10 0
+      vertex 5 15 5
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 10 0
+      vertex 5 15 5
+      vertex 0 15 5
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 15 5
+      vertex 5 15 5
+      vertex 5 20 5
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 15 5
+      vertex 5 20 5
+      vertex 0 20 5
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 2 20 5
+      vertex 3 20 5
+      vertex 3 22 10
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 2 20 5
+      vertex 3 22 10
+      vertex 2 22 10
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 2 22 10
+      vertex 3 22 10
+      vertex 3 24 10
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 2 22 10
+      vertex 3 24 10
+      vertex 2 24 10
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 15 5
+      vertex 0 20 5
+      vertex -5 17.5 5
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 5 15 5
+      vertex 5 20 5
+      vertex 10 17.5 5
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -5 17.5 5
+      vertex 0 20 5
+      vertex -2 25 4
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 5 20 5
+      vertex 10 17.5 5
+      vertex 7 25 4
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 0
+      vertex 0 10 0
+      vertex -5 5 2
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 5 0 0
+      vertex 5 10 0
+      vertex 10 5 2
+    endloop
+  endfacet
+endsolid Figurine

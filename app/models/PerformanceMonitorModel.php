@@ -1,578 +1,569 @@
 <?php
 /**
- * Taverna da Impressão - Sistema de E-commerce
+ * PerformanceMonitorModel - Modelo para gerenciamento de métricas de performance
  * 
- * Modelo para Monitoramento de Performance em Ambiente de Produção
- * Responsável por gerenciar dados de testes de performance em ambiente de produção,
- * incluindo coleta transparente de métricas, análise de longo prazo e alertas
+ * Gerencia a coleta, armazenamento e recuperação de métricas de performance do sistema,
+ * incluindo tempos de resposta, uso de recursos, métricas de banco de dados e eventos de segurança.
  * 
- * @version 1.0
- * @author Desenvolvimento Taverna da Impressão
+ * @package    Taverna da Impressão 3D
+ * @subpackage Models
+ * @version    1.0.0
+ * @author     Claude
  */
-
 class PerformanceMonitorModel extends Model {
-    protected $table = 'performance_monitoring';
-    protected $primaryKey = 'id';
-    protected $fillable = [
-        'page_url', 'user_agent', 'device_type', 'metrics', 'timestamp', 'session_id'
-    ];
-    
     /**
      * Construtor
-     * Inicializa o modelo e verifica se as tabelas necessárias existem
      */
     public function __construct() {
         parent::__construct();
-        
-        // Verificar se as tabelas necessárias existem
-        $this->checkAndCreateTables();
     }
     
     /**
-     * Salva métricas coletadas em ambiente de produção
+     * Obtém métricas de performance para um período específico
      * 
-     * @param string $pageUrl URL da página
-     * @param array $metrics Métricas coletadas
-     * @param string $userAgent User agent do cliente
-     * @param string $deviceType Tipo de dispositivo (desktop, tablet, mobile)
-     * @param string $sessionId ID da sessão do usuário (opcional, anonimizado)
-     * @return int|bool ID do registro ou false em caso de erro
-     */
-    public function saveProductionMetrics($pageUrl, $metrics, $userAgent, $deviceType, $sessionId = null) {
-        try {
-            $data = [
-                'page_url' => $pageUrl,
-                'user_agent' => $userAgent,
-                'device_type' => $deviceType,
-                'metrics' => json_encode($metrics),
-                'timestamp' => date('Y-m-d H:i:s'),
-                'session_id' => $sessionId ? md5($sessionId) : null // Anonimizar o ID da sessão
-            ];
-            
-            return $this->create($data);
-        } catch (Exception $e) {
-            error_log("Erro ao salvar métricas de produção: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Obtém métricas de performance para uma página específica
-     * 
-     * @param string $pageUrl URL da página (opcional)
-     * @param string $startDate Data inicial (opcional)
-     * @param string $endDate Data final (opcional)
-     * @param string $deviceType Tipo de dispositivo (opcional)
-     * @param int $limit Limite de resultados (opcional)
+     * @param int $hours Número de horas para visualizar
      * @return array Métricas de performance
      */
-    public function getPageMetrics($pageUrl = null, $startDate = null, $endDate = null, $deviceType = null, $limit = 1000) {
+    public function getPerformanceMetrics($hours = 24) {
         try {
-            $conditions = [];
-            $params = [];
+            $startTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
             
-            // Construir condições da consulta
-            if ($pageUrl) {
-                $conditions[] = "page_url = :page_url";
-                $params['page_url'] = $pageUrl;
-            }
-            
-            if ($startDate) {
-                $conditions[] = "timestamp >= :start_date";
-                $params['start_date'] = $startDate;
-            }
-            
-            if ($endDate) {
-                $conditions[] = "timestamp <= :end_date";
-                $params['end_date'] = $endDate;
-            }
-            
-            if ($deviceType) {
-                $conditions[] = "device_type = :device_type";
-                $params['device_type'] = $deviceType;
-            }
-            
-            // Montar consulta SQL
-            $sql = "SELECT * FROM {$this->table}";
-            
-            if (!empty($conditions)) {
-                $sql .= " WHERE " . implode(" AND ", $conditions);
-            }
-            
-            $sql .= " ORDER BY timestamp DESC LIMIT :limit";
-            $params['limit'] = $limit;
-            
-            $results = $this->db()->select($sql, $params);
-            
-            // Processar resultados para decodificar JSON
-            foreach ($results as &$result) {
-                if (isset($result['metrics'])) {
-                    $result['metrics'] = json_decode($result['metrics'], true);
-                }
-            }
-            
-            return $results;
-        } catch (Exception $e) {
-            error_log("Erro ao obter métricas de página: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém métricas agregadas para dashboard de monitoramento
-     * 
-     * @param int $days Número de dias para considerar
-     * @return array Métricas agregadas
-     */
-    public function getDashboardMetrics($days = 30) {
-        try {
-            $metrics = [
-                'page_views' => $this->getPageViewCount($days),
-                'average_metrics' => $this->getAverageMetrics($days),
-                'device_breakdown' => $this->getDeviceBreakdown($days),
-                'top_pages' => $this->getTopPages($days, 10),
-                'slowest_pages' => $this->getSlowestPages($days, 10),
-                'metrics_over_time' => $this->getMetricsOverTime($days)
-            ];
-            
-            return $metrics;
-        } catch (Exception $e) {
-            error_log("Erro ao obter métricas para dashboard: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém contagem de visualizações de página
-     * 
-     * @param int $days Número de dias para considerar
-     * @return int Contagem de visualizações
-     */
-    public function getPageViewCount($days = 30) {
-        try {
-            $sql = "SELECT COUNT(*) as count FROM {$this->table} 
-                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days DAY)";
-            
-            $result = $this->db()->select($sql, ['days' => $days]);
-            
-            return isset($result[0]['count']) ? (int)$result[0]['count'] : 0;
-        } catch (Exception $e) {
-            error_log("Erro ao obter contagem de visualizações: " . $e->getMessage());
-            return 0;
-        }
-    }
-    
-    /**
-     * Obtém métricas médias para o período especificado
-     * 
-     * @param int $days Número de dias para considerar
-     * @return array Métricas médias
-     */
-    public function getAverageMetrics($days = 30) {
-        try {
             $sql = "SELECT 
-                    AVG(JSON_EXTRACT(metrics, '$.loadTime')) as avg_load_time,
-                    AVG(JSON_EXTRACT(metrics, '$.ttfb')) as avg_ttfb,
-                    AVG(JSON_EXTRACT(metrics, '$.fcp')) as avg_fcp,
-                    AVG(JSON_EXTRACT(metrics, '$.lcp')) as avg_lcp,
-                    AVG(JSON_EXTRACT(metrics, '$.cls')) as avg_cls,
-                    AVG(JSON_EXTRACT(metrics, '$.fid')) as avg_fid,
-                    AVG(JSON_EXTRACT(metrics, '$.tbt')) as avg_tbt
-                FROM {$this->table}
-                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days DAY)";
+                    AVG(execution_time) as avg_execution_time,
+                    MAX(execution_time) as max_execution_time,
+                    MIN(execution_time) as min_execution_time,
+                    AVG(memory_peak) as avg_memory_peak,
+                    MAX(memory_peak) as max_memory_peak,
+                    COUNT(*) as request_count
+                    FROM performance_logs
+                    WHERE timestamp >= :start_time";
             
-            $result = $this->db()->select($sql, ['days' => $days]);
+            $params = [':start_time' => $startTime];
+            
+            $result = $this->db->query($sql, $params);
             
             if (empty($result)) {
-                return [];
-            }
-            
-            // Processar e arredondar valores
-            $metrics = $result[0];
-            foreach ($metrics as $key => $value) {
-                if ($value !== null) {
-                    $metrics[$key] = round(floatval($value), 2);
-                }
-            }
-            
-            return $metrics;
-        } catch (Exception $e) {
-            error_log("Erro ao obter métricas médias: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém distribuição de tipos de dispositivo
-     * 
-     * @param int $days Número de dias para considerar
-     * @return array Distribuição de dispositivos
-     */
-    public function getDeviceBreakdown($days = 30) {
-        try {
-            $sql = "SELECT 
-                    device_type,
-                    COUNT(*) as count,
-                    (COUNT(*) / (SELECT COUNT(*) FROM {$this->table} 
-                                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days DAY))) * 100 as percentage
-                FROM {$this->table}
-                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days_inner DAY)
-                GROUP BY device_type
-                ORDER BY count DESC";
-            
-            return $this->db()->select($sql, ['days' => $days, 'days_inner' => $days]);
-        } catch (Exception $e) {
-            error_log("Erro ao obter distribuição de dispositivos: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém as páginas mais acessadas
-     * 
-     * @param int $days Número de dias para considerar
-     * @param int $limit Número de páginas a retornar
-     * @return array Páginas mais acessadas
-     */
-    public function getTopPages($days = 30, $limit = 10) {
-        try {
-            $sql = "SELECT 
-                    page_url,
-                    COUNT(*) as view_count,
-                    AVG(JSON_EXTRACT(metrics, '$.loadTime')) as avg_load_time
-                FROM {$this->table}
-                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days DAY)
-                GROUP BY page_url
-                ORDER BY view_count DESC
-                LIMIT :limit";
-            
-            return $this->db()->select($sql, ['days' => $days, 'limit' => $limit]);
-        } catch (Exception $e) {
-            error_log("Erro ao obter páginas mais acessadas: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém as páginas mais lentas
-     * 
-     * @param int $days Número de dias para considerar
-     * @param int $limit Número de páginas a retornar
-     * @return array Páginas mais lentas
-     */
-    public function getSlowestPages($days = 30, $limit = 10) {
-        try {
-            $sql = "SELECT 
-                    page_url,
-                    COUNT(*) as view_count,
-                    AVG(JSON_EXTRACT(metrics, '$.loadTime')) as avg_load_time,
-                    AVG(JSON_EXTRACT(metrics, '$.ttfb')) as avg_ttfb,
-                    AVG(JSON_EXTRACT(metrics, '$.fcp')) as avg_fcp,
-                    AVG(JSON_EXTRACT(metrics, '$.lcp')) as avg_lcp
-                FROM {$this->table}
-                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days DAY)
-                GROUP BY page_url
-                HAVING COUNT(*) >= 5 -- Mínimo de 5 visualizações para relevância estatística
-                ORDER BY avg_load_time DESC
-                LIMIT :limit";
-            
-            return $this->db()->select($sql, ['days' => $days, 'limit' => $limit]);
-        } catch (Exception $e) {
-            error_log("Erro ao obter páginas mais lentas: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém a evolução de métricas ao longo do tempo
-     * 
-     * @param int $days Número de dias para considerar
-     * @return array Métricas ao longo do tempo
-     */
-    public function getMetricsOverTime($days = 30) {
-        try {
-            $sql = "SELECT 
-                    DATE(timestamp) as date,
-                    COUNT(*) as view_count,
-                    AVG(JSON_EXTRACT(metrics, '$.loadTime')) as avg_load_time,
-                    AVG(JSON_EXTRACT(metrics, '$.lcp')) as avg_lcp,
-                    AVG(JSON_EXTRACT(metrics, '$.cls')) as avg_cls
-                FROM {$this->table}
-                WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days DAY)
-                GROUP BY DATE(timestamp)
-                ORDER BY date ASC";
-            
-            return $this->db()->select($sql, ['days' => $days]);
-        } catch (Exception $e) {
-            error_log("Erro ao obter métricas ao longo do tempo: " . $e->getMessage());
-            return [];
-        }
-    }
-    
-    /**
-     * Verifica se há deterioração de performance
-     * 
-     * @param int $days Número de dias para considerar
-     * @param float $threshold Limite percentual para alertas (por exemplo, 20 para 20%)
-     * @return array Alertas de deterioração
-     */
-    public function checkPerformanceDegradation($days = 7, $threshold = 20) {
-        try {
-            // Dividir o período em duas partes para comparação
-            $halfDays = max(1, floor($days / 2));
-            
-            // Obter métricas para período recente
-            $sqlRecent = "SELECT 
-                        AVG(JSON_EXTRACT(metrics, '$.loadTime')) as avg_load_time,
-                        AVG(JSON_EXTRACT(metrics, '$.lcp')) as avg_lcp,
-                        AVG(JSON_EXTRACT(metrics, '$.fid')) as avg_fid,
-                        AVG(JSON_EXTRACT(metrics, '$.cls')) as avg_cls
-                    FROM {$this->table}
-                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL :days DAY)";
-            
-            $recentMetrics = $this->db()->select($sqlRecent, ['days' => $halfDays]);
-            
-            // Obter métricas para período anterior
-            $sqlPrevious = "SELECT 
-                        AVG(JSON_EXTRACT(metrics, '$.loadTime')) as avg_load_time,
-                        AVG(JSON_EXTRACT(metrics, '$.lcp')) as avg_lcp,
-                        AVG(JSON_EXTRACT(metrics, '$.fid')) as avg_fid,
-                        AVG(JSON_EXTRACT(metrics, '$.cls')) as avg_cls
-                    FROM {$this->table}
-                    WHERE 
-                        timestamp >= DATE_SUB(NOW(), INTERVAL :older_days DAY) AND
-                        timestamp < DATE_SUB(NOW(), INTERVAL :recent_days DAY)";
-            
-            $previousMetrics = $this->db()->select($sqlPrevious, [
-                'older_days' => $days,
-                'recent_days' => $halfDays
-            ]);
-            
-            // Verificar se temos dados suficientes
-            if (empty($recentMetrics) || empty($previousMetrics)) {
-                return ['status' => 'insufficient_data'];
-            }
-            
-            // Inicializar array de alertas
-            $alerts = [];
-            
-            // Verificar cada métrica
-            foreach (['avg_load_time', 'avg_lcp', 'avg_fid', 'avg_cls'] as $metric) {
-                $recent = floatval($recentMetrics[0][$metric]);
-                $previous = floatval($previousMetrics[0][$metric]);
-                
-                // Ignorar caso não tenhamos valores válidos
-                if ($previous <= 0 || $recent <= 0) {
-                    continue;
-                }
-                
-                // Para CLS, menor é melhor, então invertemos a lógica
-                if ($metric === 'avg_cls') {
-                    $percentChange = ($recent - $previous) / $previous * 100;
-                } else {
-                    $percentChange = ($recent - $previous) / $previous * 100;
-                }
-                
-                // Se a mudança percentual exceder o threshold, adicionar alerta
-                if (abs($percentChange) >= $threshold) {
-                    $direction = $percentChange > 0 ? 'worse' : 'better';
-                    
-                    // Para CLS, a lógica é invertida
-                    if ($metric === 'avg_cls') {
-                        $direction = $percentChange > 0 ? 'worse' : 'better';
-                    }
-                    
-                    $alerts[] = [
-                        'metric' => $metric,
-                        'previous' => round($previous, 2),
-                        'recent' => round($recent, 2),
-                        'percent_change' => round($percentChange, 2),
-                        'direction' => $direction
-                    ];
-                }
+                return [
+                    'avgResponseTime' => 0,
+                    'maxResponseTime' => 0,
+                    'minResponseTime' => 0,
+                    'avgMemoryPeak' => 0,
+                    'maxMemoryPeak' => 0,
+                    'requestCount' => 0
+                ];
             }
             
             return [
-                'status' => 'success',
-                'alerts' => $alerts,
-                'period_days' => $days,
-                'threshold' => $threshold
+                'avgResponseTime' => round($result[0]['avg_execution_time'] * 1000, 2), // Converter para ms
+                'maxResponseTime' => round($result[0]['max_execution_time'] * 1000, 2), // Converter para ms
+                'minResponseTime' => round($result[0]['min_execution_time'] * 1000, 2), // Converter para ms
+                'avgMemoryPeak' => (int)$result[0]['avg_memory_peak'],
+                'maxMemoryPeak' => (int)$result[0]['max_memory_peak'],
+                'requestCount' => (int)$result[0]['request_count']
             ];
         } catch (Exception $e) {
-            error_log("Erro ao verificar degradação de performance: " . $e->getMessage());
-            return ['status' => 'error', 'message' => $e->getMessage()];
+            error_log('Erro ao obter métricas de performance: ' . $e->getMessage());
+            return [
+                'avgResponseTime' => 0,
+                'maxResponseTime' => 0,
+                'minResponseTime' => 0,
+                'avgMemoryPeak' => 0,
+                'maxMemoryPeak' => 0,
+                'requestCount' => 0
+            ];
         }
     }
     
     /**
-     * Executa limpeza de dados antigos
+     * Obtém métricas de erros para um período específico
      * 
-     * @param int $daysToKeep Número de dias de dados a manter
-     * @return bool True se sucesso, false caso contrário
+     * @param int $hours Número de horas para visualizar
+     * @return array Métricas de erros
      */
-    public function cleanupOldData($daysToKeep = 90) {
+    public function getErrorMetrics($hours = 24) {
         try {
-            $sql = "DELETE FROM {$this->table} 
-                    WHERE timestamp < DATE_SUB(NOW(), INTERVAL :days DAY)";
+            $startTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
             
-            $this->db()->execute($sql, ['days' => $daysToKeep]);
-            return true;
-        } catch (Exception $e) {
-            error_log("Erro ao limpar dados antigos: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Verifica se as tabelas necessárias existem e as cria se não existirem
-     */
-    private function checkAndCreateTables() {
-        try {
-            // Verificar se a tabela principal existe
-            $sql = "SHOW TABLES LIKE '{$this->table}'";
-            $result = $this->db()->select($sql);
+            // Total de erros no período
+            $sql = "SELECT COUNT(*) as error_count FROM error_logs WHERE timestamp >= :start_time";
+            $params = [':start_time' => $startTime];
+            $errorCount = $this->db->query($sql, $params);
             
-            if (empty($result)) {
-                // Criar tabela de monitoramento
-                $sql = "CREATE TABLE {$this->table} (
-                          id INT AUTO_INCREMENT PRIMARY KEY,
-                          page_url VARCHAR(255) NOT NULL,
-                          user_agent VARCHAR(255),
-                          device_type VARCHAR(50),
-                          metrics TEXT,
-                          timestamp DATETIME,
-                          session_id VARCHAR(32),
-                          INDEX (page_url),
-                          INDEX (device_type),
-                          INDEX (timestamp)
-                        )";
-                $this->db()->execute($sql);
-                
-                error_log("Tabela {$this->table} criada com sucesso.");
+            // Total de requisições no período
+            $sql = "SELECT COUNT(*) as request_count FROM performance_logs WHERE timestamp >= :start_time";
+            $requestCount = $this->db->query($sql, $params);
+            
+            // Taxa de erro
+            $totalErrors = isset($errorCount[0]['error_count']) ? (int)$errorCount[0]['error_count'] : 0;
+            $totalRequests = isset($requestCount[0]['request_count']) ? (int)$requestCount[0]['request_count'] : 0;
+            $errorRate = $totalRequests > 0 ? ($totalErrors / $totalRequests) * 100 : 0;
+            
+            // Distribuição de erros por tipo
+            $sql = "SELECT type, COUNT(*) as count 
+                    FROM error_logs 
+                    WHERE timestamp >= :start_time 
+                    GROUP BY type 
+                    ORDER BY count DESC";
+            
+            $distribution = $this->db->query($sql, $params);
+            
+            $errorDistribution = [];
+            foreach ($distribution as $row) {
+                $errorDistribution[$row['type']] = (int)$row['count'];
             }
             
-            // Verificar se a tabela de configurações existe
-            $sql = "SHOW TABLES LIKE 'performance_monitor_settings'";
-            $result = $this->db()->select($sql);
+            // Erros recentes
+            $sql = "SELECT id, type, url, message, timestamp 
+                    FROM error_logs 
+                    WHERE timestamp >= :start_time 
+                    ORDER BY timestamp DESC 
+                    LIMIT 10";
+            
+            $recentErrors = $this->db->query($sql, $params);
+            
+            return [
+                'errorCount' => $totalErrors,
+                'errorRate' => round($errorRate, 2),
+                'distribution' => $errorDistribution,
+                'recentErrors' => $recentErrors
+            ];
+        } catch (Exception $e) {
+            error_log('Erro ao obter métricas de erros: ' . $e->getMessage());
+            return [
+                'errorCount' => 0,
+                'errorRate' => 0,
+                'distribution' => [],
+                'recentErrors' => []
+            ];
+        }
+    }
+    
+    /**
+     * Obtém métricas de recursos para um período específico
+     * 
+     * @param int $hours Número de horas para visualizar
+     * @return array Métricas de recursos
+     */
+    public function getResourceMetrics($hours = 24) {
+        try {
+            $startTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+            
+            // Uso médio de recursos
+            $sql = "SELECT 
+                    AVG(memory_peak) as avg_memory_usage,
+                    MAX(memory_peak) as max_memory_usage,
+                    AVG(cpu_usage) as avg_cpu_usage,
+                    MAX(cpu_usage) as max_cpu_usage
+                    FROM resource_metrics
+                    WHERE timestamp >= :start_time";
+            
+            $params = [':start_time' => $startTime];
+            
+            $result = $this->db->query($sql, $params);
+            
+            // Dados por hora para gráficos
+            $sql = "SELECT 
+                    DATE_FORMAT(timestamp, '%H:00') as time,
+                    AVG(memory_peak) as memory_usage,
+                    AVG(cpu_usage) as cpu_usage
+                    FROM resource_metrics
+                    WHERE timestamp >= :start_time
+                    GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%d %H')
+                    ORDER BY timestamp ASC";
+            
+            $timeData = $this->db->query($sql, $params);
+            
+            return [
+                'avgMemoryUsage' => isset($result[0]['avg_memory_usage']) ? (int)$result[0]['avg_memory_usage'] : 0,
+                'maxMemoryUsage' => isset($result[0]['max_memory_usage']) ? (int)$result[0]['max_memory_usage'] : 0,
+                'avgCpuUsage' => isset($result[0]['avg_cpu_usage']) ? (float)$result[0]['avg_cpu_usage'] : 0,
+                'maxCpuUsage' => isset($result[0]['max_cpu_usage']) ? (float)$result[0]['max_cpu_usage'] : 0,
+                'timeData' => $timeData
+            ];
+        } catch (Exception $e) {
+            error_log('Erro ao obter métricas de recursos: ' . $e->getMessage());
+            return [
+                'avgMemoryUsage' => 0,
+                'maxMemoryUsage' => 0,
+                'avgCpuUsage' => 0,
+                'maxCpuUsage' => 0,
+                'timeData' => []
+            ];
+        }
+    }
+    
+    /**
+     * Obtém métricas de tempo de resposta para um período específico
+     * 
+     * @param int $hours Número de horas para visualizar
+     * @return array Métricas de tempo de resposta
+     */
+    public function getResponseTimeMetrics($hours = 24) {
+        try {
+            $startTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+            
+            // Dados por hora para gráficos
+            $sql = "SELECT 
+                    DATE_FORMAT(timestamp, '%H:00') as time,
+                    AVG(execution_time * 1000) as avg_time,
+                    (SELECT ROUND(tmp.execution_time * 1000, 2)
+                     FROM performance_logs tmp
+                     WHERE DATE_FORMAT(tmp.timestamp, '%Y-%m-%d %H') = DATE_FORMAT(pl.timestamp, '%Y-%m-%d %H')
+                     ORDER BY tmp.execution_time DESC
+                     LIMIT 1
+                     OFFSET FLOOR(COUNT(*) * 0.95)) as p95_time
+                    FROM performance_logs pl
+                    WHERE timestamp >= :start_time
+                    GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%d %H')
+                    ORDER BY timestamp ASC";
+            
+            $params = [':start_time' => $startTime];
+            
+            $timeData = $this->db->query($sql, $params);
+            
+            // Formatar dados para o gráfico
+            foreach ($timeData as &$row) {
+                $row['avgTime'] = round($row['avg_time'], 2);
+                $row['p95Time'] = $row['p95_time'] ?: round($row['avg_time'] * 1.5, 2); // Fallback se p95 não estiver disponível
+                unset($row['avg_time']);
+                unset($row['p95_time']);
+            }
+            
+            return [
+                'timeData' => $timeData
+            ];
+        } catch (Exception $e) {
+            error_log('Erro ao obter métricas de tempo de resposta: ' . $e->getMessage());
+            return [
+                'timeData' => []
+            ];
+        }
+    }
+    
+    /**
+     * Obtém métricas de banco de dados para um período específico
+     * 
+     * @param int $hours Número de horas para visualizar
+     * @return array Métricas de banco de dados
+     */
+    public function getDatabaseMetrics($hours = 24) {
+        try {
+            $startTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+            
+            // Métricas gerais
+            $sql = "SELECT 
+                    AVG(query_time) as avg_query_time,
+                    MAX(query_time) as max_query_time,
+                    SUM(query_count) as total_queries
+                    FROM database_metrics
+                    WHERE timestamp >= :start_time";
+            
+            $params = [':start_time' => $startTime];
+            
+            $result = $this->db->query($sql, $params);
+            
+            // Dados por hora para gráficos
+            $sql = "SELECT 
+                    DATE_FORMAT(timestamp, '%H:00') as time,
+                    AVG(query_time) as avg_query_time,
+                    SUM(query_count) as query_count
+                    FROM database_metrics
+                    WHERE timestamp >= :start_time
+                    GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%d %H')
+                    ORDER BY timestamp ASC";
+            
+            $timeData = $this->db->query($sql, $params);
+            
+            // Formatar dados para o gráfico
+            foreach ($timeData as &$row) {
+                $row['avgQueryTime'] = round($row['avg_query_time'] * 1000, 2); // Converter para ms
+                $row['queryCount'] = (int)$row['query_count'];
+                unset($row['avg_query_time']);
+                unset($row['query_count']);
+            }
+            
+            return [
+                'avgQueryTime' => isset($result[0]['avg_query_time']) ? round($result[0]['avg_query_time'] * 1000, 2) : 0, // Converter para ms
+                'maxQueryTime' => isset($result[0]['max_query_time']) ? round($result[0]['max_query_time'] * 1000, 2) : 0, // Converter para ms
+                'totalQueries' => isset($result[0]['total_queries']) ? (int)$result[0]['total_queries'] : 0,
+                'timeData' => $timeData
+            ];
+        } catch (Exception $e) {
+            error_log('Erro ao obter métricas de banco de dados: ' . $e->getMessage());
+            return [
+                'avgQueryTime' => 0,
+                'maxQueryTime' => 0,
+                'totalQueries' => 0,
+                'timeData' => []
+            ];
+        }
+    }
+    
+    /**
+     * Obtém eventos de segurança para um período específico
+     * 
+     * @param int $hours Número de horas para visualizar
+     * @return array Eventos de segurança
+     */
+    public function getSecurityEvents($hours = 24) {
+        try {
+            $startTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+            
+            $sql = "SELECT id, type, ip_address, description, user_id, timestamp
+                    FROM security_events
+                    WHERE timestamp >= :start_time
+                    ORDER BY timestamp DESC
+                    LIMIT 20";
+            
+            $params = [':start_time' => $startTime];
+            
+            return $this->db->query($sql, $params);
+        } catch (Exception $e) {
+            error_log('Erro ao obter eventos de segurança: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Obtém um resumo de performance para exibição no dashboard principal
+     * 
+     * @param int $hours Número de horas para considerar
+     * @return array Resumo de performance
+     */
+    public function getPerformanceSummary($hours = 24) {
+        try {
+            $startTime = date('Y-m-d H:i:s', strtotime("-{$hours} hours"));
+            
+            $sql = "SELECT 
+                    AVG(execution_time * 1000) as avg_response_time,
+                    AVG(memory_peak) as avg_memory_usage,
+                    (SELECT COUNT(*) FROM error_logs WHERE timestamp >= :start_time) as error_count,
+                    COUNT(*) as request_count
+                    FROM performance_logs
+                    WHERE timestamp >= :start_time";
+            
+            $params = [':start_time' => $startTime];
+            
+            $result = $this->db->query($sql, $params);
             
             if (empty($result)) {
-                // Criar tabela de configurações
-                $sql = "CREATE TABLE performance_monitor_settings (
-                          id INT AUTO_INCREMENT PRIMARY KEY,
-                          sampling_rate FLOAT DEFAULT 0.1,
-                          enabled_pages TEXT,
-                          alert_threshold FLOAT DEFAULT 20.0,
-                          data_retention_days INT DEFAULT 90,
-                          notification_email VARCHAR(255),
-                          created_at DATETIME,
-                          updated_at DATETIME
-                        )";
-                $this->db()->execute($sql);
-                
-                // Inserir configurações padrão
-                $defaultSettings = [
-                    'sampling_rate' => 0.1, // 10% dos usuários
-                    'enabled_pages' => json_encode(['/', '/products', '/product/*', '/cart', '/checkout']),
-                    'alert_threshold' => 20.0,
-                    'data_retention_days' => 90,
-                    'notification_email' => '',
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s')
+                return [
+                    'avgResponseTime' => 0,
+                    'peakMemoryUsage' => 0,
+                    'errorRate' => 0
                 ];
-                
-                $sql = "INSERT INTO performance_monitor_settings 
-                        (sampling_rate, enabled_pages, alert_threshold, data_retention_days, notification_email, created_at, updated_at) 
-                        VALUES 
-                        (:sampling_rate, :enabled_pages, :alert_threshold, :data_retention_days, :notification_email, :created_at, :updated_at)";
-                        
-                $this->db()->execute($sql, $defaultSettings);
-                
-                error_log("Tabela performance_monitor_settings criada com sucesso e configurações padrão inseridas.");
             }
             
-            return true;
+            $errorCount = (int)$result[0]['error_count'];
+            $requestCount = (int)$result[0]['request_count'];
+            $errorRate = $requestCount > 0 ? ($errorCount / $requestCount) * 100 : 0;
+            
+            return [
+                'avgResponseTime' => round($result[0]['avg_response_time'], 2),
+                'peakMemoryUsage' => (int)$result[0]['avg_memory_usage'],
+                'errorRate' => round($errorRate, 2)
+            ];
         } catch (Exception $e) {
-            error_log("Erro ao verificar/criar tabelas: " . $e->getMessage());
+            error_log('Erro ao obter resumo de performance: ' . $e->getMessage());
+            return [
+                'avgResponseTime' => 0,
+                'peakMemoryUsage' => 0,
+                'errorRate' => 0
+            ];
+        }
+    }
+    
+    /**
+     * Obtém alertas de performance ativos
+     * 
+     * @return array Alertas de performance
+     */
+    public function getPerformanceAlerts() {
+        try {
+            $alerts = [];
+            
+            // Verificar tempo de resposta nas últimas 3 horas
+            $sql = "SELECT AVG(execution_time * 1000) as avg_time 
+                    FROM performance_logs 
+                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 3 HOUR)";
+            
+            $result = $this->db->query($sql);
+            $avgResponseTime = isset($result[0]['avg_time']) ? (float)$result[0]['avg_time'] : 0;
+            
+            if ($avgResponseTime > 500) {
+                $alerts[] = [
+                    'type' => 'danger',
+                    'message' => "Tempo médio de resposta alto: " . round($avgResponseTime, 2) . " ms",
+                    'details' => "O tempo médio de resposta está acima do limite recomendado (500ms) nas últimas 3 horas."
+                ];
+            } else if ($avgResponseTime > 300) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'message' => "Tempo médio de resposta elevado: " . round($avgResponseTime, 2) . " ms",
+                    'details' => "O tempo médio de resposta está elevado nas últimas 3 horas."
+                ];
+            }
+            
+            // Verificar taxa de erros nas últimas 3 horas
+            $sql = "SELECT COUNT(*) as error_count 
+                    FROM error_logs 
+                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 3 HOUR)";
+            
+            $errorResult = $this->db->query($sql);
+            $errorCount = isset($errorResult[0]['error_count']) ? (int)$errorResult[0]['error_count'] : 0;
+            
+            $sql = "SELECT COUNT(*) as request_count 
+                    FROM performance_logs 
+                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 3 HOUR)";
+            
+            $requestResult = $this->db->query($sql);
+            $requestCount = isset($requestResult[0]['request_count']) ? (int)$requestResult[0]['request_count'] : 0;
+            
+            $errorRate = $requestCount > 0 ? ($errorCount / $requestCount) * 100 : 0;
+            
+            if ($errorRate > 5) {
+                $alerts[] = [
+                    'type' => 'danger',
+                    'message' => "Taxa de erros alta: " . round($errorRate, 2) . "%",
+                    'details' => "A taxa de erros está acima do limite aceitável (5%) nas últimas 3 horas."
+                ];
+            } else if ($errorRate > 2) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'message' => "Taxa de erros elevada: " . round($errorRate, 2) . "%",
+                    'details' => "A taxa de erros está elevada nas últimas 3 horas."
+                ];
+            }
+            
+            // Verificar uso de memória
+            $sql = "SELECT AVG(memory_peak) as avg_memory 
+                    FROM resource_metrics 
+                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL 3 HOUR)";
+            
+            $result = $this->db->query($sql);
+            $avgMemory = isset($result[0]['avg_memory']) ? (int)$result[0]['avg_memory'] : 0;
+            
+            // Limite arbitrário de 100MB para exemplo
+            if ($avgMemory > 104857600) {
+                $alerts[] = [
+                    'type' => 'warning',
+                    'message' => "Uso médio de memória elevado: " . round($avgMemory / 1048576, 2) . " MB",
+                    'details' => "O uso médio de memória está elevado nas últimas 3 horas."
+                ];
+            }
+            
+            return $alerts;
+        } catch (Exception $e) {
+            error_log('Erro ao obter alertas de performance: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Obtém métricas em tempo real para o dashboard de monitoramento
+     * 
+     * @param int $hours Número de horas para visualizar
+     * @return array Todas as métricas para o dashboard
+     */
+    public function getRealtimeMetrics($hours = 24) {
+        // Combinar todas as métricas em uma única estrutura
+        return [
+            'performance' => $this->getPerformanceMetrics($hours),
+            'errors' => $this->getErrorMetrics($hours),
+            'resources' => $this->getResourceMetrics($hours),
+            'responseTime' => $this->getResponseTimeMetrics($hours),
+            'databaseMetrics' => $this->getDatabaseMetrics($hours),
+            'securityEvents' => $this->getSecurityEvents($hours)
+        ];
+    }
+    
+    /**
+     * Registra uma métrica de performance
+     * 
+     * @param array $data Dados de performance
+     * @return bool Sucesso da operação
+     */
+    public function logPerformanceMetric($data) {
+        try {
+            $sql = "INSERT INTO performance_logs 
+                    (request_id, request_uri, method, execution_time, memory_start, memory_end, memory_peak, timestamp) 
+                    VALUES 
+                    (:request_id, :request_uri, :method, :execution_time, :memory_start, :memory_end, :memory_peak, NOW())";
+            
+            $params = [
+                ':request_id' => $data['request_id'],
+                ':request_uri' => $data['request_uri'],
+                ':method' => $data['method'],
+                ':execution_time' => $data['execution_time'],
+                ':memory_start' => $data['memory_start'],
+                ':memory_end' => $data['memory_end'],
+                ':memory_peak' => $data['memory_peak']
+            ];
+            
+            return $this->db->execute($sql, $params) !== false;
+        } catch (Exception $e) {
+            error_log('Erro ao registrar métrica de performance: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-     * Obtém as configurações de monitoramento
+     * Registra um erro no sistema
      * 
-     * @return array Configurações de monitoramento
+     * @param string $type Tipo do erro
+     * @param string $message Mensagem de erro
+     * @param string $url URL onde ocorreu o erro
+     * @param array $context Contexto adicional
+     * @return bool Sucesso da operação
      */
-    public function getMonitorSettings() {
+    public function logError($type, $message, $url, $context = []) {
         try {
-            $sql = "SELECT * FROM performance_monitor_settings LIMIT 1";
-            $result = $this->db()->select($sql);
+            $sql = "INSERT INTO error_logs 
+                    (type, message, url, context, timestamp) 
+                    VALUES 
+                    (:type, :message, :url, :context, NOW())";
             
-            if (empty($result)) {
-                return null;
-            }
+            $params = [
+                ':type' => $type,
+                ':message' => $message,
+                ':url' => $url,
+                ':context' => !empty($context) ? json_encode($context) : null
+            ];
             
-            $settings = $result[0];
-            
-            // Decodificar campo JSON
-            if (isset($settings['enabled_pages'])) {
-                $settings['enabled_pages'] = json_decode($settings['enabled_pages'], true);
-            }
-            
-            return $settings;
+            return $this->db->execute($sql, $params) !== false;
         } catch (Exception $e) {
-            error_log("Erro ao obter configurações de monitoramento: " . $e->getMessage());
-            return null;
+            error_log('Erro ao registrar erro: ' . $e->getMessage());
+            return false;
         }
     }
     
     /**
-     * Salva as configurações de monitoramento
+     * Registra um evento de segurança
      * 
-     * @param array $settings Configurações a serem salvas
-     * @return bool True se salvo com sucesso, false caso contrário
+     * @param string $type Tipo do evento
+     * @param string $description Descrição do evento
+     * @param string $ipAddress Endereço IP
+     * @param int $userId ID do usuário relacionado (0 para anônimo)
+     * @return bool Sucesso da operação
      */
-    public function saveMonitorSettings($settings) {
+    public function logSecurityEvent($type, $description, $ipAddress, $userId = 0) {
         try {
-            // Codificar array para JSON
-            if (isset($settings['enabled_pages']) && is_array($settings['enabled_pages'])) {
-                $settings['enabled_pages'] = json_encode($settings['enabled_pages']);
-            }
+            $sql = "INSERT INTO security_events 
+                    (type, description, ip_address, user_id, timestamp) 
+                    VALUES 
+                    (:type, :description, :ip_address, :user_id, NOW())";
             
-            // Verificar se já existem configurações
-            $sql = "SELECT COUNT(*) as count FROM performance_monitor_settings";
-            $result = $this->db()->select($sql);
-            $count = $result[0]['count'];
+            $params = [
+                ':type' => $type,
+                ':description' => $description,
+                ':ip_address' => $ipAddress,
+                ':user_id' => $userId
+            ];
             
-            if ($count > 0) {
-                // Atualizar configurações existentes
-                $sql = "UPDATE performance_monitor_settings SET 
-                            sampling_rate = :sampling_rate,
-                            enabled_pages = :enabled_pages,
-                            alert_threshold = :alert_threshold,
-                            data_retention_days = :data_retention_days,
-                            notification_email = :notification_email,
-                            updated_at = NOW()
-                        WHERE id = 1";
-                            
-                $this->db()->execute($sql, $settings);
-            } else {
-                // Inserir novas configurações
-                $settings['created_at'] = date('Y-m-d H:i:s');
-                $settings['updated_at'] = date('Y-m-d H:i:s');
-                
-                $sql = "INSERT INTO performance_monitor_settings 
-                        (sampling_rate, enabled_pages, alert_threshold, data_retention_days, notification_email, created_at, updated_at) 
-                        VALUES 
-                        (:sampling_rate, :enabled_pages, :alert_threshold, :data_retention_days, :notification_email, :created_at, :updated_at)";
-                        
-                $this->db()->execute($sql, $settings);
-            }
-            
-            return true;
+            return $this->db->execute($sql, $params) !== false;
         } catch (Exception $e) {
-            error_log("Erro ao salvar configurações de monitoramento: " . $e->getMessage());
+            error_log('Erro ao registrar evento de segurança: ' . $e->getMessage());
             return false;
         }
     }
 }
-?>

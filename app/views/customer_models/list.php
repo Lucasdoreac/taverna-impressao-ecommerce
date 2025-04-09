@@ -1,128 +1,210 @@
 <?php include_once VIEWS_PATH . '/partials/header.php'; ?>
 
 <div class="container py-5">
-    <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h2 class="h4 mb-0"><i class="fas fa-cube me-2"></i> Meus Modelos 3D</h2>
-            <a href="<?= BASE_URL ?>customer-models/upload" class="btn btn-light btn-sm">
-                <i class="fas fa-plus-circle me-1"></i> Novo Upload
-            </a>
-        </div>
-        
-        <div class="card-body">
-            <?php include_once VIEWS_PATH . '/partials/flash_messages.php'; ?>
-            
-            <!-- Filtros de status -->
-            <div class="mb-4">
-                <div class="btn-group" role="group" aria-label="Filtrar por status">
-                    <a href="<?= BASE_URL ?>customer-models/list" class="btn btn-outline-secondary <?= !isset($status) ? 'active' : '' ?>">
-                        Todos
+    <div class="row">
+        <div class="col-md-3">
+            <!-- Sidebar de navegação -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="h5 mb-0">Meus Modelos 3D</h3>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="<?= BASE_URL ?>customer-models/list" class="list-group-item list-group-item-action <?= !isset($status) ? 'active' : '' ?>">
+                        Todos os Modelos
                     </a>
-                    <a href="<?= BASE_URL ?>customer-models/list?status=pending_validation" class="btn btn-outline-secondary <?= $status === 'pending_validation' ? 'active' : '' ?>">
-                        Pendentes
+                    <a href="<?= BASE_URL ?>customer-models/list?status=pending_validation" class="list-group-item list-group-item-action <?= $status === 'pending_validation' ? 'active' : '' ?>">
+                        Aguardando Aprovação
                     </a>
-                    <a href="<?= BASE_URL ?>customer-models/list?status=approved" class="btn btn-outline-secondary <?= $status === 'approved' ? 'active' : '' ?>">
+                    <a href="<?= BASE_URL ?>customer-models/list?status=approved" class="list-group-item list-group-item-action <?= $status === 'approved' ? 'active' : '' ?>">
                         Aprovados
                     </a>
-                    <a href="<?= BASE_URL ?>customer-models/list?status=rejected" class="btn btn-outline-secondary <?= $status === 'rejected' ? 'active' : '' ?>">
+                    <a href="<?= BASE_URL ?>customer-models/list?status=rejected" class="list-group-item list-group-item-action <?= $status === 'rejected' ? 'active' : '' ?>">
                         Rejeitados
+                    </a>
+                    <a href="<?= BASE_URL ?>customer-models/upload" class="list-group-item list-group-item-action bg-light">
+                        <i class="fas fa-upload me-2"></i> Enviar Novo Modelo
                     </a>
                 </div>
             </div>
             
-            <?php if (empty($models)): ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                Você ainda não enviou nenhum modelo 3D
-                <?php if (isset($status)): ?>
-                com o status "<?= $status === 'pending_validation' ? 'Pendente' : ($status === 'approved' ? 'Aprovado' : 'Rejeitado') ?>"
-                <?php endif; ?>.
-                <a href="<?= BASE_URL ?>customer-models/upload" class="alert-link">Clique aqui para enviar seu primeiro modelo</a>.
+            <!-- Informações de cota de armazenamento -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">Uso de Armazenamento</h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Espaço Utilizado:</span>
+                            <span class="fw-bold"><?= $quotaInfo['usedSpaceFormatted'] ?></span>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar <?= $quotaInfo['percentUsed'] > 80 ? 'bg-danger' : 'bg-success' ?>" 
+                                 role="progressbar" 
+                                 style="width: <?= $quotaInfo['percentUsed'] ?>%;" 
+                                 aria-valuenow="<?= $quotaInfo['percentUsed'] ?>" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            <?= $quotaInfo['usedSpaceFormatted'] ?> de <?= $quotaInfo['maxQuotaFormatted'] ?> (<?= number_format($quotaInfo['percentUsed'], 1) ?>%)
+                        </small>
+                    </div>
+                    
+                    <?php if ($quotaInfo['percentUsed'] > 80): ?>
+                        <div class="alert alert-warning mt-3 mb-0 py-2 small">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            Seu espaço está quase esgotado. Considere remover modelos antigos.
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
-            <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-hover table-striped">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Nome Original</th>
-                            <th>Tipo</th>
-                            <th>Tamanho</th>
-                            <th>Data de Envio</th>
-                            <th>Status</th>
-                            <th class="text-center">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($models as $model): ?>
-                        <tr>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-file-<?= $model['file_type'] === 'stl' ? 'code' : 'image' ?> text-primary me-2 fa-lg"></i>
-                                    <?= htmlspecialchars($model['original_name']) ?>
-                                </div>
-                            </td>
-                            <td class="text-uppercase"><?= $model['file_type'] ?></td>
-                            <td><?= formatFileSize($model['file_size']) ?></td>
-                            <td><?= formatDate($model['created_at']) ?></td>
-                            <td>
-                                <?php if ($model['status'] === 'pending_validation'): ?>
-                                <span class="badge bg-warning text-dark">Pendente</span>
-                                <?php elseif ($model['status'] === 'approved'): ?>
-                                <span class="badge bg-success">Aprovado</span>
-                                <?php elseif ($model['status'] === 'rejected'): ?>
-                                <span class="badge bg-danger">Rejeitado</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="text-center">
-                                <a href="<?= BASE_URL ?>customer-models/details/<?= $model['id'] ?>" class="btn btn-sm btn-outline-primary" title="Ver detalhes">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                
-                                <?php if ($model['status'] === 'pending_validation'): ?>
-                                <button type="button" class="btn btn-sm btn-outline-danger" 
-                                        onclick="confirmDelete(<?= $model['id'] ?>, '<?= htmlspecialchars($model['original_name']) ?>')" 
-                                        title="Excluir modelo">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php endif; ?>
         </div>
         
-        <div class="card-footer bg-light">
-            <div class="d-flex justify-content-between align-items-center">
-                <small class="text-muted">
-                    <i class="fas fa-info-circle me-1"></i>
-                    Os modelos aprovados estarão disponíveis para uso em pedidos personalizados.
-                </small>
-                <a href="<?= BASE_URL ?>customer-models/upload" class="btn btn-primary btn-sm">
-                    <i class="fas fa-upload me-1"></i> Enviar Novo Modelo
+        <div class="col-md-9">
+            <!-- Cabeçalho da página -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="h3 mb-0">
+                    <?php if ($status === 'pending_validation'): ?>
+                        Modelos Aguardando Aprovação
+                    <?php elseif ($status === 'approved'): ?>
+                        Modelos Aprovados
+                    <?php elseif ($status === 'rejected'): ?>
+                        Modelos Rejeitados
+                    <?php else: ?>
+                        Todos os Meus Modelos
+                    <?php endif; ?>
+                </h2>
+                
+                <a href="<?= BASE_URL ?>customer-models/upload" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i> Novo Modelo
                 </a>
             </div>
+            
+            <?php include_once VIEWS_PATH . '/partials/flash_messages.php'; ?>
+            
+            <?php if (empty($models)): ?>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i> 
+                    Você ainda não possui modelos 
+                    <?php if ($status === 'pending_validation'): ?>
+                        aguardando aprovação.
+                    <?php elseif ($status === 'approved'): ?>
+                        aprovados.
+                    <?php elseif ($status === 'rejected'): ?>
+                        rejeitados.
+                    <?php else: ?>
+                        cadastrados.
+                    <?php endif; ?>
+                </div>
+                
+                <div class="text-center py-4">
+                    <p class="mb-3">Comece enviando seu primeiro modelo 3D para impressão!</p>
+                    <a href="<?= BASE_URL ?>customer-models/upload" class="btn btn-primary">
+                        <i class="fas fa-upload me-1"></i> Enviar Modelo
+                    </a>
+                </div>
+            <?php else: ?>
+                <!-- Lista de modelos -->
+                <div class="row row-cols-1 row-cols-md-2 g-4">
+                    <?php foreach ($models as $model): ?>
+                        <div class="col">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h3 class="h6 mb-0 text-truncate" title="<?= htmlspecialchars($model['original_name']) ?>">
+                                        <i class="fas <?= $model['file_type'] === 'stl' ? 'fa-cube' : 'fa-object-group' ?> me-2"></i>
+                                        <?= htmlspecialchars($model['original_name']) ?>
+                                    </h3>
+                                    <span class="badge <?= 
+                                        $model['status'] === 'pending_validation' ? 'bg-warning' : 
+                                        ($model['status'] === 'approved' ? 'bg-success' : 'bg-danger') 
+                                    ?>">
+                                        <?= 
+                                            $model['status'] === 'pending_validation' ? 'Pendente' : 
+                                            ($model['status'] === 'approved' ? 'Aprovado' : 'Rejeitado') 
+                                        ?>
+                                    </span>
+                                </div>
+                                
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <small class="text-muted">Enviado em:</small>
+                                        <div><?= date('d/m/Y H:i', strtotime($model['created_at'])) ?></div>
+                                    </div>
+                                    
+                                    <div class="mb-2">
+                                        <small class="text-muted">Formato:</small>
+                                        <div class="text-uppercase"><?= htmlspecialchars($model['file_type']) ?></div>
+                                    </div>
+                                    
+                                    <div class="mb-2">
+                                        <small class="text-muted">Tamanho:</small>
+                                        <div><?= number_format($model['file_size'] / 1024 / 1024, 2) ?> MB</div>
+                                    </div>
+                                    
+                                    <?php if (!empty($model['notes'])): ?>
+                                        <div class="mb-2">
+                                            <small class="text-muted">Observações:</small>
+                                            <div class="text-truncate" style="max-height: 60px; overflow: hidden;">
+                                                <?= htmlspecialchars($model['notes']) ?>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                    
+                                    <?php if ($model['status'] === 'rejected' && !empty($model['admin_notes'])): ?>
+                                        <div class="alert alert-danger p-2 mt-2 mb-0">
+                                            <small class="d-block fw-bold">Motivo da rejeição:</small>
+                                            <?= htmlspecialchars($model['admin_notes']) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <div class="card-footer bg-white border-top d-flex justify-content-between">
+                                    <div>
+                                        <a href="<?= BASE_URL ?>customer-models/details/<?= $model['id'] ?>" class="btn btn-sm btn-outline-primary me-1">
+                                            <i class="fas fa-info-circle me-1"></i> Detalhes
+                                        </a>
+                                        
+                                        <?php if ($model['status'] === 'approved'): ?>
+                                        <a href="<?= BASE_URL ?>viewer3d/view/<?= $model['id'] ?>" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-cube me-1"></i> Ver 3D
+                                        </a>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            onclick="confirmDelete(<?= $model['id'] ?>, '<?= htmlspecialchars($model['original_name']) ?>')">
+                                        <i class="fas fa-trash-alt me-1"></i> Excluir
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <!-- Modal de confirmação de exclusão -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+<div class="modal fade" id="deleteModelModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteModalLabel">Confirmação de Exclusão</h5>
+                <h5 class="modal-title">Confirmar Exclusão</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
                 <p>Tem certeza que deseja excluir o modelo <strong id="modelName"></strong>?</p>
-                <p class="text-danger mb-0">Esta ação não pode ser desfeita.</p>
+                <p class="mb-0">Esta ação não pode ser desfeita.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <a href="#" id="deleteLink" class="btn btn-danger">Excluir</a>
+                <form id="deleteForm" action="" method="post">
+                    <input type="hidden" name="csrf_token" value="<?= CsrfProtection::getToken() ?>">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
             </div>
         </div>
     </div>
@@ -131,55 +213,11 @@
 <script>
     function confirmDelete(modelId, modelName) {
         document.getElementById('modelName').textContent = modelName;
-        document.getElementById('deleteLink').href = '<?= BASE_URL ?>customer-models/delete/' + modelId;
+        document.getElementById('deleteForm').action = '<?= BASE_URL ?>customer-models/delete/' + modelId;
         
-        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModelModal'));
         deleteModal.show();
-    }
-    
-    // Função auxiliar para formatar o tamanho do arquivo
-    function formatFileSize(bytes) {
-        if (bytes >= 1073741824) {
-            return (bytes / 1073741824).toFixed(2) + " GB";
-        } else if (bytes >= 1048576) {
-            return (bytes / 1048576).toFixed(2) + " MB";
-        } else if (bytes >= 1024) {
-            return (bytes / 1024).toFixed(2) + " KB";
-        } else {
-            return bytes + " bytes";
-        }
-    }
-    
-    // Função auxiliar para formatar a data
-    function formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
     }
 </script>
 
 <?php include_once VIEWS_PATH . '/partials/footer.php'; ?>
-
-<?php
-// Funções de formatação para uso na view
-function formatFileSize($bytes) {
-    if ($bytes >= 1073741824) {
-        return round($bytes / 1073741824, 2) . " GB";
-    } elseif ($bytes >= 1048576) {
-        return round($bytes / 1048576, 2) . " MB";
-    } elseif ($bytes >= 1024) {
-        return round($bytes / 1024, 2) . " KB";
-    } else {
-        return $bytes . " bytes";
-    }
-}
-
-function formatDate($date) {
-    return date('d/m/Y H:i', strtotime($date));
-}
-?>

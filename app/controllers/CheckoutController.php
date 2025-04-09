@@ -1,17 +1,30 @@
 <?php
 /**
  * CheckoutController - Controlador para o processo de checkout
+ * 
+ * @version     1.3.0
+ * @author      Taverna da Impressão
  */
 class CheckoutController {
+    // Implementação do trait de validação de entrada
+    use InputValidationTrait;
+    
     private $cartModel;
     private $productModel;
     private $userModel;
     
     public function __construct() {
         try {
+            // Carregar modelos
             $this->cartModel = new CartModel();
             $this->productModel = new ProductModel();
             $this->userModel = new UserModel();
+            
+            // Carregar bibliotecas de segurança
+            require_once APP_PATH . '/lib/Security/SecurityManager.php';
+            require_once APP_PATH . '/lib/Security/Validator.php';
+            require_once APP_PATH . '/lib/Security/CsrfProtection.php';
+            require_once APP_PATH . '/lib/Security/InputValidationTrait.php';
             
             // Verificar se o usuário está logado
             if (!isset($_SESSION['user_logged_in']) || !$_SESSION['user_logged_in']) {
@@ -21,7 +34,7 @@ class CheckoutController {
                 // Redirecionar para página de login
                 $_SESSION['info'] = 'É necessário fazer login para finalizar a compra.';
                 header('Location: ' . BASE_URL . 'login');
-                exit;
+                return;
             }
             
         } catch (Exception $e) {
@@ -34,7 +47,14 @@ class CheckoutController {
      */
     public function index() {
         try {
-            $userId = $_SESSION['user']['id'];
+            // Verificar se o usuário está logado
+            $userId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : 0;
+            if ($userId <= 0) {
+                $_SESSION['error'] = 'É necessário fazer login para finalizar a compra.';
+                header('Location: ' . BASE_URL . 'login');
+                return;
+            }
+            
             $sessionId = session_id();
             
             // Obter carrinho
@@ -45,7 +65,7 @@ class CheckoutController {
             if (empty($cartItems)) {
                 $_SESSION['error'] = 'Seu carrinho está vazio.';
                 header('Location: ' . BASE_URL . 'carrinho');
-                exit;
+                return;
             }
             
             // Calcular subtotal
@@ -122,6 +142,9 @@ class CheckoutController {
             $shipping_cost = 0;
             $total = $subtotal;
             
+            // Gerar token CSRF para o formulário
+            $csrf_token = CsrfProtection::getToken();
+            
             // Renderizar view
             require_once VIEWS_PATH . '/checkout.php';
         } catch (Exception $e) {
@@ -137,38 +160,76 @@ class CheckoutController {
             // Verificar método da requisição
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 header('Location: ' . BASE_URL . 'checkout');
-                exit;
+                return;
             }
             
-            $userId = $_SESSION['user']['id'];
+            // Verificar token CSRF
+            if (!CsrfProtection::validateRequest()) {
+                $_SESSION['error'] = 'Erro de segurança: Token inválido. Por favor, tente novamente.';
+                header('Location: ' . BASE_URL . 'checkout');
+                return;
+            }
+            
+            // Verificar se o usuário está logado
+            $userId = isset($_SESSION['user']['id']) ? (int)$_SESSION['user']['id'] : 0;
+            if ($userId <= 0) {
+                $_SESSION['error'] = 'É necessário fazer login para finalizar a compra.';
+                header('Location: ' . BASE_URL . 'login');
+                return;
+            }
+            
             $sessionId = session_id();
             
-            // Obter dados do formulário
-            $addressId = isset($_POST['shipping_address_id']) ? intval($_POST['shipping_address_id']) : 0;
-            $shippingMethod = $_POST['shipping_method'] ?? '';
-            $paymentMethod = $_POST['payment_method'] ?? '';
-            $notes = $_POST['notes'] ?? '';
+            // Obter e validar dados do formulário usando InputValidationTrait
+            $addressId = $this->postValidatedParam('shipping_address_id', 'int', ['required' => true, 'min' => 1]);
+            $shippingMethod = $this->postValidatedParam('shipping_method', 'string', ['required' => true, 'maxLength' => 100]);
+            $paymentMethod = $this->postValidatedParam('payment_method', 'string', ['required' => true, 'maxLength' => 100]);
+            $notes = $this->postValidatedParam('notes', 'string', ['required' => false, 'maxLength' => 2000]);
             
-            // Validações básicas
+            // Verificar erros de validação
             $errors = [];
             
-            if (empty($addressId)) {
+            if ($addressId === null) {
                 $errors['address'] = 'Selecione um endereço para entrega.';
             }
             
-            if (empty($shippingMethod)) {
+            if ($shippingMethod === null) {
                 $errors['shipping'] = 'Selecione um método de envio.';
             }
             
-            if (empty($paymentMethod)) {
+            if ($paymentMethod === null) {
                 $errors['payment'] = 'Selecione um método de pagamento.';
+            }
+            
+            // Verificar se há erros de validação no trait
+            if ($this->hasValidationErrors()) {
+                $validationErrors = $this->getValidationErrors();
+                foreach ($validationErrors as $field => $fieldErrors) {
+                    $errors[$field] = implode(', ', $fieldErrors);
+                }
             }
             
             // Se houver erros, voltar para o checkout
             if (!empty($errors)) {
                 $_SESSION['checkout_errors'] = $errors;
                 header('Location: ' . BASE_URL . 'checkout');
-                exit;
+                return;
+            }
+            
+            // Validar que o endereço pertence ao usuário
+            $userAddresses = $this->userModel->getUserAddresses($userId);
+            $validAddress = false;
+            foreach ($userAddresses as $address) {
+                if ((int)$address['id'] === $addressId) {
+                    $validAddress = true;
+                    break;
+                }
+            }
+            
+            if (!$validAddress) {
+                $_SESSION['error'] = 'Endereço inválido selecionado.';
+                header('Location: ' . BASE_URL . 'checkout');
+                return;
             }
             
             // Obter carrinho
@@ -179,7 +240,17 @@ class CheckoutController {
             if (empty($cartItems)) {
                 $_SESSION['error'] = 'Seu carrinho está vazio.';
                 header('Location: ' . BASE_URL . 'carrinho');
-                exit;
+                return;
+            }
+            
+            // Validar estoque dos produtos
+            foreach ($cartItems as $item) {
+                $product = $this->productModel->find($item['product_id']);
+                if ($product && $product['is_tested'] && $product['stock'] < $item['quantity']) {
+                    $_SESSION['error'] = "Quantidade solicitada do produto '{$item['product_name']}' não está disponível em estoque.";
+                    header('Location: ' . BASE_URL . 'carrinho');
+                    return;
+                }
             }
             
             // Calcular valores
@@ -193,7 +264,7 @@ class CheckoutController {
                     $shipping_methods = json_decode($shippingMethodsResult[0]['setting_value'], true) ?? [];
                     foreach ($shipping_methods as $method) {
                         if ($method['name'] === $shippingMethod) {
-                            $shipping_cost = $method['price'];
+                            $shipping_cost = (float)$method['price'];
                             break;
                         }
                     }
@@ -204,6 +275,13 @@ class CheckoutController {
             
             // Calcular total
             $total = $subtotal + $shipping_cost;
+            
+            // Validar total
+            if ($total <= 0) {
+                $_SESSION['error'] = 'Valor total inválido. Por favor, verifique os itens do carrinho.';
+                header('Location: ' . BASE_URL . 'carrinho');
+                return;
+            }
             
             // Gerar número do pedido
             $orderNumber = 'TI' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
@@ -223,44 +301,61 @@ class CheckoutController {
             // Calcular tempo total estimado de impressão para produtos sob encomenda
             $print_time = $this->cartModel->calculateEstimatedPrintTime($cart['id']);
             
+            // Sanitizar notas - Já está sanitizado pelo InputValidationTrait
+            
             // Criar pedido no banco de dados
             $orderId = Database::getInstance()->insert('orders', [
                 'user_id' => $userId,
                 'order_number' => $orderNumber,
                 'status' => $initialStatus,
                 'estimated_print_time_hours' => $print_time > 0 ? $print_time : null,
-                'payment_method' => $paymentMethod,
+                'payment_method' => $paymentMethod, // Já sanitizado pelo trait
                 'payment_status' => 'pending',
                 'shipping_address_id' => $addressId,
-                'shipping_method' => $shippingMethod,
+                'shipping_method' => $shippingMethod, // Já sanitizado pelo trait
                 'shipping_cost' => $shipping_cost,
                 'subtotal' => $subtotal,
                 'discount' => 0,
                 'total' => $total,
-                'notes' => $notes,
+                'notes' => $notes, // Já sanitizado pelo trait
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
+            
+            if (!$orderId) {
+                throw new Exception("Falha ao criar pedido.");
+            }
             
             // Adicionar itens ao pedido
             foreach ($cartItems as $item) {
                 $is_stock_item = $item['is_tested'] && $item['stock'] >= $item['quantity'];
                 
-                Database::getInstance()->insert('order_items', [
+                // Valores já sanitizados pelo trait ou sanitizados aqui
+                $productName = SecurityManager::sanitize($item['product_name']);
+                $selectedScale = isset($item['selected_scale']) ? SecurityManager::sanitize($item['selected_scale']) : null;
+                $selectedFilament = isset($item['selected_filament']) ? SecurityManager::sanitize($item['selected_filament']) : null;
+                $selectedColor = isset($item['selected_color']) ? SecurityManager::sanitize($item['selected_color']) : null;
+                $customizationData = isset($item['customization_data']) ? SecurityManager::sanitize($item['customization_data']) : null;
+                
+                $itemId = Database::getInstance()->insert('order_items', [
                     'order_id' => $orderId,
-                    'product_id' => $item['product_id'],
-                    'product_name' => $item['product_name'],
-                    'quantity' => $item['quantity'],
-                    'price' => $item['sale_price'] && $item['sale_price'] < $item['price'] ? $item['sale_price'] : $item['price'],
-                    'selected_scale' => $item['selected_scale'],
-                    'selected_filament' => $item['selected_filament'],
-                    'selected_color' => $item['selected_color'],
-                    'customer_model_id' => $item['customer_model_id'],
-                    'print_time_hours' => $is_stock_item ? null : ($item['print_time_hours'] * $item['quantity']),
+                    'product_id' => (int)$item['product_id'],
+                    'product_name' => $productName,
+                    'quantity' => (int)$item['quantity'],
+                    'price' => $item['sale_price'] && $item['sale_price'] < $item['price'] ? (float)$item['sale_price'] : (float)$item['price'],
+                    'selected_scale' => $selectedScale,
+                    'selected_filament' => $selectedFilament,
+                    'selected_color' => $selectedColor,
+                    'customer_model_id' => isset($item['customer_model_id']) ? (int)$item['customer_model_id'] : null,
+                    'print_time_hours' => $is_stock_item ? null : ((float)$item['print_time_hours'] * (int)$item['quantity']),
                     'is_stock_item' => $is_stock_item ? 1 : 0,
-                    'customization_data' => $item['customization_data'],
+                    'customization_data' => $customizationData,
                     'created_at' => date('Y-m-d H:i:s')
                 ]);
+                
+                if (!$itemId) {
+                    throw new Exception("Falha ao adicionar item ao pedido: " . $productName);
+                }
                 
                 // Atualizar estoque do produto (apenas para produtos testados)
                 if ($is_stock_item) {
@@ -275,10 +370,13 @@ class CheckoutController {
             // Limpar carrinho
             $this->cartModel->clearItems($cart['id']);
             
+            // Registrar no log do sistema
+            error_log("Pedido #{$orderNumber} criado com sucesso para o usuário #{$userId}. Total: " . number_format($total, 2, '.', ''));
+            
             // Redirecionar para página de sucesso
             $_SESSION['success'] = 'Pedido realizado com sucesso!';
             header('Location: ' . BASE_URL . 'pedido/sucesso/' . $orderNumber);
-            exit;
+            return;
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao finalizar pedido");
         }
@@ -316,8 +414,14 @@ class CheckoutController {
         error_log("{$context}: " . $e->getMessage());
         error_log("Stack trace: " . $e->getTraceAsString());
         
+        // Registrar detalhes adicionais para depuração
+        error_log("POST data: " . print_r($_POST, true));
+        
+        // Sanitizar mensagem de erro para exibição
+        $errorMessage = SecurityManager::sanitize($e->getMessage());
+        
         // Variáveis para a view de erro (visíveis apenas em ambiente de desenvolvimento)
-        $error_message = $e->getMessage();
+        $error_message = $errorMessage;
         $error_trace = $e->getTraceAsString();
         
         // Renderizar página de erro ou redirecionar
@@ -330,6 +434,6 @@ class CheckoutController {
             $_SESSION['error'] = 'Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.';
             header('Location: ' . BASE_URL . 'carrinho');
         }
-        exit;
+        return;
     }
 }

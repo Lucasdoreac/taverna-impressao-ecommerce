@@ -1,580 +1,122 @@
 {
   "projectInfo": {
-    "name": "TAVERNA DA IMPRESSÃO E-commerce",
-    "repository": "Lucasdoreac/taverna-impressao-ecommerce",
-    "lastUpdated": "2025-04-01T12:30:00.000Z",
-    "siteUrl": "https://darkblue-cattle-647559.hostingersite.com"
+    "name": "Taverna da Impressão 3D - E-commerce",
+    "version": "0.8.8",
+    "lastUpdated": "2025-04-09T22:15:00Z",
+    "repository": "taverna-impressao-ecommerce"
   },
   "development": {
-    "currentFile": "app/models/ProductModel.php",
-    "currentComponent": "Sincronização e Correção de Exibição de Produtos",
-    "inProgress": true,
-    "focus": "debug"
+    "currentFocus": "Testes e homologação de integração com gateways de pagamento",
+    "currentSprint": "Sprint 12 - Processamento Assíncrono e Segurança",
+    "startDate": "2025-03-15T00:00:00Z",
+    "endDate": "2025-04-15T00:00:00Z"
   },
   "components": {
     "completed": [
-      "Core Framework",
-      "Página Inicial",
-      "Navegação",
-      "Listagem de Produtos",
-      "Sistema de Banco de Dados",
-      "Carrinho de Compras",
-      "Checkout e Pagamento",
-      "Esquema de Banco de Dados",
-      "Documentação Técnica",
-      "Sistema de Visualização de Imagens",
-      "Esquema de Banco de Dados para Impressão 3D",
-      "Filtros de Produtos por Disponibilidade",
-      "Adaptação do Carrinho para Opções de Impressão 3D",
-      "Adaptação do Checkout para Impressão 3D",
-      "Sistema de Pedidos de Impressão 3D",
-      "Sistema de Upload de Modelos 3D",
-      "Detalhes de Produto de Impressão 3D",
-      "Sistema de Gerenciamento de Fila de Impressão",
-      "Rotas para Sistema de Fila de Impressão",
-      "Integração da Fila com Sistema de Pedidos",
-      "Sistema de Notificações",
-      "Links no Menu Administrativo",
-      "Otimização do Sistema de Notificações",
-      "Documentação da Integração da Fila com Pedidos",
-      "Interface de Personalização de Produtos 3D",
-      "Validação de Modelos 3D",
-      "Pré-visualização 3D de Modelos",
-      "Otimização da Visualização 3D para Dispositivos Móveis",
-      "Testes de Integração entre Pedidos e Fila de Impressão",
-      "Sistema de Monitoramento de Integração",
-      "Visualizador 3D Otimizado Avançado",
-      "Página de Produtos Personalizáveis",
-      "Detecção de Capacidades WebGL e Fallbacks",
-      "Correção de Bugs Críticos",
-      "Correção de Uso Direto de CURRENCY_SYMBOL",
-      "Dashboard Administrativo com Métricas Visuais",
-      "Sistema de Testes para Visualizador 3D em Dispositivos Móveis",
-      "Dashboard Administrativo de Integração",
-      "Atualizações em Tempo Real para o Dashboard",
-      "Otimizações do Visualizador 3D",
-      "Categorias",
-      "Implementar compressão de assets",
-      "Implementar sistema de cache para recursos estáticos",
-      "Otimizar carregamento de JavaScript e CSS",
-      "Implementar lazy loading para imagens em todas as views",
-      "Otimização para Produção",
-      "Documentação para Usuários",
-      "Ferramenta de Testes de Performance",
-      "Testes de Performance em Ambiente de Produção",
-      "Otimizar consultas SQL para melhorar tempos de resposta",
-      "Sistema de Monitoramento em Tempo Real do Status da Impressão",
-      "Sistema de Cache para Assets do Visualizador 3D",
-      "Correção de Bugs em Ambiente de Produção"
+      "SecurityManager",
+      "CsrfProtection",
+      "InputValidationTrait",
+      "SecurityHeaders",
+      "UserAuthentication",
+      "ProductCatalog",
+      "ShoppingCart",
+      "CheckoutProcess",
+      "AdminDashboard",
+      "Model3DValidator",
+      "FileSecurityManager",
+      "StatusCheckApi",
+      "RateLimiter",
+      "StatusTrackingInterface",
+      "ConcurrencyTests",
+      "PerformanceAlertingService",
+      "NotificationManager",
+      "AsyncProcessNotificationHandler",
+      "HomologSetupScript",
+      "AlertCleanupTool",
+      "AlertDataBackupTool",
+      "HomologDeployment",
+      "SystemIntegrationTests",
+      "PerformanceMonitoringDashboard",
+      "PaymentGatewayIntegration",
+      "PaymentAdminInterface"
     ],
-    "inProgress": [
-      "Configurações Avançadas para Preferências de Notificação"
-    ],
-    "pending": []
+    "inProgress": [],
+    "pending": [
+      "DeliveryTrackingSystem",
+      "CustomerFeedbackModule",
+      "AdminReportingEnhancement",
+      "MobileOptimization"
+    ]
   },
-  "debugging": {
-    "inProgress": [
-      "Sincronização e Correção de Exibição de Produtos"
-    ],
-    "completed": []
-  },
-  "context": {
-    "lastThought": "Iniciando processo de sincronização entre ambiente local e produção para resolver problema de exibição de produtos. O problema principal está nas consultas SQL do ProductModel.php que estão filtrando produtos usando flags que podem não existir na tabela de produtos do ambiente de produção.",
-    "nextSteps": [
-      "Criar ferramenta de diagnóstico para produtos",
-      "Comparar esquema de banco de dados local e de produção",
-      "Identificar e corrigir filtros SQL incorretos em ProductModel.php",
-      "Testar em ambos ambientes para garantir consistência"
-    ],
-    "lastEditedFiles": [
-      "app/models/ProductModel.php",
-      "public/diagnostico-produtos.php"
-    ],
-    "onlineTestResults": {
-      "workingTests": [
-        "debug.php",
-        "database_setup.php",
-        "db_test.php",
-        "diagnostico-produtos.php",
-        "diag.php",
-        "status.php",
-        "cart-test.php",
-        "checkout-test.php",
-        "view-directory-test.php"
-      ],
-      "partiallyWorkingTests": [
-        "system_check.php",
-        "database_debug.php",
-        "category_debug.php",
-        "correcoes-aplicadas.php",
-        "diagnostico-classes.php",
-        "verificar-constantes.php"
-      ],
-      "failingTests": [
-        "diagnostico-erros.php",
-        "error_log.php",
-        "phpinfo.php",
-        "auth_debug.php",
-        "order_debug.php",
-        "route_debug.php"
-      ],
-      "mainIssues": [
-        "Erro no carrinho de compras: Call to undefined method FilamentModel::getAll() em CartController.php - RESOLVIDO",
-        "Parâmetro opcional $userId declarado antes de parâmetro obrigatório $sessionId em CartModel.php - RESOLVIDO",
-        "Diretório app/views/compiled ausente, necessário para views compiladas - RESOLVIDO",
-        "Classe FilamentModel não encontrada em alguns contextos - RESOLVIDO",
-        "Classe Database não encontrada em alguns contextos - RESOLVIDO",
-        "Erro ao acessar arquivos que precisam de autenticação - PARCIALMENTE RESOLVIDO",
-        "Algumas páginas de teste retornando 404 - RESOLVIDO",
-        "Produtos não estão sendo exibidos no ambiente de produção, mas funcionam localmente - EM ANÁLISE",
-        "Fatal error: Class \"ProductModel\" not found no CategoryController - RESOLVIDO",
-        "CURRENCY_SYMBOL definido como valor numérico (262145) em vez de string - RESOLVIDO",
-        "Classe Controller não encontrada - RESOLVIDO",
-        "Problemas no sistema de roteamento - RESOLVIDO",
-        "Erro com o método handleError() no CategoryController - RESOLVIDO",
-        "Arquivo status.php referenciado no .htaccess mas não existente - RESOLVIDO"
-      ]
-    },
-    "bugFixes": {
-      "identifiedBugs": [
-        {
-          "id": "BUG-015",
-          "description": "Produtos não são exibidos no ambiente de produção, mas funcionam no ambiente local",
-          "details": "As consultas SQL em ProductModel.php estão filtrando produtos com condições que podem não existir ou não estão preenchidas no banco de dados de produção",
-          "severity": "critical",
-          "status": "em análise",
-          "affectedFiles": ["app/models/ProductModel.php"],
-          "diagnosticTools": ["public/diagnostico-produtos.php"],
-          "resolution": "Em andamento - Criando ferramenta de diagnóstico e analisando diferenças entre ambientes local e de produção"
-        }
-      ],
-      "proposedSolutions": [
-        {
-          "bugId": "BUG-015",
-          "solution": "Corrigir as consultas SQL em ProductModel.php para não depender de colunas que possam não existir",
-          "description": "Modificar os métodos getFeatured(), getTestedProducts(), getCustomProducts() e getCustomizableProducts() para usar consultas SQL que funcionem em ambos os ambientes, removendo dependências de flags específicas",
-          "code": "// Exemplos de modificações:\n\n// Método getFeatured()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock, \n       pi.image, \n       CASE WHEN p.stock > 0 THEN 'Pronta Entrega' ELSE 'Sob Encomenda' END as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.is_active = 1\nORDER BY p.created_at DESC\nLIMIT :limit\";\n\n// Método getTestedProducts()\n$sql = \"SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.stock,\n       pi.image,\n       'Pronta Entrega' as availability\nFROM {$this->table} p\nLEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1\nWHERE p.stock > 0 AND p.is_active = 1\nORDER BY p.created_at DESC\nLIMIT :limit\";",
-          "status": "proposto",
-          "proposedAt": "2025-04-01T12:30:00.000Z"
-        }
-      ],
-      "implementationPlan": [
-        "Criar ferramenta de diagnóstico para produtos",
-        "Analisar o esquema da tabela de produtos em ambos os ambientes",
-        "Identificar as colunas ausentes ou com valores diferentes",
-        "Fazer backup do ProductModel.php atual",
-        "Modificar as consultas SQL para não depender de colunas problemáticas",
-        "Adicionar logs de diagnóstico para facilitar a identificação de problemas",
-        "Testar as modificações em ambiente local",
-        "Implantar em ambiente de produção",
-        "Verificar o funcionamento em ambos os ambientes"
-      ]
-    },
-    "synchronizationWorkflow": "## Fluxo de Trabalho para Sincronização Local/Produção\n\n### Fase 1: Diagnóstico\n1. Implantar ferramenta de diagnóstico em ambos os ambientes\n2. Comparar estrutura de banco de dados e dados\n3. Identificar diferenças nas consultas SQL\n\n### Fase 2: Correção\n1. Ajustar consultas SQL para funcionarem em ambos os ambientes\n2. Remover dependências de colunas que possam não existir\n3. Implementar fallbacks para garantir exibição\n\n### Fase 3: Teste e Validação\n1. Testar em ambiente local\n2. Testar em ambiente de produção\n3. Comparar resultados e garantir consistência\n\n### Fase 4: Documentação\n1. Documentar alterações realizadas\n2. Registrar diferenças entre ambientes\n3. Criar guia para futuras sincronizações",
-    "incompleteOperations": false
-  },
-  "implementations": {
-    "notificationPreferences": {
-      "status": "inProgress",
-      "description": "Sistema que permite aos usuários personalizar suas preferências de notificações, incluindo tipos de eventos, meios de entrega e frequência",
-      "files": [
-        "database/migrations/notification_preferences.sql",
-        "app/models/NotificationPreferenceModel.php",
-        "app/controllers/NotificationPreferenceController.php",
-        "app/views/account/notification_preferences.php",
-        "app/controllers/AdminNotificationController.php",
-        "app/views/admin/notification_preferences.php",
-        "public/assets/js/notification-preferences.js",
-        "public/assets/css/notification-preferences.css"
-      ],
-      "features": [
-        "Configuração de tipos de notificações (pedidos, impressão 3D, promoções, etc.)",
-        "Seleção de canais de notificação (email, SMS, no site)",
-        "Configuração de frequência de notificações",
-        "Interface administrativa para gerenciar tipos de notificações",
-        "Dashboard com métricas de engajamento com notificações",
-        "Integração com sistema de notificações existente",
-        "Filtros de notificações baseados em preferências de usuário",
-        "Interface intuitiva com toggles e seletores",
-        "Previews de notificações para demonstração",
-        "Validação de configurações para garantir entrega de notificações críticas"
-      ],
-      "progress": [
-        {
-          "component": "Esquema de Banco de Dados",
-          "status": "completed",
-          "description": "Criação das tabelas notification_types, notification_channels, user_notification_preferences e notification_delivery_logs junto com dados iniciais"
-        },
-        {
-          "component": "NotificationPreferenceModel.php",
-          "status": "completed",
-          "description": "Modelo para gerenciar preferências de notificação implementado com funções para obter, inicializar e atualizar preferências, bem como garantir entrega de notificações críticas e coletar métricas de uso"
-        },
-        {
-          "component": "NotificationPreferenceController.php",
-          "status": "completed",
-          "description": "Controller para gerenciar interface de usuário para preferências implementado com métodos para visualização, atualização e inicialização de preferências, bem como funcionalidades administrativas e de métricas"
-        },
-        {
-          "component": "Interface de Usuário",
-          "status": "completed",
-          "description": "Views para gerenciamento de preferências de notificação implementadas, incluindo interfaces de usuário e administrativas com recursos completos"
-        }
-      ],
-      "timestamp": "2025-03-31T15:50:00.000Z"
-    },
-    "productSynchronization": {
-      "status": "inProgress",
-      "description": "Sincronização de exibição de produtos entre ambiente local e de produção",
-      "files": [
-        "app/models/ProductModel.php",
-        "public/diagnostico-produtos.php"
-      ],
-      "features": [
-        "Ferramenta de diagnóstico para identificação de problemas com produtos",
-        "Consultas SQL adaptativas que funcionam em ambos os ambientes",
-        "Logging avançado para diagnóstico",
-        "Adaptação dos métodos de busca de produtos para maior compatibilidade",
-        "Validação cruzada entre ambientes"
-      ],
-      "progress": [
-        {
-          "component": "Ferramenta de Diagnóstico",
-          "status": "inProgress",
-          "description": "Criação de ferramenta para analisar exibição de produtos e estrutura do banco de dados"
-        },
-        {
-          "component": "Análise Comparativa",
-          "status": "planned",
-          "description": "Comparação do esquema de banco de dados e dados entre ambientes local e de produção"
-        },
-        {
-          "component": "Correção do ProductModel.php",
-          "status": "planned",
-          "description": "Modificação das consultas SQL para não depender de colunas que possam não existir"
-        },
-        {
-          "component": "Testes de Validação",
-          "status": "planned",
-          "description": "Testes em ambos os ambientes para garantir funcionamento consistente"
-        }
-      ],
-      "timestamp": "2025-04-01T12:30:00.000Z"
-    },
-    "bugFixes": {
-      "status": "completed",
-      "description": "Correção de bugs identificados em ambiente de produção",
-      "files": [
-        "app/controllers/CustomizationController.php",
-        "public/uploads/products/.gitkeep",
-        "public/uploads/categories/.gitkeep",
-        "public/uploads/customization/.gitkeep",
-        "app/controllers/CategoryController.php",
-        "app/config/config.php",
-        "public/diagnostico-produtos.php",
-        "app/models/ProductModel.php",
-        "app/models/Model.php",
-        "app/core/Controller.php",
-        "app/core/Model.php",
-        "app/autoload.php",
-        "public/diagnostico-classes.php",
-        "public/verificar-constantes.php",
-        "public/diag.php",
-        ".htaccess",
-        "public/.htaccess",
-        "app/core/Router.php",
-        "public/index.php",
-        "public/status.php",
-        "app/models/FilamentModel.php",
-        "app/models/CartModel.php",
-        "app/views/compiled/.gitkeep",
-        "app/controllers/CartController.php",
-        "public/cart-test.php",
-        "public/checkout-test.php",
-        "public/view-directory-test.php"
-      ],
-      "features": [
-        "Correção de variável undefined no CustomizationController",
-        "Solução para problema de classes não encontradas",
-        "Criação de diretórios ausentes para uploads",
-        "Correção do CURRENCY_SYMBOL no arquivo de configuração",
-        "Ferramenta de diagnóstico para problema com exibição de produtos",
-        "Diagnóstico e correção de problema com exibição de produtos",
-        "Método público getDb() para ferramentas de diagnóstico",
-        "Classes base (Controller, Model) no diretório correto",
-        "Melhorias no autoloader para buscar em múltiplos diretórios",
-        "Correção de caminhos definidos incorretamente",
-        "Ferramentas adicionais de diagnóstico para verificar resolução dos problemas",
-        "Ferramenta de diagnóstico independente que não depende do sistema de roteamento",
-        "Correções nos arquivos .htaccess para permitir acesso direto às ferramentas de diagnóstico",
-        "Router bridge em app/core para compatibilidade com código existente",
-        "Index.php melhorado com verificações robustas e tratamento de erros",
-        "Nível de acesso do método handleError() consistente entre classes",
-        "Ferramenta de diagnóstico completa status.php implementada",
-        "Correção do método getAll() ausente no FilamentModel",
-        "Correção de ordem de parâmetros em CartModel",
-        "Criação do diretório app/views/compiled",
-        "Ferramentas de teste para validar correções implementadas",
-        "Teste do carrinho de compras em ambiente de produção",
-        "Validação do fluxo completo de checkout",
-        "Verificação do diretório app/views/compiled"
-      ],
-      "progress": [
-        {
-          "component": "CustomizationController.php",
-          "status": "completed",
-          "description": "Adicionada inicialização da variável $availability com valor padrão para evitar erro de 'undefined variable'"
-        },
-        {
-          "component": "Diretórios de Upload",
-          "status": "completed",
-          "description": "Criados os diretórios uploads/products, uploads/categories e uploads/customization com arquivos .gitkeep para garantir que sejam versionados no Git"
-        },
-        {
-          "component": "CategoryController.php",
-          "status": "completed",
-          "description": "Modificado CategoryController para estender a classe Controller, o que resolve o problema do método db() não encontrado. Corrigido também o nível de acesso do método handleError() para 'protected'."
-        },
-        {
-          "component": "config.php",
-          "status": "completed",
-          "description": "Corrigido o valor da constante CURRENCY_SYMBOL e ajustada a definição de caminhos usando dirname(__FILE__, 3) para garantir caminhos absolutos corretos"
-        },
-        {
-          "component": "diagnostico-produtos.php",
-          "status": "completed",
-          "description": "Criada ferramenta de diagnóstico detalhada para identificar a causa raiz do problema com a exibição de produtos e atualizada para usar método getDb()"
-        },
-        {
-          "component": "ProductModel.php",
-          "status": "completed",
-          "description": "Corrigidas as consultas SQL para mostrar produtos mesmo quando nenhum estiver marcado como 'featured', 'tested' ou 'customizable'"
-        },
-        {
-          "component": "Model.php",
-          "status": "completed",
-          "description": "Adicionado método público getDb() para permitir acesso à instância de banco de dados em ferramentas de diagnóstico, mantendo o método db() protegido para uso interno"
-        },
-        {
-          "component": "app/core/Controller.php",
-          "status": "completed",
-          "description": "Criada a classe Controller base no diretório correto (app/core/) conforme esperado pelo autoloader"
-        },
-        {
-          "component": "app/core/Model.php",
-          "status": "completed",
-          "description": "Criada a classe Model base no diretório correto (app/core/) conforme esperado pelo autoloader"
-        },
-        {
-          "component": "app/autoload.php",
-          "status": "completed",
-          "description": "Melhorado o autoloader para buscar classes em múltiplos diretórios e caminhos alternativos, com melhor suporte a diagnóstico de problemas"
-        },
-        {
-          "component": "public/diag.php",
-          "status": "completed",
-          "description": "Criada ferramenta de diagnóstico independente que não depende do sistema de roteamento para facilitar identificação de problemas mesmo quando o roteamento não funciona"
-        },
-        {
-          "component": ".htaccess",
-          "status": "completed",
-          "description": "Corrigido .htaccess principal para permitir acesso direto às ferramentas de diagnóstico com regras específicas"
-        },
-        {
-          "component": "public/.htaccess",
-          "status": "completed",
-          "description": "Ajustado .htaccess da pasta public para permitir acesso direto aos arquivos de diagnóstico e configurar exibição de erros"
-        },
-        {
-          "component": "app/core/Router.php",
-          "status": "completed",
-          "description": "Criado Router bridge em app/core que serve como wrapper para o Router principal em app/helpers, garantindo compatibilidade com código existente"
-        },
-        {
-          "component": "public/index.php",
-          "status": "completed",
-          "description": "Melhorado index.php com verificações robustas, carregamento condicional de classes críticas e tratamento de erros avançado"
-        },
-        {
-          "component": "Novas Ferramentas de Diagnóstico",
-          "status": "completed",
-          "description": "Criadas ferramentas adicionais de diagnóstico (diagnostico-classes.php e verificar-constantes.php) para verificação da resolução dos problemas"
-        },
-        {
-          "component": "public/status.php",
-          "status": "completed",
-          "description": "Criada página de status do sistema que fornece uma visão detalhada do status do sistema, incluindo verificação de arquivos, banco de dados, configurações e mais"
-        },
-        {
-          "component": "Correção do carrinho de compras",
-          "status": "completed",
-          "description": "Implementado método getAll() em FilamentModel para resolver o erro Fatal que ocorre ao acessar o carrinho. Corrigida também a ordem dos parâmetros no método getOrCreate do CartModel, colocando o parâmetro obrigatório $sessionId primeiro e o opcional $userId depois. CartController atualizado para usar a nova ordem de parâmetros."
-        },
-        {
-          "component": "app/views/compiled",
-          "status": "completed",
-          "description": "Criado diretório app/views/compiled com arquivo .gitkeep para garantir sua existência e permitir que seja versionado no Git"
-        },
-        {
-          "component": "Ferramentas de Teste",
-          "status": "completed",
-          "description": "Criadas três ferramentas de teste abrangentes para validar as correções implementadas: cart-test.php, checkout-test.php e view-directory-test.php"
-        },
-        {
-          "component": "Verificação das Soluções",
-          "status": "completed",
-          "description": "Validadas as ferramentas de diagnóstico e verificado que as correções implementadas resolveram efetivamente os problemas"
-        }
-      ],
-      "timestamp": "2025-04-01T02:58:00.000Z",
-      "completedAt": "2025-04-01T02:58:00.000Z"
-    },
-    "diagnosticTools": {
-      "status": "completed",
-      "description": "Ferramentas de diagnóstico para identificação e correção de problemas em ambiente de produção",
-      "files": [
-        "public/correcoes-aplicadas.php",
-        "public/diagnostico-produtos.php",
-        "public/create_upload_dirs.php",
-        "public/diagnostico-classes.php",
-        "public/verificar-constantes.php",
-        "public/diag.php",
-        "public/index.php?diagnostico=1",
-        "public/status.php",
-        "public/cart-test.php",
-        "public/checkout-test.php",
-        "public/view-directory-test.php"
-      ],
-      "features": [
-        "Diagnóstico detalhado de problemas com a exibição de produtos",
-        "Verificação de classes e autoloader",
-        "Criação automática de diretórios de upload",
-        "Análise de configurações do sistema",
-        "Diagnóstico de problemas com o banco de dados",
-        "Diagnóstico independente que não depende do sistema de roteamento",
-        "Análise de tabelas e estruturas",
-        "Recomendações automáticas para correção de problemas",
-        "Interface amigável para visualização de resultados",
-        "Verificação de constantes e configurações críticas",
-        "Relatórios de correções aplicadas",
-        "Verificação de caminhos e diretórios de arquivos",
-        "Teste de carregamento de classes bases e dependentes",
-        "Verificação do tipo e valor de constantes críticas",
-        "Diagnóstico de carregamento e classes com independência do roteamento",
-        "Verificação completa do estado do sistema incluindo arquivos, BD e configurações",
-        "Teste de funcionalidade do carrinho de compras",
-        "Teste do fluxo de checkout",
-        "Teste da funcionalidade do diretório de views compiladas"
-      ],
-      "progress": [
-        {
-          "component": "correcoes-aplicadas.php",
-          "status": "completed",
-          "description": "Ferramenta para acompanhamento das correções aplicadas e seu status"
-        },
-        {
-          "component": "diagnostico-produtos.php",
-          "status": "completed",
-          "description": "Ferramenta de diagnóstico detalhada para o problema com a exibição de produtos"
-        },
-        {
-          "component": "create_upload_dirs.php",
-          "status": "completed",
-          "description": "Script para criação automática de diretórios de upload"
-        },
-        {
-          "component": "diagnostico-classes.php",
-          "status": "completed",
-          "description": "Ferramenta para diagnóstico de problemas com classes e autoloader, incluindo verificação de diretórios, arquivos e testes de include"
-        },
-        {
-          "component": "verificar-constantes.php",
-          "status": "completed",
-          "description": "Ferramenta para verificar e corrigir a definição de constantes críticas, com foco especial em CURRENCY_SYMBOL"
-        },
-        {
-          "component": "diag.php",
-          "status": "completed",
-          "description": "Nova ferramenta de diagnóstico independente que não depende do sistema de roteamento, funcionando mesmo quando o restante do sistema está com problemas"
-        },
-        {
-          "component": "index.php?diagnostico=1",
-          "status": "completed",
-          "description": "Adicionado parâmetro de diagnóstico ao index.php para mostrar informações de carregamento e classes"
-        },
-        {
-          "component": "status.php",
-          "status": "completed",
-          "description": "Página de diagnóstico completo do sistema que verifica arquivos, configurações, banco de dados e muito mais"
-        },
-        {
-          "component": "cart-test.php",
-          "status": "completed",
-          "description": "Ferramenta de diagnóstico específica para testar a funcionalidade do carrinho de compras após as correções implementadas"
-        },
-        {
-          "component": "checkout-test.php",
-          "status": "completed",
-          "description": "Ferramenta para teste do fluxo completo de checkout, validando que as correções do carrinho não afetaram o checkout"
-        },
-        {
-          "component": "view-directory-test.php",
-          "status": "completed",
-          "description": "Ferramenta para verificar a criação e configuração correta do diretório app/views/compiled para templates compilados"
-        },
-        {
-          "component": "Verificação das Ferramentas",
-          "status": "completed",
-          "description": "Testadas as ferramentas de diagnóstico no ambiente de produção, verificando que estão funcionando corretamente e que as correções foram efetivas"
-        }
-      ],
-      "timestamp": "2025-04-01T02:58:00.000Z",
-      "completedAt": "2025-04-01T02:58:00.000Z"
-    }
-  },
-  "diagnostics": {
-    "productionIssuesVerification": {
-      "status": "inProgress",
-      "description": "Verificação e diagnóstico de problemas identificados no ambiente de produção",
-      "findings": [
-        "Erro no carrinho de compras: Call to undefined method FilamentModel::getAll() em CartController.php - RESOLVIDO",
-        "Problema de parâmetro em CartModel.php: parâmetro opcional $userId declarado antes de parâmetro obrigatório $sessionId - RESOLVIDO",
-        "Diretório app/views/compiled ausente, necessário para views compiladas - RESOLVIDO",
-        "Problema identificado na página de produtos personalizáveis: variável não definida '$availability' - RESOLVIDO",
-        "Produtos não estão sendo exibidos no ambiente de produção, mas funcionam corretamente no ambiente local - EM ANÁLISE",
-        "Erro de classe não encontrada: ProductModel e Database em vários contextos - RESOLVIDO",
-        "Diretórios de uploads ausentes causando erros ao tentar salvar arquivos - RESOLVIDO",
-        "CURRENCY_SYMBOL configurado incorretamente como valor numérico em vez de string - RESOLVIDO",
-        "CustomizationController modificado para inicializar corretamente a variável availability - RESOLVIDO",
-        "CategoryController modificado para estender a classe Controller, resolvendo o problema do método db() não encontrado - RESOLVIDO",
-        "Corrigido o nível de acesso do método handleError() no CategoryController para 'protected' - RESOLVIDO",
-        "Criados os diretórios uploads/products, uploads/categories e uploads/customization para resolver os erros de upload de arquivos - RESOLVIDO",
-        "Implementado método getAll() em FilamentModel para resolver erro no carrinho de compras - RESOLVIDO",
-        "Corrigida ordem de parâmetros no método getOrCreate do CartModel.php - RESOLVIDO",
-        "Atualizado CartController para usar nova ordem de parâmetros - RESOLVIDO",
-        "Criado diretório app/views/compiled para views compiladas - RESOLVIDO"
-      ],
-      "timestamp": "2025-04-01T12:30:00.000Z"
-    }
+  "security": {
+    "lastAudit": "2025-04-10T14:00:00Z",
+    "criticalIssues": 0,
+    "highIssues": 0,
+    "mediumIssues": 0,
+    "lowIssues": 3,
+    "pendingFixes": [],
+    "fixedIssues": [
+      {
+        "id": "SEC-47",
+        "severity": "medium",
+        "component": "FileUpload",
+        "description": "Melhorar validação de tipos MIME para uploads de modelos 3D",
+        "fixedBy": "dev-team",
+        "fixedAt": "2025-04-08T16:45:00Z",
+        "commitId": "local-dev-fix-SEC-47"
+      }
+    ]
   },
   "roadmap": {
-    "shortTerm": [
-      "Implementar configurações avançadas para preferências de notificação",
-      "Expandir dashboard com novas visualizações e métricas",
-      "Implementar CDN para entrega de assets estáticos"
+    "immediate": [
+      "Executar testes em ambiente de sandbox",
+      "Preparar para deploy em homologação",
+      "Validar fluxos completos de pagamento com credenciais de teste"
     ],
-    "mediumTerm": [
-      "Implementar sistema de recomendação de produtos baseado em histórico",
-      "Adicionar recursos de personalização interativa nos modelos 3D",
-      "Desenvolver integração com softwares de controle remoto de impressoras",
-      "Implementar sistema de reputação para criadores de modelos 3D"
+    "shortTerm": [
+      "Expansão do sistema de monitoramento de performance",
+      "Aprimoramento da interface de acompanhamento de cotações",
+      "Implementação do dashboard de monitoramento para administradores"
     ],
     "longTerm": [
-      "Incorporar recursos de realidade aumentada para visualização de modelos",
-      "Implementar sistema de inteligência artificial para estimativa de tempo de impressão",
-      "Desenvolver marketplace para modelos 3D com sistema de royalties",
-      "Implementar impressão direta a partir do navegador para impressoras compatíveis",
-      "Criar sistema de fatiamento online para preparação de modelos 3D"
+      "Implementação de API pública para integrações de terceiros",
+      "Sistema de análise avançada de modelos 3D",
+      "Plataforma de marketplace para designers 3D"
+    ]
+  },
+  "context": {
+    "lastEditedFiles": [
+      "TASK.md",
+      "project-status.json",
+      "docs/security/PayPalIntegration.md",
+      "app/config/routes.php",
+      "app/controllers/PaymentController.php",
+      "app/controllers/PaymentCallbackController.php",
+      "app/lib/Payment/PaymentManager.php",
+      "tests/lib/Payment/MercadoPagoGatewayTest.php",
+      "docs/payment/mercadopago_integration.md",
+      "scripts/testing/payment_gateway_validation.php"
+    ],
+    "incompleteOperations": false,
+    "pendingChanges": null
+  },
+  "issues": {
+    "security": [],
+    "bugs": [
+      {
+        "id": "BUG-103",
+        "description": "Otimização de consultas para grandes volumes de dados no histórico de cotações",
+        "severity": "medium",
+        "status": "em análise"
+      }
+    ],
+    "technical": [
+      {
+        "id": "TECH-42",
+        "description": "Refatoração do sistema de cache para suporte a Redis Cluster",
+        "priority": "medium",
+        "status": "planejado"
+      }
     ]
   }
 }

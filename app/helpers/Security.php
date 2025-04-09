@@ -68,6 +68,26 @@ class Security {
      * @return string Valor filtrado
      */
     public static function filterSQLInput($value) {
+        if (is_array($value)) {
+            return array_map([self::class, 'filterSQLInput'], $value);
+        }
+        
+        // Remove potential SQL injection patterns
+        $value = preg_replace('/\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER)\b/i', '', $value);
+        
+        // Remove multiple spaces
+        $value = preg_replace('/\s+/', ' ', $value);
+        
+        // Remove comments
+        $value = preg_replace('/\/\*.*?\*\/|--.*$/m', '', $value);
+        
+        // Remove semicolons
+        $value = str_replace(';', '', $value);
+        
+        // Escape special characters
+        $value = addslashes($value);
+        
+        return $value;
         // Remover comentários de estilo SQL
         $value = preg_replace('/\/\*.*?\*\//', '', $value);
         

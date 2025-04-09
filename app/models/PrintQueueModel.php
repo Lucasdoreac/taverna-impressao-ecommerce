@@ -1,94 +1,128 @@
 <?php
 /**
- * Modelo para gerenciamento da fila de impressão 3D
+ * PrintQueueModel - Gerencia a fila de impressão 3D
  * 
- * Este modelo gerencia a fila de impressão 3D, incluindo adição de itens à fila,
- * atualização de status, priorização, alocação de impressoras e histórico de eventos.
+ * @package    Taverna da Impressão 3D
+ * @author     Claude
+ * @version    1.0.0
  */
+
+require_once __DIR__ . '/../lib/Database.php';
+require_once __DIR__ . '/../lib/Security/InputValidationTrait.php';
+require_once __DIR__ . '/NotificationModel.php';
+require_once __DIR__ . '/CustomerModelModel.php';
+
 class PrintQueueModel {
+    use InputValidationTrait;
+    
     private $db;
     
+    /**
+     * Construtor
+     */
     public function __construct() {
         $this->db = Database::getInstance();
     }
     
     /**
-     * Adiciona um item à fila de impressão
-     * 
-     * @param array $data Dados do item a ser adicionado
-     * @return int|bool O ID do item adicionado ou false em caso de erro
+     * Adiciona um modelo à fila de impressão
+     *
+     * @param int $modelId ID do modelo 3D aprovado
+     * @param int $userId ID do usuário que solicitou a impressão
+     * @param int $priority Prioridade na fila (1-10, 10 sendo a mais alta)
+     * @param string $notes Notas adicionais sobre a impressão
+     * @param array $printSettings Configurações específicas de impressão
+     * @return int|bool ID do item na fila ou false se falhar
      */
-    public function addToQueue($data) {
+    public function saveQueueItem($modelId, $userId, $priority = 5, $notes = '', $printSettings = null) {
         try {
-            // Preparar os campos obrigatórios
-            $required = [
-                'order_id', 
-                'order_item_id', 
-                'product_id', 
-                'estimated_print_time_hours',
-                'filament_type',
-                'filament_usage_grams',
-                'scale'
-            ];
+            // Validar parâmetros
+            $modelId = (int)$modelId;
+            $userId = (int)$userId;
+            $priority = max(1, min(10, (int)$priority)); // Garantir que a prioridade esteja entre 1 e 10
+            $notes = $this->validateString($notes, ['maxLength' => 1000]);
             
-            // Verificar se todos os campos obrigatórios estão presentes
-            foreach ($required as $field) {
-                if (!isset($data[$field])) {
-                    app_log("Campo obrigatório ausente: {$field}", 'error');
-                    return false;
-                }
+            // Verificar se o modelo existe e está aprovado
+            $customerModelModel = new CustomerModelModel();
+            $model = $customerModelModel->getModelById($modelId);
+            
+            if (!$model || $model['status'] !== 'approved') {
+                return false;
             }
             
-            // Definir campos opcionais com valores padrão se não fornecidos
-            $data['priority'] = isset($data['priority']) ? $data['priority'] : 5;
-            $data['status'] = isset($data['status']) ? $data['status'] : 'pending';
+            // Preparar dados para inserção
+            $data = [
+                'model_id' => $modelId,
+                'user_id' => $userId,
+                'status' => 'pending',
+                'priority' => $priority,
+                'notes' => $notes,
+                'created_at' => date('Y-m-d H:i:s')
+            ];
             
-            // Executar a inserção
-            $result = $this->db->insert('print_queue', $data);
+            // Adicionar configurações de impressão se fornecidas
+            if ($printSettings) {
+                $data['print_settings'] = json_encode($printSettings);
+            }
             
-            if ($result) {
-                $queueId = $this->db->lastInsertId();
-                
+            // Inserir na tabela print_queue
+            $sql = "INSERT INTO print_queue (model_id, user_id, status, priority, notes, print_settings, created_at) 
+                    VALUES (:model_id, :user_id, :status, :priority, :notes, :print_settings, :created_at)";
+            
+            $params = [
+                ':model_id' => $data['model_id'],
+                ':user_id' => $data['user_id'],
+                ':status' => $data['status'],
+                ':priority' => $data['priority'],
+                ':notes' => $data['notes'],
+                ':print_settings' => $data['print_settings'] ?? null,
+                ':created_at' => $data['created_at']
+            ];
+            
+            $this->db->execute($sql, $params);
+            $queueId = $this->db->lastInsertId();
+            
+            if ($queueId) {
                 // Registrar evento no histórico
-                $this->addHistoryEvent($queueId, [
-                    'event_type' => 'status_change',
-                    'new_status' => 'pending',
-                    'description' => 'Item adicionado à fila de impressão',
-                    'created_by' => isset($data['created_by']) ? $data['created_by'] : null
-                ]);
+                $this->addHistoryEvent($queueId, 'creation', 'Item adicionado à fila de impressão', null, null, $userId);
                 
-                // Notificar cliente sobre adição à fila
-                $this->createAddedToQueueNotification($queueId, $data);
+                // Enviar notificação ao usuário
+                $this->createNotification(
+                    $userId,
+                    $queueId,
+                    null,
+                    'Modelo adicionado à fila de impressão',
+                    'Seu modelo foi adicionado à fila de impressão e está aguardando processamento.',
+                    'info'
+                );
                 
                 return $queueId;
             }
             
             return false;
         } catch (Exception $e) {
-            app_log("Erro ao adicionar item à fila: " . $e->getMessage(), 'error');
+            error_log('Erro ao adicionar item à fila de impressão: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
      * Atualiza o status de um item na fila
-     * 
+     *
      * @param int $queueId ID do item na fila
      * @param string $status Novo status
-     * @param int $userId ID do usuário que fez a alteração
-     * @param string $notes Notas adicionais sobre a alteração
-     * @return bool
+     * @param int $userId ID do usuário que realizou a alteração
+     * @param string $notes Notas adicionais
+     * @return bool True se a operação foi bem-sucedida
      */
     public function updateStatus($queueId, $status, $userId = null, $notes = '') {
         try {
-            // Verificar status válido
-            $validStatuses = ['pending', 'scheduled', 'printing', 'paused', 'completed', 'failed', 'canceled'];
-            if (!in_array($status, $validStatuses)) {
-                app_log("Status inválido: {$status}", 'error');
-                return false;
-            }
+            // Validar parâmetros
+            $queueId = (int)$queueId;
+            $status = $this->validateString($status, ['allowedValues' => ['pending', 'assigned', 'printing', 'completed', 'cancelled', 'failed']]);
+            $notes = $this->validateString($notes, ['maxLength' => 1000]);
             
-            // Obter status atual
+            // Obter item atual para comparação e verificação
             $currentItem = $this->getQueueItemById($queueId);
             if (!$currentItem) {
                 return false;
@@ -96,168 +130,94 @@ class PrintQueueModel {
             
             $previousStatus = $currentItem['status'];
             
-            // Atualizar campos específicos dependendo do status
-            $updateData = ['status' => $status];
-            
-            if ($status == 'printing' && $previousStatus != 'printing') {
-                $updateData['actual_start_date'] = date('Y-m-d H:i:s');
-            } else if (($status == 'completed' || $status == 'failed') && $previousStatus != 'completed' && $previousStatus != 'failed') {
-                $updateData['actual_end_date'] = date('Y-m-d H:i:s');
-                
-                // Calcular tempo real de impressão se iniciado anteriormente
-                if (!empty($currentItem['actual_start_date'])) {
-                    $start = new DateTime($currentItem['actual_start_date']);
-                    $end = new DateTime();
-                    $interval = $start->diff($end);
-                    $hours = $interval->h + ($interval->days * 24) + ($interval->i / 60) + ($interval->s / 3600);
-                    $updateData['actual_print_time_hours'] = round($hours, 2);
-                }
+            // Verificar se a transição de status é válida
+            if (!$this->isValidStatusTransition($previousStatus, $status)) {
+                error_log("Transição de status inválida: {$previousStatus} -> {$status}");
+                return false;
             }
             
-            // Atualizar o item
-            $result = $this->db->update('print_queue', $updateData, ['id' => $queueId]);
+            // Atualizar o status
+            $sql = "UPDATE print_queue SET status = :status, updated_at = NOW() WHERE id = :id";
+            $params = [
+                ':status' => $status,
+                ':id' => $queueId
+            ];
+            
+            $result = $this->db->execute($sql, $params);
             
             if ($result) {
                 // Registrar evento no histórico
-                $this->addHistoryEvent($queueId, [
-                    'event_type' => 'status_change',
-                    'previous_status' => $previousStatus,
-                    'new_status' => $status,
-                    'description' => "Status alterado de {$previousStatus} para {$status}" . ($notes ? ": {$notes}" : ""),
-                    'created_by' => $userId
-                ]);
+                $this->addHistoryEvent(
+                    $queueId,
+                    'status_change',
+                    "Status alterado de {$previousStatus} para {$status}" . ($notes ? ": {$notes}" : ""),
+                    ['status' => $previousStatus],
+                    ['status' => $status],
+                    $userId
+                );
                 
-                // Criar notificação para o cliente usando o novo sistema de notificações
-                $this->createStatusChangeNotification($queueId, $status, $userId, $notes);
-                
-                // Se o status for 'completed' ou 'failed', atualizar o pedido
-                if ($status == 'completed' || $status == 'failed') {
-                    $this->updateOrderStatus($currentItem['order_id']);
-                }
+                // Enviar notificação ao usuário
+                $this->createStatusNotification($queueId, $status, $notes);
                 
                 return true;
             }
             
             return false;
         } catch (Exception $e) {
-            app_log("Erro ao atualizar status: " . $e->getMessage(), 'error');
+            error_log('Erro ao atualizar status do item na fila: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-     * Atualiza o status do pedido com base nos itens na fila
-     * 
-     * @param int $orderId ID do pedido
-     * @return bool
+     * Verifica se a transição de status é válida
+     *
+     * @param string $currentStatus Status atual
+     * @param string $newStatus Novo status
+     * @return bool True se a transição é válida
      */
-    private function updateOrderStatus($orderId) {
-        try {
-            // Obter todos os itens da fila para este pedido
-            $items = $this->getQueueItemsByOrderId($orderId);
-            
-            // Verificar se todos os itens foram concluídos
-            $allCompleted = true;
-            $anyFailed = false;
-            
-            foreach ($items as $item) {
-                if ($item['status'] != 'completed' && $item['status'] != 'canceled') {
-                    $allCompleted = false;
-                }
-                if ($item['status'] == 'failed') {
-                    $anyFailed = true;
-                }
-            }
-            
-            // Atualizar status do pedido se necessário
-            if ($allCompleted) {
-                $orderModel = new OrderModel();
-                $orderStatus = $anyFailed ? 'problem' : 'finishing';
-                return $orderModel->updateOrderStatus($orderId, $orderStatus);
-            }
-            
+    private function isValidStatusTransition($currentStatus, $newStatus) {
+        // Definir transições válidas
+        $validTransitions = [
+            'pending' => ['assigned', 'cancelled'],
+            'assigned' => ['printing', 'pending', 'cancelled'],
+            'printing' => ['completed', 'failed', 'cancelled'],
+            'completed' => [], // Status final, não permite transição
+            'failed' => ['pending'], // Permitir reenvio para a fila
+            'cancelled' => ['pending'] // Permitir reativação
+        ];
+        
+        // Verificar se a transição é válida
+        if (isset($validTransitions[$currentStatus]) && in_array($newStatus, $validTransitions[$currentStatus])) {
             return true;
-        } catch (Exception $e) {
-            app_log("Erro ao atualizar status do pedido: " . $e->getMessage(), 'error');
-            return false;
         }
-    }
-    
-    /**
-     * Atribui uma impressora a um item na fila
-     * 
-     * @param int $queueId ID do item na fila
-     * @param int $printerId ID da impressora
-     * @param int $userId ID do usuário que fez a alteração
-     * @return bool
-     */
-    public function assignPrinter($queueId, $printerId, $userId = null) {
-        try {
-            // Verificar se o item existe
-            $currentItem = $this->getQueueItemById($queueId);
-            if (!$currentItem) {
-                return false;
-            }
-            
-            // Verificar se a impressora existe e está disponível
-            $printer = $this->getPrinterById($printerId);
-            if (!$printer || $printer['status'] != 'available') {
-                app_log("Impressora não disponível: {$printerId}", 'error');
-                return false;
-            }
-            
-            $previousPrinterId = $currentItem['printer_id'];
-            
-            // Atualizar o item
-            $result = $this->db->update('print_queue', [
-                'printer_id' => $printerId
-            ], ['id' => $queueId]);
-            
-            // Atualizar status da impressora
-            $this->db->update('printers', [
-                'status' => 'printing'
-            ], ['id' => $printerId]);
-            
-            if ($result) {
-                // Registrar evento no histórico
-                $this->addHistoryEvent($queueId, [
-                    'event_type' => 'printer_assigned',
-                    'previous_printer_id' => $previousPrinterId,
-                    'new_printer_id' => $printerId,
-                    'description' => "Impressora #{$printerId} ({$printer['name']}) atribuída ao item",
-                    'created_by' => $userId
-                ]);
-                
-                // Notificar cliente sobre atribuição de impressora
-                $this->createPrinterAssignmentNotification($queueId, $printerId, $userId);
-                
-                return true;
-            }
-            
-            return false;
-        } catch (Exception $e) {
-            app_log("Erro ao atribuir impressora: " . $e->getMessage(), 'error');
-            return false;
+        
+        // Verificar se é o mesmo status (não é uma transição)
+        if ($currentStatus === $newStatus) {
+            return true;
         }
+        
+        // Permitir que administradores façam qualquer transição (para fins de correção)
+        // Esta verificação será feita no controller
+        
+        return false;
     }
     
     /**
      * Atualiza a prioridade de um item na fila
-     * 
+     *
      * @param int $queueId ID do item na fila
      * @param int $priority Nova prioridade (1-10)
-     * @param int $userId ID do usuário que fez a alteração
-     * @return bool
+     * @param int $userId ID do usuário que realizou a alteração
+     * @return bool True se a operação foi bem-sucedida
      */
     public function updatePriority($queueId, $priority, $userId = null) {
         try {
-            // Verificar prioridade válida
-            if ($priority < 1 || $priority > 10) {
-                app_log("Prioridade inválida: {$priority}", 'error');
-                return false;
-            }
+            // Validar parâmetros
+            $queueId = (int)$queueId;
+            $priority = max(1, min(10, (int)$priority)); // Garantir que a prioridade esteja entre 1 e 10
             
-            // Verificar se o item existe
+            // Obter item atual para comparação
             $currentItem = $this->getQueueItemById($queueId);
             if (!$currentItem) {
                 return false;
@@ -265,136 +225,403 @@ class PrintQueueModel {
             
             $previousPriority = $currentItem['priority'];
             
-            // Atualizar o item
-            $result = $this->db->update('print_queue', [
-                'priority' => $priority
-            ], ['id' => $queueId]);
+            // Se a prioridade não mudou, não fazer nada
+            if ($previousPriority == $priority) {
+                return true;
+            }
+            
+            // Atualizar a prioridade
+            $sql = "UPDATE print_queue SET priority = :priority, updated_at = NOW() WHERE id = :id";
+            $params = [
+                ':priority' => $priority,
+                ':id' => $queueId
+            ];
+            
+            $result = $this->db->execute($sql, $params);
             
             if ($result) {
                 // Registrar evento no histórico
-                $this->addHistoryEvent($queueId, [
-                    'event_type' => 'priority_change',
-                    'previous_priority' => $previousPriority,
-                    'new_priority' => $priority,
-                    'description' => "Prioridade alterada de {$previousPriority} para {$priority}",
-                    'created_by' => $userId
-                ]);
+                $this->addHistoryEvent(
+                    $queueId,
+                    'priority_change',
+                    "Prioridade alterada de {$previousPriority} para {$priority}",
+                    ['priority' => $previousPriority],
+                    ['priority' => $priority],
+                    $userId
+                );
                 
                 return true;
             }
             
             return false;
         } catch (Exception $e) {
-            app_log("Erro ao atualizar prioridade: " . $e->getMessage(), 'error');
+            error_log('Erro ao atualizar prioridade do item na fila: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-     * Registra um evento no histórico da fila
-     * 
+     * Obtém um item da fila pelo ID
+     *
      * @param int $queueId ID do item na fila
-     * @param array $data Dados do evento
-     * @return int|bool O ID do evento ou false em caso de erro
+     * @return array|false Dados do item ou false se não encontrado
      */
-    public function addHistoryEvent($queueId, $data) {
+    public function getQueueItemById($queueId) {
         try {
-            if (!isset($data['event_type']) || !isset($data['description'])) {
-                return false;
-            }
+            $queueId = (int)$queueId;
             
-            $data['print_queue_id'] = $queueId;
+            $sql = "SELECT pq.*, cm.original_name AS model_name, u.name AS user_name, u.email AS user_email
+                    FROM print_queue pq
+                    JOIN customer_models cm ON pq.model_id = cm.id
+                    JOIN users u ON pq.user_id = u.id
+                    WHERE pq.id = :id";
             
-            $result = $this->db->insert('print_queue_history', $data);
+            $params = [':id' => $queueId];
+            $result = $this->db->fetchSingle($sql, $params);
             
             if ($result) {
-                return $this->db->lastInsertId();
+                // Decodificar configurações de impressão se existirem
+                if (isset($result['print_settings']) && !empty($result['print_settings'])) {
+                    $result['print_settings'] = json_decode($result['print_settings'], true);
+                }
+                
+                return $result;
             }
             
             return false;
         } catch (Exception $e) {
-            app_log("Erro ao registrar evento no histórico: " . $e->getMessage(), 'error');
+            error_log('Erro ao obter item da fila: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-     * Cria uma notificação para o cliente sobre a adição à fila de impressão
-     * 
-     * @param int $queueId ID do item na fila
-     * @param array $data Dados do item
-     * @return bool Verdadeiro se a operação foi bem-sucedida
+     * Obtém itens da fila de um usuário específico
+     *
+     * @param int $userId ID do usuário
+     * @param string|null $status Filtrar por status (opcional)
+     * @return array Lista de itens na fila
      */
-    private function createAddedToQueueNotification($queueId, $data) {
+    public function getUserQueueItems($userId, $status = null) {
         try {
-            // Obter informações do pedido
-            $orderModel = new OrderModel();
-            $order = $orderModel->getOrderById($data['order_id']);
+            $userId = (int)$userId;
             
-            if (!$order || !$order['user_id']) {
-                return false;
+            $sql = "SELECT pq.*, cm.original_name AS model_name
+                    FROM print_queue pq
+                    JOIN customer_models cm ON pq.model_id = cm.id
+                    WHERE pq.user_id = :user_id";
+            
+            $params = [':user_id' => $userId];
+            
+            // Adicionar filtro de status se fornecido
+            if ($status !== null) {
+                $status = $this->validateString($status, [
+                    'allowedValues' => ['pending', 'assigned', 'printing', 'completed', 'cancelled', 'failed']
+                ]);
+                
+                $sql .= " AND pq.status = :status";
+                $params[':status'] = $status;
             }
             
-            // Obter informações do produto
-            $productModel = new ProductModel();
-            $product = $productModel->getProductById($data['product_id']);
+            $sql .= " ORDER BY pq.priority DESC, pq.created_at ASC";
             
-            if (!$product) {
-                return false;
+            $results = $this->db->fetchAll($sql, $params);
+            
+            // Processar cada item
+            foreach ($results as &$result) {
+                if (isset($result['print_settings']) && !empty($result['print_settings'])) {
+                    $result['print_settings'] = json_decode($result['print_settings'], true);
+                }
             }
             
-            // Criar notificação
-            $notificationModel = new NotificationModel();
-            $notificationData = [
-                'user_id' => $order['user_id'],
-                'order_id' => $data['order_id'],
-                'queue_item_id' => $queueId,
-                'type' => 'info',
-                'title' => 'Seu item entrou na fila de impressão 3D',
-                'message' => "Seu produto '{$product['name']}' foi adicionado à fila de impressão 3D. Você receberá notificações sobre o progresso da impressão.",
-                'created_by' => isset($data['created_by']) ? $data['created_by'] : 1, // ID de sistema
-                'status' => 'unread'
+            return $results;
+        } catch (Exception $e) {
+            error_log('Erro ao obter itens da fila do usuário: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Obtém itens pendentes na fila
+     *
+     * @return array Lista de itens pendentes
+     */
+    public function getPendingQueueItems() {
+        try {
+            $sql = "SELECT pq.*, cm.original_name AS model_name, u.name AS user_name, u.email AS user_email
+                    FROM print_queue pq
+                    JOIN customer_models cm ON pq.model_id = cm.id
+                    JOIN users u ON pq.user_id = u.id
+                    WHERE pq.status = 'pending'
+                    ORDER BY pq.priority DESC, pq.created_at ASC";
+            
+            $results = $this->db->fetchAll($sql);
+            
+            // Processar cada item
+            foreach ($results as &$result) {
+                if (isset($result['print_settings']) && !empty($result['print_settings'])) {
+                    $result['print_settings'] = json_decode($result['print_settings'], true);
+                }
+            }
+            
+            return $results;
+        } catch (Exception $e) {
+            error_log('Erro ao obter itens pendentes na fila: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Obtém todos os itens na fila com filtros opcionais
+     *
+     * @param array $filters Filtros (status, user_id, etc.)
+     * @return array Lista de itens na fila
+     */
+    public function getAllQueueItems($filters = []) {
+        try {
+            $sql = "SELECT pq.*, cm.original_name AS model_name, u.name AS user_name, u.email AS user_email
+                    FROM print_queue pq
+                    JOIN customer_models cm ON pq.model_id = cm.id
+                    JOIN users u ON pq.user_id = u.id
+                    WHERE 1=1";
+            
+            $params = [];
+            
+            // Adicionar filtros
+            if (isset($filters['status']) && !empty($filters['status'])) {
+                $status = $this->validateString($filters['status'], [
+                    'allowedValues' => ['pending', 'assigned', 'printing', 'completed', 'cancelled', 'failed']
+                ]);
+                
+                $sql .= " AND pq.status = :status";
+                $params[':status'] = $status;
+            }
+            
+            if (isset($filters['user_id']) && !empty($filters['user_id'])) {
+                $userId = (int)$filters['user_id'];
+                $sql .= " AND pq.user_id = :user_id";
+                $params[':user_id'] = $userId;
+            }
+            
+            if (isset($filters['model_id']) && !empty($filters['model_id'])) {
+                $modelId = (int)$filters['model_id'];
+                $sql .= " AND pq.model_id = :model_id";
+                $params[':model_id'] = $modelId;
+            }
+            
+            // Ordenação
+            $orderBy = "pq.priority DESC, pq.created_at ASC";
+            if (isset($filters['order_by']) && !empty($filters['order_by'])) {
+                $allowedOrderBy = ['priority', 'created_at', 'updated_at', 'status'];
+                if (in_array($filters['order_by'], $allowedOrderBy)) {
+                    $direction = isset($filters['order_direction']) && strtoupper($filters['order_direction']) === 'ASC' ? 'ASC' : 'DESC';
+                    $orderBy = "pq.{$filters['order_by']} {$direction}";
+                }
+            }
+            
+            $sql .= " ORDER BY " . $orderBy;
+            
+            // Paginação
+            if (isset($filters['limit']) && isset($filters['offset'])) {
+                $limit = (int)$filters['limit'];
+                $offset = (int)$filters['offset'];
+                $sql .= " LIMIT {$limit} OFFSET {$offset}";
+            }
+            
+            $results = $this->db->fetchAll($sql, $params);
+            
+            // Processar cada item
+            foreach ($results as &$result) {
+                if (isset($result['print_settings']) && !empty($result['print_settings'])) {
+                    $result['print_settings'] = json_decode($result['print_settings'], true);
+                }
+            }
+            
+            return $results;
+        } catch (Exception $e) {
+            error_log('Erro ao obter todos os itens da fila: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Obtém estatísticas da fila de impressão
+     *
+     * @return array Estatísticas
+     */
+    public function getQueueStatistics() {
+        try {
+            $stats = [
+                'total' => 0,
+                'by_status' => [
+                    'pending' => 0,
+                    'assigned' => 0,
+                    'printing' => 0,
+                    'completed' => 0,
+                    'cancelled' => 0,
+                    'failed' => 0
+                ],
+                'avg_wait_time' => 0,
+                'avg_print_time' => 0
             ];
             
-            return $notificationModel->create($notificationData);
+            // Contar totais por status
+            $sql = "SELECT status, COUNT(*) as count FROM print_queue GROUP BY status";
+            $results = $this->db->fetchAll($sql);
+            
+            if ($results) {
+                foreach ($results as $row) {
+                    $stats['by_status'][$row['status']] = (int)$row['count'];
+                    $stats['total'] += (int)$row['count'];
+                }
+            }
+            
+            // Calcular tempo médio de espera (do status pending para printing)
+            $sql = "SELECT AVG(TIMESTAMPDIFF(HOUR, t1.created_at, t2.created_at)) as avg_wait_time
+                    FROM print_queue_history t1
+                    JOIN print_queue_history t2 ON t1.queue_id = t2.queue_id
+                    WHERE t1.event_type = 'status_change'
+                    AND JSON_EXTRACT(t1.new_value, '$.status') = 'pending'
+                    AND t2.event_type = 'status_change'
+                    AND JSON_EXTRACT(t2.new_value, '$.status') = 'printing'
+                    AND t1.created_at < t2.created_at";
+            
+            $result = $this->db->fetchSingle($sql);
+            if ($result && $result['avg_wait_time'] !== null) {
+                $stats['avg_wait_time'] = round($result['avg_wait_time'], 2);
+            }
+            
+            // Calcular tempo médio de impressão (do status printing para completed)
+            $sql = "SELECT AVG(TIMESTAMPDIFF(HOUR, t1.created_at, t2.created_at)) as avg_print_time
+                    FROM print_queue_history t1
+                    JOIN print_queue_history t2 ON t1.queue_id = t2.queue_id
+                    WHERE t1.event_type = 'status_change'
+                    AND JSON_EXTRACT(t1.new_value, '$.status') = 'printing'
+                    AND t2.event_type = 'status_change'
+                    AND JSON_EXTRACT(t2.new_value, '$.status') = 'completed'
+                    AND t1.created_at < t2.created_at";
+            
+            $result = $this->db->fetchSingle($sql);
+            if ($result && $result['avg_print_time'] !== null) {
+                $stats['avg_print_time'] = round($result['avg_print_time'], 2);
+            }
+            
+            return $stats;
         } catch (Exception $e) {
-            app_log('ERROR', 'Erro ao criar notificação de adição à fila: ' . $e->getMessage());
+            error_log('Erro ao obter estatísticas da fila: ' . $e->getMessage());
+            return [
+                'total' => 0,
+                'by_status' => [
+                    'pending' => 0,
+                    'assigned' => 0,
+                    'printing' => 0,
+                    'completed' => 0,
+                    'cancelled' => 0,
+                    'failed' => 0
+                ],
+                'avg_wait_time' => 0,
+                'avg_print_time' => 0
+            ];
+        }
+    }
+    
+    /**
+     * Adiciona um evento ao histórico da fila
+     *
+     * @param int $queueId ID do item na fila
+     * @param string $eventType Tipo de evento
+     * @param string $description Descrição do evento
+     * @param mixed $previousValue Valor anterior (opcional)
+     * @param mixed $newValue Novo valor (opcional)
+     * @param int $userId ID do usuário que gerou o evento (opcional)
+     * @return int|false ID do evento ou false se falhar
+     */
+    public function addHistoryEvent($queueId, $eventType, $description, $previousValue = null, $newValue = null, $userId = null) {
+        try {
+            // Validar parâmetros
+            $queueId = (int)$queueId;
+            $eventType = $this->validateString($eventType);
+            $description = $this->validateString($description);
+            
+            $sql = "INSERT INTO print_queue_history (queue_id, event_type, description, previous_value, new_value, created_by, created_at)
+                    VALUES (:queue_id, :event_type, :description, :previous_value, :new_value, :created_by, NOW())";
+            
+            $params = [
+                ':queue_id' => $queueId,
+                ':event_type' => $eventType,
+                ':description' => $description,
+                ':previous_value' => $previousValue !== null ? json_encode($previousValue) : null,
+                ':new_value' => $newValue !== null ? json_encode($newValue) : null,
+                ':created_by' => $userId
+            ];
+            
+            $this->db->execute($sql, $params);
+            return $this->db->lastInsertId();
+        } catch (Exception $e) {
+            error_log('Erro ao adicionar evento ao histórico: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-     * Cria uma notificação para o cliente sobre mudança de status
-     * 
+     * Cria uma notificação para o usuário
+     *
+     * @param int $userId ID do usuário destinatário
+     * @param int $queueId ID do item na fila
+     * @param int|null $jobId ID do trabalho de impressão (opcional)
+     * @param string $title Título da notificação
+     * @param string $message Mensagem da notificação
+     * @param string $type Tipo da notificação (info, warning, success, error)
+     * @return int|false ID da notificação ou false se falhar
+     */
+    public function createNotification($userId, $queueId, $jobId, $title, $message, $type = 'info') {
+        try {
+            // Validar parâmetros
+            $userId = (int)$userId;
+            $queueId = (int)$queueId;
+            $jobId = $jobId !== null ? (int)$jobId : null;
+            $title = $this->validateString($title, ['maxLength' => 255]);
+            $message = $this->validateString($message);
+            $type = $this->validateString($type, ['allowedValues' => ['info', 'warning', 'success', 'error']]);
+            
+            $sql = "INSERT INTO print_notifications (user_id, queue_id, job_id, title, message, type, status, created_at)
+                    VALUES (:user_id, :queue_id, :job_id, :title, :message, :type, 'unread', NOW())";
+            
+            $params = [
+                ':user_id' => $userId,
+                ':queue_id' => $queueId,
+                ':job_id' => $jobId,
+                ':title' => $title,
+                ':message' => $message,
+                ':type' => $type
+            ];
+            
+            $this->db->execute($sql, $params);
+            return $this->db->lastInsertId();
+        } catch (Exception $e) {
+            error_log('Erro ao criar notificação: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Cria uma notificação específica para mudança de status
+     *
      * @param int $queueId ID do item na fila
      * @param string $status Novo status
-     * @param int $userId ID do usuário que fez a alteração
      * @param string $notes Notas adicionais
-     * @return bool Verdadeiro se a operação foi bem-sucedida
+     * @return int|false ID da notificação ou false se falhar
      */
-    private function createStatusChangeNotification($queueId, $status, $userId, $notes = '') {
+    private function createStatusNotification($queueId, $status, $notes = '') {
         try {
-            // Verificar se o item existe
-            $item = $this->getQueueItemById($queueId);
-            if (!$item) {
+            // Obter item da fila
+            $queueItem = $this->getQueueItemById($queueId);
+            if (!$queueItem) {
                 return false;
             }
             
-            // Obter informações do pedido
-            $orderModel = new OrderModel();
-            $order = $orderModel->getOrderById($item['order_id']);
-            
-            if (!$order || !$order['user_id']) {
-                return false;
-            }
-            
-            // Obter informações do produto
-            $productModel = new ProductModel();
-            $product = $productModel->getProductById($item['product_id']);
-            
-            if (!$product) {
-                return false;
-            }
+            $userId = $queueItem['user_id'];
+            $modelName = $queueItem['model_name'];
             
             // Definir título e mensagem com base no status
             $title = '';
@@ -402,666 +629,219 @@ class PrintQueueModel {
             $type = 'info';
             
             switch ($status) {
-                case 'scheduled':
-                    $title = 'Sua impressão 3D foi agendada';
-                    $message = "Sua impressão para o produto '{$product['name']}' (Pedido #{$order['order_number']}) foi agendada. Acompanhe o status em tempo real na sua conta.";
+                case 'assigned':
+                    $title = 'Modelo atribuído para impressão';
+                    $message = "Seu modelo '{$modelName}' foi atribuído para impressão e será processado em breve.";
                     break;
                     
                 case 'printing':
-                    $title = 'Sua impressão 3D começou!';
-                    $message = "Sua impressão para o produto '{$product['name']}' (Pedido #{$order['order_number']}) começou. O processo deve levar aproximadamente {$item['estimated_print_time_hours']} horas.";
+                    $title = 'Seu modelo está sendo impresso';
+                    $message = "Seu modelo '{$modelName}' está sendo impresso neste momento.";
+                    $type = 'info';
                     break;
                     
                 case 'completed':
-                    $title = 'Sua impressão 3D foi concluída';
-                    $message = "Sua impressão para o produto '{$product['name']}' (Pedido #{$order['order_number']}) foi concluída com sucesso! O processo de acabamento e envio começará em breve.";
+                    $title = 'Impressão concluída com sucesso';
+                    $message = "A impressão do seu modelo '{$modelName}' foi concluída com sucesso!";
                     $type = 'success';
                     break;
                     
                 case 'failed':
-                    $title = 'Problema na sua impressão 3D';
-                    $message = "Houve um problema durante a impressão do seu produto '{$product['name']}' (Pedido #{$order['order_number']}). Nossa equipe já foi notificada e entrará em contato em breve.";
+                    $title = 'Falha na impressão';
+                    $message = "Houve uma falha na impressão do seu modelo '{$modelName}'.";
+                    if ($notes) {
+                        $message .= " Detalhes: {$notes}";
+                    }
                     $type = 'error';
                     break;
                     
-                case 'canceled':
-                    $title = 'Impressão 3D cancelada';
-                    $message = "A impressão do seu produto '{$product['name']}' (Pedido #{$order['order_number']}) foi cancelada. " . ($notes ? "Motivo: {$notes}" : "");
+                case 'cancelled':
+                    $title = 'Impressão cancelada';
+                    $message = "A impressão do seu modelo '{$modelName}' foi cancelada.";
+                    if ($notes) {
+                        $message .= " Motivo: {$notes}";
+                    }
                     $type = 'warning';
                     break;
                     
                 default:
-                    // Para outros status, verificar se devemos notificar
-                    $settingsModel = new SettingsModel();
-                    $notifyOnStatusChange = $settingsModel->getSetting('notifications_notify_on_status_change', 1);
-                    
-                    if (!$notifyOnStatusChange) {
-                        return true; // Skip notification
-                    }
-                    
-                    $title = 'Atualização na sua impressão 3D';
-                    $message = "O status da impressão do seu produto '{$product['name']}' (Pedido #{$order['order_number']}) foi atualizado para '{$status}'. " . ($notes ? "Observações: {$notes}" : "");
+                    $title = 'Atualização de status';
+                    $message = "O status do seu modelo '{$modelName}' foi atualizado para '{$status}'.";
                     break;
             }
             
-            // Criar notificação usando o novo sistema de notificações
-            $notificationModel = new NotificationModel();
-            $notificationData = [
-                'user_id' => $order['user_id'],
-                'order_id' => $item['order_id'],
-                'queue_item_id' => $queueId,
-                'type' => $type,
-                'title' => $title,
-                'message' => $message,
-                'created_by' => $userId,
-                'status' => 'unread'
-            ];
-            
-            return $notificationModel->create($notificationData);
+            // Criar a notificação
+            return $this->createNotification($userId, $queueId, null, $title, $message, $type);
         } catch (Exception $e) {
-            app_log('ERROR', 'Erro ao criar notificação de mudança de status: ' . $e->getMessage());
+            error_log('Erro ao criar notificação de status: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-     * Cria uma notificação para o cliente sobre atribuição de impressora
-     * 
+     * Obtém o histórico de eventos de um item na fila
+     *
      * @param int $queueId ID do item na fila
-     * @param int $printerId ID da impressora
-     * @param int $userId ID do usuário que fez a atribuição
-     * @return bool Verdadeiro se a operação foi bem-sucedida
-     */
-    private function createPrinterAssignmentNotification($queueId, $printerId, $userId) {
-        try {
-            // Verificar se a notificação deve ser enviada
-            $settingsModel = new SettingsModel();
-            $notifyOnPrinterAssignment = $settingsModel->getSetting('notifications_notify_on_printer_assignment', 1);
-            
-            if (!$notifyOnPrinterAssignment) {
-                return true; // Skip notification
-            }
-            
-            // Obter informações do item
-            $item = $this->getQueueItemById($queueId);
-            if (!$item) {
-                return false;
-            }
-            
-            // Obter informações do pedido
-            $orderModel = new OrderModel();
-            $order = $orderModel->getOrderById($item['order_id']);
-            
-            if (!$order || !$order['user_id']) {
-                return false;
-            }
-            
-            // Obter informações do produto
-            $productModel = new ProductModel();
-            $product = $productModel->getProductById($item['product_id']);
-            
-            if (!$product) {
-                return false;
-            }
-            
-            // Obter informações da impressora
-            $printer = $this->getPrinterById($printerId);
-            
-            if (!$printer) {
-                return false;
-            }
-            
-            // Criar notificação usando o novo modelo de notificações
-            $notificationModel = new NotificationModel();
-            return $notificationModel->createPrinterAssignmentNotification(
-                $queueId,
-                $printerId,
-                $order['user_id'],
-                $userId
-            );
-        } catch (Exception $e) {
-            app_log('ERROR', 'Erro ao criar notificação de atribuição de impressora: ' . $e->getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Cancela itens na fila de impressão por ID de pedido
-     * 
-     * @param int $orderId ID do pedido
-     * @param string $reason Motivo do cancelamento
-     * @return bool Verdadeiro se a operação foi bem-sucedida
-     */
-    public function cancelQueueItemsByOrderId($orderId, $reason = 'Pedido cancelado pelo cliente') {
-        try {
-            // Obter todos os itens da fila para este pedido
-            $items = $this->getQueueItemsByOrderId($orderId);
-            $result = true;
-            
-            // Cancelar cada item
-            foreach ($items as $item) {
-                // Só cancelar itens que não foram concluídos ou já cancelados
-                if ($item['status'] != 'completed' && $item['status'] != 'canceled') {
-                    $updateResult = $this->updateStatus($item['id'], 'canceled', null, $reason);
-                    $result = $result && $updateResult;
-                }
-            }
-            
-            return $result;
-        } catch (Exception $e) {
-            app_log('ERROR', 'Erro ao cancelar itens da fila por pedido: ' . $e->getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Obtém um item da fila pelo ID
-     * 
-     * @param int $queueId ID do item na fila
-     * @return array|bool Dados do item ou false se não encontrado
-     */
-    public function getQueueItemById($queueId) {
-        try {
-            $query = "SELECT pq.*, 
-                      p.name AS product_name, 
-                      pr.name AS printer_name, 
-                      fc.name AS filament_color, 
-                      fc.hex_code AS filament_hex_code
-                      FROM print_queue pq
-                      LEFT JOIN products p ON pq.product_id = p.id
-                      LEFT JOIN printers pr ON pq.printer_id = pr.id
-                      LEFT JOIN filament_colors fc ON pq.filament_color_id = fc.id
-                      WHERE pq.id = ?";
-            
-            $result = $this->db->query($query, [$queueId]);
-            
-            if ($result && count($result) > 0) {
-                return $result[0];
-            }
-            
-            return false;
-        } catch (Exception $e) {
-            app_log("Erro ao obter item da fila: " . $e->getMessage(), 'error');
-            return false;
-        }
-    }
-    
-    /**
-     * Obtém itens da fila pelo ID do pedido
-     * 
-     * @param int $orderId ID do pedido
-     * @return array Itens da fila para o pedido
-     */
-    public function getQueueItemsByOrderId($orderId) {
-        try {
-            $query = "SELECT pq.*, 
-                      p.name AS product_name, 
-                      pr.name AS printer_name, 
-                      fc.name AS filament_color, 
-                      fc.hex_code AS filament_hex_code
-                      FROM print_queue pq
-                      LEFT JOIN products p ON pq.product_id = p.id
-                      LEFT JOIN printers pr ON pq.printer_id = pr.id
-                      LEFT JOIN filament_colors fc ON pq.filament_color_id = fc.id
-                      WHERE pq.order_id = ?
-                      ORDER BY pq.priority, pq.created_at";
-            
-            $result = $this->db->query($query, [$orderId]);
-            
-            return $result ? $result : [];
-        } catch (Exception $e) {
-            app_log("Erro ao obter itens da fila por pedido: " . $e->getMessage(), 'error');
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém o histórico de eventos de um item da fila
-     * 
-     * @param int $queueId ID do item na fila
-     * @return array Eventos do item
+     * @return array Lista de eventos
      */
     public function getQueueItemHistory($queueId) {
         try {
-            $query = "SELECT pqh.*, u.name AS user_name
-                      FROM print_queue_history pqh
-                      LEFT JOIN users u ON pqh.created_by = u.id
-                      WHERE pqh.print_queue_id = ?
-                      ORDER BY pqh.created_at DESC";
+            $queueId = (int)$queueId;
             
-            $result = $this->db->query($query, [$queueId]);
+            $sql = "SELECT pqh.*, u.name AS user_name
+                    FROM print_queue_history pqh
+                    LEFT JOIN users u ON pqh.created_by = u.id
+                    WHERE pqh.queue_id = :queue_id
+                    ORDER BY pqh.created_at DESC";
             
-            return $result ? $result : [];
+            $params = [':queue_id' => $queueId];
+            $results = $this->db->fetchAll($sql, $params);
+            
+            // Processar cada evento
+            foreach ($results as &$result) {
+                if (isset($result['previous_value']) && !empty($result['previous_value'])) {
+                    $result['previous_value'] = json_decode($result['previous_value'], true);
+                }
+                
+                if (isset($result['new_value']) && !empty($result['new_value'])) {
+                    $result['new_value'] = json_decode($result['new_value'], true);
+                }
+            }
+            
+            return $results;
         } catch (Exception $e) {
-            app_log("Erro ao obter histórico do item da fila: " . $e->getMessage(), 'error');
+            error_log('Erro ao obter histórico do item na fila: ' . $e->getMessage());
             return [];
         }
     }
     
     /**
-     * Obtém todos os itens da fila com filtros
-     * 
-     * @param array $filters Filtros a serem aplicados
-     * @return array Itens da fila
+     * Exclui um item da fila
+     *
+     * @param int $queueId ID do item na fila
+     * @param int $userId ID do usuário que realizou a exclusão
+     * @return bool True se a operação foi bem-sucedida
      */
-    public function getQueueItems($filters = []) {
+    public function deleteQueueItem($queueId, $userId) {
         try {
-            $query = "SELECT pq.*, 
-                      p.name AS product_name, 
-                      pr.name AS printer_name, 
-                      o.order_number,
-                      u.name AS customer_name,
-                      fc.name AS filament_color, 
-                      fc.hex_code AS filament_hex_code
-                      FROM print_queue pq
-                      LEFT JOIN products p ON pq.product_id = p.id
-                      LEFT JOIN printers pr ON pq.printer_id = pr.id
-                      LEFT JOIN orders o ON pq.order_id = o.id
-                      LEFT JOIN users u ON o.user_id = u.id
-                      LEFT JOIN filament_colors fc ON pq.filament_color_id = fc.id
-                      WHERE 1=1";
+            $queueId = (int)$queueId;
             
-            $params = [];
-            
-            // Aplicar filtros
-            if (isset($filters['status']) && !empty($filters['status'])) {
-                $query .= " AND pq.status = ?";
-                $params[] = $filters['status'];
-            }
-            
-            if (isset($filters['printer_id']) && !empty($filters['printer_id'])) {
-                $query .= " AND pq.printer_id = ?";
-                $params[] = $filters['printer_id'];
-            }
-            
-            if (isset($filters['customer_id']) && !empty($filters['customer_id'])) {
-                $query .= " AND o.user_id = ?";
-                $params[] = $filters['customer_id'];
-            }
-            
-            if (isset($filters['order_item_id']) && !empty($filters['order_item_id'])) {
-                $query .= " AND pq.order_item_id = ?";
-                $params[] = $filters['order_item_id'];
-            }
-            
-            // Ordenação
-            $query .= " ORDER BY ";
-            if (isset($filters['order_by']) && !empty($filters['order_by'])) {
-                $validOrderBy = ['priority', 'created_at', 'scheduled_start_date'];
-                $orderBy = in_array($filters['order_by'], $validOrderBy) ? $filters['order_by'] : 'priority';
-                $query .= "pq.{$orderBy} ";
-            } else {
-                $query .= "pq.priority ";
-            }
-            
-            $query .= isset($filters['order_dir']) && strtolower($filters['order_dir']) == 'desc' ? "DESC" : "ASC";
-            
-            if (!isset($filters['order_by']) || $filters['order_by'] != 'created_at') {
-                $query .= ", pq.created_at ASC";
-            }
-            
-            $result = $this->db->query($query, $params);
-            
-            return $result ? $result : [];
-        } catch (Exception $e) {
-            app_log("Erro ao obter itens da fila: " . $e->getMessage(), 'error');
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém todas as impressoras disponíveis
-     * 
-     * @return array Lista de impressoras
-     */
-    public function getAllPrinters() {
-        try {
-            $query = "SELECT * FROM printers ORDER BY name";
-            $result = $this->db->query($query);
-            
-            return $result ? $result : [];
-        } catch (Exception $e) {
-            app_log("Erro ao obter impressoras: " . $e->getMessage(), 'error');
-            return [];
-        }
-    }
-    
-    /**
-     * Obtém uma impressora pelo ID
-     * 
-     * @param int $printerId ID da impressora
-     * @return array|bool Dados da impressora ou false se não encontrada
-     */
-    public function getPrinterById($printerId) {
-        try {
-            $query = "SELECT * FROM printers WHERE id = ?";
-            $result = $this->db->query($query, [$printerId]);
-            
-            if ($result && count($result) > 0) {
-                return $result[0];
-            }
-            
-            return false;
-        } catch (Exception $e) {
-            app_log("Erro ao obter impressora: " . $e->getMessage(), 'error');
-            return false;
-        }
-    }
-    
-    /**
-     * Atualiza o status de uma impressora
-     * 
-     * @param int $printerId ID da impressora
-     * @param string $status Novo status
-     * @return bool
-     */
-    public function updatePrinterStatus($printerId, $status) {
-        try {
-            $validStatuses = ['available', 'printing', 'maintenance', 'offline'];
-            if (!in_array($status, $validStatuses)) {
-                app_log("Status inválido para impressora: {$status}", 'error');
+            // Verificar se o item existe
+            $queueItem = $this->getQueueItemById($queueId);
+            if (!$queueItem) {
                 return false;
             }
             
-            $result = $this->db->update('printers', [
-                'status' => $status
-            ], ['id' => $printerId]);
+            // Registrar evento no histórico (será mantido mesmo após a exclusão)
+            $this->addHistoryEvent(
+                $queueId,
+                'deletion',
+                "Item excluído da fila de impressão",
+                $queueItem,
+                null,
+                $userId
+            );
             
-            return $result !== false;
+            // Excluir o item
+            $sql = "DELETE FROM print_queue WHERE id = :id";
+            $params = [':id' => $queueId];
+            
+            return $this->db->execute($sql, $params) !== false;
         } catch (Exception $e) {
-            app_log("Erro ao atualizar status da impressora: " . $e->getMessage(), 'error');
+            error_log('Erro ao excluir item da fila: ' . $e->getMessage());
             return false;
         }
     }
     
     /**
-     * Adiciona uma nova impressora
-     * 
-     * @param array $data Dados da impressora
-     * @return int|bool O ID da impressora ou false em caso de erro
+     * Obtém as configurações da fila de impressão
+     *
+     * @param string $key Chave da configuração (opcional)
+     * @param mixed $default Valor padrão se a configuração não existir
+     * @return mixed Valor da configuração ou array de configurações
      */
-    public function addPrinter($data) {
+    public function getSettings($key = null, $default = null) {
         try {
-            // Verificar campos obrigatórios
-            $required = ['name', 'model', 'max_width', 'max_depth', 'max_height'];
-            foreach ($required as $field) {
-                if (!isset($data[$field])) {
-                    app_log("Campo obrigatório ausente: {$field}", 'error');
-                    return false;
+            if ($key !== null) {
+                $key = $this->validateString($key);
+                
+                $sql = "SELECT setting_value FROM print_queue_settings WHERE setting_key = :key";
+                $params = [':key' => $key];
+                $result = $this->db->fetchSingle($sql, $params);
+                
+                return $result ? $result['setting_value'] : $default;
+            } else {
+                $sql = "SELECT setting_key, setting_value, description FROM print_queue_settings";
+                $results = $this->db->fetchAll($sql);
+                
+                $settings = [];
+                foreach ($results as $row) {
+                    $settings[$row['setting_key']] = [
+                        'value' => $row['setting_value'],
+                        'description' => $row['description']
+                    ];
                 }
+                
+                return $settings;
             }
+        } catch (Exception $e) {
+            error_log('Erro ao obter configurações da fila: ' . $e->getMessage());
+            return $key !== null ? $default : [];
+        }
+    }
+    
+    /**
+     * Atualiza uma configuração da fila de impressão
+     *
+     * @param string $key Chave da configuração
+     * @param string $value Valor da configuração
+     * @param string $description Descrição da configuração (opcional)
+     * @return bool True se a operação foi bem-sucedida
+     */
+    public function updateSetting($key, $value, $description = null) {
+        try {
+            $key = $this->validateString($key);
+            $value = $this->validateString($value);
             
-            $result = $this->db->insert('printers', $data);
+            // Verificar se a configuração já existe
+            $sql = "SELECT id FROM print_queue_settings WHERE setting_key = :key";
+            $params = [':key' => $key];
+            $result = $this->db->fetchSingle($sql, $params);
             
             if ($result) {
-                return $this->db->lastInsertId();
-            }
-            
-            return false;
-        } catch (Exception $e) {
-            app_log("Erro ao adicionar impressora: " . $e->getMessage(), 'error');
-            return false;
-        }
-    }
-    
-    /**
-     * Visualiza a fila de impressão agrupada por pedido
-     * 
-     * @return array Pedidos com seus itens na fila
-     */
-    public function viewByOrder() {
-        try {
-            // Primeiro, obter todos os pedidos que possuem itens na fila
-            $query = "SELECT DISTINCT o.id, o.order_number, o.status, o.created_at, 
-                      u.name AS customer_name, u.email AS customer_email
-                      FROM print_queue pq
-                      JOIN orders o ON pq.order_id = o.id
-                      LEFT JOIN users u ON o.user_id = u.id
-                      ORDER BY o.created_at DESC";
-            
-            $orders = $this->db->query($query);
-            
-            if (!$orders) {
-                return [];
-            }
-            
-            // Para cada pedido, obter os itens na fila
-            $result = [];
-            foreach ($orders as $order) {
-                $order['queue_items'] = $this->getQueueItemsByOrderId($order['id']);
-                $result[] = $order;
-            }
-            
-            return $result;
-        } catch (Exception $e) {
-            app_log("Erro ao visualizar fila por pedido: " . $e->getMessage(), 'error');
-            return [];
-        }
-    }
-    
-    /**
-     * Gera um relatório de produção
-     * 
-     * @param array $filters Filtros para o relatório
-     * @return array Dados do relatório
-     */
-    public function productionReport($filters = []) {
-        try {
-            // Definir período padrão se não especificado
-            if (!isset($filters['date_from'])) {
-                $filters['date_from'] = date('Y-m-d', strtotime('-30 days'));
-            }
-            
-            if (!isset($filters['date_to'])) {
-                $filters['date_to'] = date('Y-m-d');
-            }
-            
-            // Obter estatísticas de uso de impressoras
-            $query = "SELECT pr.name, pr.model,
-                      COUNT(pq.id) AS total_prints,
-                      SUM(pq.actual_print_time_hours) AS total_hours,
-                      SUM(pq.filament_usage_grams) AS total_filament,
-                      COUNT(CASE WHEN pq.status = 'completed' THEN 1 END) AS completed_prints,
-                      COUNT(CASE WHEN pq.status = 'failed' THEN 1 END) AS failed_prints
-                      FROM printers pr
-                      LEFT JOIN print_queue pq ON pr.id = pq.printer_id
-                      WHERE pq.actual_start_date BETWEEN ? AND ?
-                      GROUP BY pr.id
-                      ORDER BY total_prints DESC";
-            
-            $printerStats = $this->db->query($query, [
-                $filters['date_from'] . ' 00:00:00',
-                $filters['date_to'] . ' 23:59:59'
-            ]);
-            
-            // Obter estatísticas de uso de filamento por tipo
-            $query = "SELECT filament_type,
-                      COUNT(id) AS total_prints,
-                      SUM(filament_usage_grams) AS total_filament
-                      FROM print_queue
-                      WHERE actual_start_date BETWEEN ? AND ?
-                      GROUP BY filament_type
-                      ORDER BY total_filament DESC";
-            
-            $filamentStats = $this->db->query($query, [
-                $filters['date_from'] . ' 00:00:00',
-                $filters['date_to'] . ' 23:59:59'
-            ]);
-            
-            // Obter estatísticas por status
-            $query = "SELECT status,
-                      COUNT(id) AS count
-                      FROM print_queue
-                      WHERE created_at BETWEEN ? AND ?
-                      GROUP BY status";
-            
-            $statusStats = $this->db->query($query, [
-                $filters['date_from'] . ' 00:00:00',
-                $filters['date_to'] . ' 23:59:59'
-            ]);
-            
-            // Obter tempo médio de impressão
-            $query = "SELECT AVG(actual_print_time_hours) AS avg_print_time
-                      FROM print_queue
-                      WHERE status = 'completed'
-                      AND actual_start_date BETWEEN ? AND ?
-                      AND actual_end_date IS NOT NULL";
-            
-            $avgTimeResult = $this->db->query($query, [
-                $filters['date_from'] . ' 00:00:00',
-                $filters['date_to'] . ' 23:59:59'
-            ]);
-            
-            $avgPrintTime = $avgTimeResult && isset($avgTimeResult[0]['avg_print_time']) ? 
-                $avgTimeResult[0]['avg_print_time'] : 0;
-            
-            // Retornar todos os dados do relatório
-            return [
-                'period' => [
-                    'from' => $filters['date_from'],
-                    'to' => $filters['date_to']
-                ],
-                'printer_stats' => $printerStats ? $printerStats : [],
-                'filament_stats' => $filamentStats ? $filamentStats : [],
-                'status_stats' => $statusStats ? $statusStats : [],
-                'avg_print_time' => $avgPrintTime
-            ];
-        } catch (Exception $e) {
-            app_log("Erro ao gerar relatório de produção: " . $e->getMessage(), 'error');
-            return [];
-        }
-    }
-    
-    /**
-     * Dashboard com estatísticas da fila de impressão
-     * 
-     * @return array Dados do dashboard
-     */
-    public function dashboard() {
-        try {
-            // Estatísticas gerais
-            $stats = [
-                'total_queue_items' => 0,
-                'pending_items' => 0,
-                'printing_items' => 0,
-                'completed_items' => 0,
-                'failed_items' => 0,
-                'total_printers' => 0,
-                'available_printers' => 0,
-                'printing_printers' => 0,
-                'maintenance_printers' => 0,
-                'estimated_completion_time' => null
-            ];
-            
-            // Contar itens na fila por status
-            $query = "SELECT status, COUNT(*) AS count FROM print_queue GROUP BY status";
-            $statusCounts = $this->db->query($query);
-            
-            if ($statusCounts) {
-                foreach ($statusCounts as $row) {
-                    $stats['total_queue_items'] += $row['count'];
-                    
-                    switch ($row['status']) {
-                        case 'pending':
-                        case 'scheduled':
-                            $stats['pending_items'] += $row['count'];
-                            break;
-                        case 'printing':
-                            $stats['printing_items'] += $row['count'];
-                            break;
-                        case 'completed':
-                            $stats['completed_items'] += $row['count'];
-                            break;
-                        case 'failed':
-                            $stats['failed_items'] += $row['count'];
-                            break;
-                    }
-                }
-            }
-            
-            // Contar impressoras por status
-            $query = "SELECT status, COUNT(*) AS count FROM printers GROUP BY status";
-            $printerCounts = $this->db->query($query);
-            
-            if ($printerCounts) {
-                foreach ($printerCounts as $row) {
-                    $stats['total_printers'] += $row['count'];
-                    
-                    switch ($row['status']) {
-                        case 'available':
-                            $stats['available_printers'] += $row['count'];
-                            break;
-                        case 'printing':
-                            $stats['printing_printers'] += $row['count'];
-                            break;
-                        case 'maintenance':
-                            $stats['maintenance_printers'] += $row['count'];
-                            break;
-                    }
-                }
-            }
-            
-            // Calcular tempo estimado para conclusão de todos os itens pendentes
-            if ($stats['printing_printers'] > 0) {
-                $query = "SELECT SUM(estimated_print_time_hours) AS total_hours 
-                          FROM print_queue 
-                          WHERE status IN ('pending', 'scheduled')";
-                $result = $this->db->query($query);
+                // Atualizar configuração existente
+                $sql = "UPDATE print_queue_settings SET setting_value = :value";
+                $params = [
+                    ':key' => $key,
+                    ':value' => $value
+                ];
                 
-                if ($result && isset($result[0]['total_hours']) && $result[0]['total_hours'] > 0) {
-                    $totalHours = $result[0]['total_hours'];
-                    $hoursPerPrinter = $totalHours / $stats['printing_printers'];
-                    
-                    // Calcular data e hora estimada de conclusão
-                    $now = new DateTime();
-                    $now->add(new DateInterval('PT' . ceil($hoursPerPrinter) . 'H'));
-                    $stats['estimated_completion_time'] = $now->format('Y-m-d H:i:s');
+                if ($description !== null) {
+                    $description = $this->validateString($description);
+                    $sql .= ", description = :description";
+                    $params[':description'] = $description;
                 }
+                
+                $sql .= " WHERE setting_key = :key";
+                
+                return $this->db->execute($sql, $params) !== false;
+            } else {
+                // Inserir nova configuração
+                $sql = "INSERT INTO print_queue_settings (setting_key, setting_value, description) 
+                        VALUES (:key, :value, :description)";
+                
+                $params = [
+                    ':key' => $key,
+                    ':value' => $value,
+                    ':description' => $description ?? ''
+                ];
+                
+                $this->db->execute($sql, $params);
+                return $this->db->lastInsertId() !== false;
             }
-            
-            // Obter os próximos 5 itens a serem impressos
-            $query = "SELECT pq.id, pq.order_id, o.order_number, pq.product_id, p.name AS product_name,
-                      pq.estimated_print_time_hours, pq.priority, pq.status,
-                      pq.created_at, u.name AS customer_name
-                      FROM print_queue pq
-                      JOIN orders o ON pq.order_id = o.id
-                      JOIN products p ON pq.product_id = p.id
-                      LEFT JOIN users u ON o.user_id = u.id
-                      WHERE pq.status IN ('pending', 'scheduled')
-                      ORDER BY pq.priority ASC, pq.created_at ASC
-                      LIMIT 5";
-            
-            $nextItems = $this->db->query($query);
-            
-            // Obter os 5 itens impressos mais recentemente
-            $query = "SELECT pq.id, pq.order_id, o.order_number, pq.product_id, p.name AS product_name,
-                      pq.actual_print_time_hours, pq.status, pq.actual_end_date,
-                      u.name AS customer_name, pr.name AS printer_name
-                      FROM print_queue pq
-                      JOIN orders o ON pq.order_id = o.id
-                      JOIN products p ON pq.product_id = p.id
-                      LEFT JOIN users u ON o.user_id = u.id
-                      LEFT JOIN printers pr ON pq.printer_id = pr.id
-                      WHERE pq.status IN ('completed', 'failed')
-                      AND pq.actual_end_date IS NOT NULL
-                      ORDER BY pq.actual_end_date DESC
-                      LIMIT 5";
-            
-            $recentItems = $this->db->query($query);
-            
-            // Retornar todos os dados do dashboard
-            return [
-                'stats' => $stats,
-                'next_items' => $nextItems ? $nextItems : [],
-                'recent_items' => $recentItems ? $recentItems : []
-            ];
         } catch (Exception $e) {
-            app_log("Erro ao gerar dashboard: " . $e->getMessage(), 'error');
-            return [
-                'stats' => [],
-                'next_items' => [],
-                'recent_items' => []
-            ];
+            error_log('Erro ao atualizar configuração da fila: ' . $e->getMessage());
+            return false;
         }
     }
 }

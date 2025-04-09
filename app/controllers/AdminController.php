@@ -86,12 +86,28 @@ class AdminController {
         extract($data);
         
         // Incluir cabeçalho do admin
-        require_once VIEWS_PATH . '/admin/partials/header.php';
+        $headerPath = realpath(VIEWS_PATH . '/admin/partials/header.php');
+        if ($headerPath !== false && strpos($headerPath, VIEWS_PATH) === 0) {
+            require_once $headerPath;
+        } else {
+            throw new Exception('Invalid header file path');
+        }
         
         // Incluir o conteúdo específico
-        require_once $content;
+        $contentPath = realpath($content);
+        if ($contentPath !== false && strpos($contentPath, VIEWS_PATH) === 0) {
+            require_once $contentPath;
+        } else {
+            throw new Exception('Invalid content file path');
+        }
         
         // Incluir rodapé do admin
-        require_once VIEWS_PATH . '/admin/partials/footer.php';
+        $footerPath = realpath(VIEWS_PATH . '/admin/partials/footer.php');
+        if ($footerPath !== false && strpos($footerPath, VIEWS_PATH) === 0) {
+            require_once $footerPath;
+        } else {
+            throw new Exception('Invalid footer file path');
+        }
     }
+
 }

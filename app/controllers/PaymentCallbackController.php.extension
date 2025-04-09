@@ -1,0 +1,101 @@
+
+    /**
+     * Processa notificações IPN do PayPal
+     */
+    public function paypalIPN() {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo "Method Not Allowed";
+                exit;
+            }
+            
+            // IPN não usa CSRF token, mas precisa ser validado de outra forma
+            // Notificações vêm diretamente do PayPal, não do navegador do usuário
+            
+            // Capturar dados brutos do POST para processamento
+            $ipnData = $_POST;
+            
+            // Se não há dados, tentar corpo da requisição
+            if (empty($ipnData)) {
+                $rawData = file_get_contents('php://input');
+                parse_str($rawData, $ipnData);
+            }
+            
+            // Validar que existem dados mínimos
+            if (empty($ipnData)) {
+                error_log("PayPal IPN recebido sem dados");
+                http_response_code(400);
+                echo "Bad Request - No Data";
+                exit;
+            }
+            
+            // Registrar no log para depuração
+            $safeData = $this->removeSensitiveData($ipnData);
+            error_log("PayPal IPN recebido: " . json_encode($safeData));
+            
+            // Processar IPN via PaymentManager
+            $result = $this->paymentManager->processPayPalIPN($ipnData);
+            
+            // Sempre responder com sucesso, mesmo em caso de erros
+            // PayPal continuará tentando reenviar em caso de erro HTTP
+            http_response_code(200);
+            
+            if ($result['success']) {
+                echo "IPN Processed Successfully";
+            } else {
+                echo "IPN Received";
+                error_log("Erro no processamento de IPN: " . ($result['error_message'] ?? 'Erro desconhecido'));
+            }
+            
+            exit;
+        } catch (Exception $e) {
+            // Registrar erro
+            error_log("Exceção ao processar IPN PayPal: " . $e->getMessage());
+            
+            // Sempre responder com sucesso para evitar reenvios
+            http_response_code(200);
+            echo "IPN Received (Error Logged)";
+            exit;
+        }
+    }
+    
+    /**
+     * Remove dados sensíveis para log
+     * 
+     * @param array $data Dados a serem higienizados
+     * @return array Dados sem informações sensíveis
+     */
+    private function removeSensitiveData(array $data): array {
+        $sensitiveKeys = [
+            'card_number', 'cvv', 'cvc', 'security_code', 'password', 'secret',
+            'token', 'access_token', 'api_key', 'private_key', 'authorization'
+        ];
+        
+        $result = [];
+        
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $result[$key] = $this->removeSensitiveData($value);
+            } else {
+                // Verificar se a chave contém alguma das palavras sensíveis
+                $isSensitive = false;
+                foreach ($sensitiveKeys as $sensitiveKey) {
+                    if (stripos($key, $sensitiveKey) !== false) {
+                        $isSensitive = true;
+                        break;
+                    }
+                }
+                
+                if ($isSensitive) {
+                    // Mascarar dado sensível
+                    $result[$key] = '******';
+                } else {
+                    $result[$key] = $value;
+                }
+            }
+        }
+        
+        return $result;
+    }

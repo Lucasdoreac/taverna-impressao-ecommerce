@@ -20,6 +20,7 @@
                     <?php endif; ?>
                     
                     <form action="<?php echo BASE_URL; ?>print_queue/customerTrack" method="GET">
+                        <?php echo CsrfProtection::getFormField(); ?>
                         <div class="form-group">
                             <label for="order_number"><i class="fas fa-hashtag mr-2"></i> Número do Pedido:</label>
                             <input type="text" class="form-control" id="order_number" name="order_number" placeholder="Ex: ORD12345" required>

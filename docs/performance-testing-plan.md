@@ -16,7 +16,7 @@ Este documento descreve o plano para execução de testes de performance no ambi
 ## 3. Métricas-chave (KPIs)
 
 ### 3.1 Métricas de Carregamento
-- **Time to First Byte (TTFB)**: < 200ms
+- **Time to First Byte (TTFB)**: < 100ms
 - **First Contentful Paint (FCP)**: < 1.8s
 - **Largest Contentful Paint (LCP)**: < 2.5s
 - **Time to Interactive (TTI)**: < 3.5s

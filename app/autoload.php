@@ -86,12 +86,13 @@ function app_autoload($class) {
     
     // Verificar se a classe está no mapa de classes
     if (isset($classMap[$class])) {
-        if (file_exists($classMap[$class])) {
-            require_once $classMap[$class];
-            error_log("Classe {$class} carregada com sucesso de {$classMap[$class]}");
+        $filePath = realpath($classMap[$class]);
+        if ($filePath !== false && file_exists($filePath) && strpos($filePath, APP_PATH) === 0) {
+            require_once $filePath;
+            error_log("Classe {$class} carregada com sucesso de {$filePath}");
             return true;
         } else {
-            error_log("Autoloader: Arquivo {$classMap[$class]} não encontrado para a classe {$class}");
+            error_log("Autoloader: Arquivo {$classMap[$class]} não encontrado ou inválido para a classe {$class}");
         }
     }
     
@@ -110,9 +111,10 @@ function app_autoload($class) {
     
     foreach ($directories as $directory) {
         $file = $directory . $class . '.php';
-        if (file_exists($file)) {
-            require_once $file;
-            error_log("Classe {$class} carregada de diretório padrão: {$file}");
+        $filePath = realpath($file);
+        if ($filePath !== false && file_exists($filePath) && strpos($filePath, APP_PATH) === 0) {
+            require_once $filePath;
+            error_log("Classe {$class} carregada de diretório padrão: {$filePath}");
             return true;
         }
     }
@@ -121,6 +123,7 @@ function app_autoload($class) {
     
     return false;
 }
+
 
 // Registrar a função de autoload
 spl_autoload_register('app_autoload');
@@ -147,12 +150,14 @@ $essentialClasses = [
 foreach ($essentialClasses as $class => $paths) {
     if (!class_exists($class)) {
         foreach ($paths as $path) {
-            if (file_exists($path)) {
-                require_once $path;
-                error_log("Classe essencial {$class} carregada manualmente de {$path}");
+            $sanitizedPath = realpath($path);
+            if ($sanitizedPath !== false && file_exists($sanitizedPath) && strpos($sanitizedPath, __DIR__) === 0) {
+                require_once $sanitizedPath;
+                error_log("Classe essencial {$class} carregada manualmente de {$sanitizedPath}");
                 break;
             }
         }
+
     }
 }
 

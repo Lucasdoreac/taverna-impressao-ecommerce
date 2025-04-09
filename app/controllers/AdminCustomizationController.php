@@ -45,8 +45,14 @@ class AdminCustomizationController {
         $customizableProducts = $productModel->getCustomizableProducts();
         
         // Renderizar a view
-        require_once VIEWS_PATH . '/admin/customization/index.php';
+        $viewPath = VIEWS_PATH . '/admin/customization/index.php';
+        if (file_exists($viewPath) && is_file($viewPath)) {
+            require_once $viewPath;
+        } else {
+            throw new Exception('View file not found');
+        }
     }
+
     
     /**
      * Exibe o formulário para criar uma nova opção de personalização
@@ -66,8 +72,15 @@ class AdminCustomizationController {
         $selectedProductId = isset($_GET['product_id']) ? (int)$_GET['product_id'] : null;
         
         // Renderizar a view
-        require_once VIEWS_PATH . '/admin/customization/form.php';
+        $view_path = VIEWS_PATH . '/admin/customization/form.php';
+        if (file_exists($view_path) && !preg_match('/\.\./', $view_path)) {
+            require_once $view_path;
+        } else {
+            // Handle error - view file not found or invalid path
+            throw new Exception("View file not found or invalid path");
+        }
     }
+
     
     /**
      * Processa a criação de uma nova opção de personalização
@@ -214,8 +227,14 @@ class AdminCustomizationController {
         }
         
         // Renderizar a view
-        require_once VIEWS_PATH . '/admin/customization/form.php';
+        $view_path = VIEWS_PATH . '/admin/customization/form.php';
+        if (file_exists($view_path) && is_file($view_path)) {
+            require_once $view_path;
+        } else {
+            throw new Exception('View file not found');
+        }
     }
+
     
     /**
      * Processa a atualização de uma opção de personalização
@@ -356,8 +375,14 @@ class AdminCustomizationController {
         }
         
         // Renderizar a view
-        require_once VIEWS_PATH . '/admin/customization/delete.php';
+        $view_path = VIEWS_PATH . '/admin/customization/delete.php';
+        if (file_exists($view_path) && !preg_match('/\.\./', $view_path)) {
+            require_once $view_path;
+        } else {
+            throw new Exception('View file not found or invalid path');
+        }
     }
+
     
     /**
      * Processa a exclusão de uma opção de personalização
@@ -446,6 +471,12 @@ class AdminCustomizationController {
         }
         
         // Renderizar a view
-        require_once VIEWS_PATH . '/admin/customization/show.php';
+        $view_path = VIEWS_PATH . '/admin/customization/show.php';
+        if (file_exists($view_path) && is_file($view_path)) {
+            require_once $view_path;
+        } else {
+            throw new Exception('View file not found');
+        }
     }
+
 }

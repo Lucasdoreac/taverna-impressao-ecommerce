@@ -5,8 +5,14 @@
  * Este controlador é responsável por fornecer interfaces e funcionalidades para
  * monitorar e gerenciar a integração entre o sistema de pedidos e a fila de impressão 3D,
  * incluindo logs, estatísticas e ferramentas de diagnóstico.
+ * 
+ * @version     1.3.0
+ * @author      Taverna da Impressão
  */
 class IntegrationController extends AdminController {
+    
+    // Implementação do trait de validação
+    use InputValidationTrait;
     
     private $integrationLogModel;
     private $orderModel;
@@ -30,6 +36,10 @@ class IntegrationController extends AdminController {
         
         // Verificar se a tabela de logs existe
         $this->integrationLogModel->createTableIfNotExists();
+        
+        // Carregar biblioteca de segurança
+        require_once APP_PATH . '/lib/Security/SecurityManager.php';
+        require_once APP_PATH . '/lib/Security/InputValidationTrait.php';
     }
     
     /**
@@ -54,6 +64,9 @@ class IntegrationController extends AdminController {
             // Preparar dados para o gráfico de atividade
             $chartData = $this->prepareChartData();
             
+            // Adicionar token CSRF para formulários na view
+            $csrfToken = SecurityManager::getCsrfToken();
+            
             // Renderizar a view do dashboard
             require_once VIEWS_PATH . '/admin/integration_dashboard.php';
         } catch (Exception $e) {
@@ -62,8 +75,8 @@ class IntegrationController extends AdminController {
             
             // Exibir mensagem de erro
             $_SESSION['error'] = 'Ocorreu um erro ao carregar o dashboard de integração. Por favor, tente novamente.';
-            header('Location: ' . BASE_URL . 'admin/dashboard');
-            exit;
+            $this->redirect('admin/dashboard');
+            return;
         }
     }
     
@@ -72,13 +85,18 @@ class IntegrationController extends AdminController {
      */
     public function logs() {
         try {
-            // Parâmetros de filtragem
-            $status = isset($_GET['status']) ? $_GET['status'] : null;
-            $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
-            $limit = min($limit, 500); // Limitar a 500 para performance
+            // Parâmetros de filtragem com validação usando o trait
+            $status = $this->getValidatedParam('status', 'string', ['allowEmpty' => true]);
+            $limit = $this->getValidatedParam('limit', 'int', ['default' => 100, 'min' => 1, 'max' => 500]);
             
             // Obter logs filtrados
             if ($status) {
+                // Validar que status é um valor permitido
+                $validStatuses = ['success', 'warning', 'error', 'info'];
+                if (!in_array($status, $validStatuses)) {
+                    $status = null;
+                }
+                
                 $logs = $this->integrationLogModel->getEventsByStatus($status, $limit);
             } else {
                 $logs = $this->integrationLogModel->getRecentEvents($limit);
@@ -86,6 +104,9 @@ class IntegrationController extends AdminController {
             
             // Estatísticas de eventos
             $eventStats = $this->integrationLogModel->getEventsStatistics();
+            
+            // Adicionar token CSRF para formulários na view
+            $csrfToken = SecurityManager::getCsrfToken();
             
             // Renderizar a view de logs
             require_once VIEWS_PATH . '/admin/integration_logs.php';
@@ -95,8 +116,8 @@ class IntegrationController extends AdminController {
             
             // Exibir mensagem de erro
             $_SESSION['error'] = 'Ocorreu um erro ao carregar os logs de integração. Por favor, tente novamente.';
-            header('Location: ' . BASE_URL . 'admin/integration/dashboard');
-            exit;
+            $this->redirect('admin/integration/dashboard');
+            return;
         }
     }
     
@@ -105,12 +126,14 @@ class IntegrationController extends AdminController {
      */
     public function orphaned() {
         try {
-            // Parâmetros de filtragem
-            $daysBack = isset($_GET['days']) ? (int)$_GET['days'] : 7;
-            $daysBack = min($daysBack, 30); // Limitar a 30 dias para performance
+            // Parâmetros de filtragem com validação usando o trait
+            $daysBack = $this->getValidatedParam('days', 'int', ['default' => 7, 'min' => 1, 'max' => 30]);
             
             // Obter todos os jobs órfãos
             $orphanedJobs = $this->integrationLogModel->findOrphanedJobs($daysBack);
+            
+            // Adicionar token CSRF para formulários na view
+            $csrfToken = SecurityManager::getCsrfToken();
             
             // Renderizar a view de jobs órfãos
             require_once VIEWS_PATH . '/admin/integration_orphaned_jobs.php';
@@ -120,8 +143,8 @@ class IntegrationController extends AdminController {
             
             // Exibir mensagem de erro
             $_SESSION['error'] = 'Ocorreu um erro ao carregar os jobs órfãos. Por favor, tente novamente.';
-            header('Location: ' . BASE_URL . 'admin/integration/dashboard');
-            exit;
+            $this->redirect('admin/integration/dashboard');
+            return;
         }
     }
     
@@ -130,12 +153,14 @@ class IntegrationController extends AdminController {
      */
     public function incomplete() {
         try {
-            // Parâmetros de filtragem
-            $daysBack = isset($_GET['days']) ? (int)$_GET['days'] : 7;
-            $daysBack = min($daysBack, 30); // Limitar a 30 dias para performance
+            // Parâmetros de filtragem com validação usando o trait
+            $daysBack = $this->getValidatedParam('days', 'int', ['default' => 7, 'min' => 1, 'max' => 30]);
             
             // Obter todos os fluxos incompletos
             $incompleteFlows = $this->integrationLogModel->findIncompleteIntegrationFlows($daysBack);
+            
+            // Adicionar token CSRF para formulários na view
+            $csrfToken = SecurityManager::getCsrfToken();
             
             // Renderizar a view de fluxos incompletos
             require_once VIEWS_PATH . '/admin/integration_incomplete_flows.php';
@@ -145,8 +170,8 @@ class IntegrationController extends AdminController {
             
             // Exibir mensagem de erro
             $_SESSION['error'] = 'Ocorreu um erro ao carregar os fluxos incompletos. Por favor, tente novamente.';
-            header('Location: ' . BASE_URL . 'admin/integration/dashboard');
-            exit;
+            $this->redirect('admin/integration/dashboard');
+            return;
         }
     }
     
@@ -161,14 +186,20 @@ class IntegrationController extends AdminController {
             // Processar reparo se o formulário foi enviado
             if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 // Validar token CSRF
-                if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+                $csrfToken = $this->postValidatedParam('csrf_token', 'string', ['required' => true]);
+                if (!$csrfToken || !SecurityManager::validateCsrfToken($csrfToken)) {
                     throw new Exception("Token de segurança inválido");
                 }
                 
-                // Obter configurações de reparo
-                $repairOrphaned = isset($_POST['repair_orphaned']) && $_POST['repair_orphaned'] == '1';
-                $repairIncomplete = isset($_POST['repair_incomplete']) && $_POST['repair_incomplete'] == '1';
-                $daysBack = isset($_POST['days_back']) ? (int)$_POST['days_back'] : 7;
+                // Obter e validar configurações de reparo
+                $repairOrphaned = $this->postValidatedParam('repair_orphaned', 'bool', ['default' => false]);
+                $repairIncomplete = $this->postValidatedParam('repair_incomplete', 'bool', ['default' => false]);
+                $daysBack = $this->postValidatedParam('days_back', 'int', ['default' => 7, 'min' => 1, 'max' => 30]);
+                
+                // Validar que pelo menos uma opção de reparo foi selecionada
+                if (!$repairOrphaned && !$repairIncomplete) {
+                    throw new Exception("Selecione pelo menos uma opção de reparo");
+                }
                 
                 // Executar reparos
                 if ($repairOrphaned) {
@@ -197,7 +228,7 @@ class IntegrationController extends AdminController {
             }
             
             // Gerar token CSRF para o formulário
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            $csrfToken = SecurityManager::getCsrfToken(true);
             
             // Estatísticas para a view
             $orphanedCount = count($this->integrationLogModel->findOrphanedJobs(7));
@@ -210,9 +241,9 @@ class IntegrationController extends AdminController {
             app_log("Erro na ferramenta de reparo: " . $e->getMessage(), 'error');
             
             // Exibir mensagem de erro
-            $_SESSION['error'] = 'Ocorreu um erro na ferramenta de reparo: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'admin/integration/dashboard');
-            exit;
+            $_SESSION['error'] = 'Ocorreu um erro na ferramenta de reparo: ' . SecurityManager::sanitize($e->getMessage());
+            $this->redirect('admin/integration/dashboard');
+            return;
         }
     }
     
@@ -223,10 +254,15 @@ class IntegrationController extends AdminController {
      */
     public function fixJob($jobId) {
         try {
-            // Validar ID
-            $jobId = (int)$jobId;
-            if ($jobId <= 0) {
-                throw new Exception("ID de job inválido");
+            // Validar ID usando o método validateId
+            $jobId = $this->validateId($jobId);
+            
+            // Verificar token CSRF para solicitações POST
+            if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+                $csrfToken = $this->postValidatedParam('csrf_token', 'string', ['required' => true]);
+                if (!$csrfToken || !SecurityManager::validateCsrfToken($csrfToken)) {
+                    throw new Exception("Token de segurança inválido");
+                }
             }
             
             // Obter dados do job
@@ -240,8 +276,8 @@ class IntegrationController extends AdminController {
                 // Tentar encontrar pedido relacionado
                 // Lógica específica de reparo aqui...
                 $_SESSION['warning'] = 'Job não está vinculado a nenhum pedido. Reparo manual necessário.';
-                header('Location: ' . BASE_URL . 'admin/print-jobs/view/' . $jobId);
-                exit;
+                $this->redirect('admin/print-jobs/view/' . $jobId);
+                return;
             }
             
             // Verificar status do job e do pedido
@@ -264,7 +300,7 @@ class IntegrationController extends AdminController {
                     'success',
                     [
                         'admin_id' => $_SESSION['user']['id'],
-                        'admin_name' => $_SESSION['user']['name'],
+                        'admin_name' => SecurityManager::sanitize($_SESSION['user']['name']),
                         'old_status' => $job['status'],
                         'new_status' => $this->printQueueModel->getJob($jobId)['status']
                     ]
@@ -273,16 +309,16 @@ class IntegrationController extends AdminController {
                 $_SESSION['info'] = 'O job não precisava de reparo ou não foi possível repará-lo automaticamente.';
             }
             
-            header('Location: ' . BASE_URL . 'admin/print-jobs/view/' . $jobId);
-            exit;
+            $this->redirect('admin/print-jobs/view/' . $jobId);
+            return;
         } catch (Exception $e) {
             // Registrar erro no log
             app_log("Erro ao reparar job: " . $e->getMessage(), 'error');
             
             // Exibir mensagem de erro
-            $_SESSION['error'] = 'Ocorreu um erro ao reparar o job: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'admin/integration/orphaned');
-            exit;
+            $_SESSION['error'] = 'Ocorreu um erro ao reparar o job: ' . SecurityManager::sanitize($e->getMessage());
+            $this->redirect('admin/integration/orphaned');
+            return;
         }
     }
     
@@ -294,9 +330,14 @@ class IntegrationController extends AdminController {
     public function fixOrder($orderId) {
         try {
             // Validar ID
-            $orderId = (int)$orderId;
-            if ($orderId <= 0) {
-                throw new Exception("ID de pedido inválido");
+            $orderId = $this->validateId($orderId);
+            
+            // Verificar token CSRF para solicitações POST
+            if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+                $csrfToken = $this->postValidatedParam('csrf_token', 'string', ['required' => true]);
+                if (!$csrfToken || !SecurityManager::validateCsrfToken($csrfToken)) {
+                    throw new Exception("Token de segurança inválido");
+                }
             }
             
             // Obter dados do pedido
@@ -319,14 +360,29 @@ class IntegrationController extends AdminController {
             // Se não há jobs mas há itens sob encomenda, criar jobs
             if (empty($jobs) && !empty($customPrintItems)) {
                 foreach ($customPrintItems as $item) {
+                    // Validar dados do item antes de criar job
+                    if (!isset($item['id']) || !isset($item['product_id']) || !isset($item['product_name'])) {
+                        throw new Exception("Dados de item inválidos");
+                    }
+                    
+                    // Sanitizar dados
+                    $productName = SecurityManager::sanitize($item['product_name']);
+                    $options = isset($item['options']) ? SecurityManager::sanitize($item['options']) : '';
+                    $quantity = isset($item['quantity']) ? (int)$item['quantity'] : 1;
+                    
+                    // Validar quantidade
+                    if ($quantity <= 0) {
+                        $quantity = 1;
+                    }
+                    
                     $this->printQueueModel->createJob([
                         'order_id' => $orderId,
-                        'order_item_id' => $item['id'],
-                        'product_id' => $item['product_id'],
-                        'product_name' => $item['product_name'],
+                        'order_item_id' => (int)$item['id'],
+                        'product_id' => (int)$item['product_id'],
+                        'product_name' => $productName,
                         'status' => $this->mapOrderStatusToPrintJobStatus($order['status']),
-                        'quantity' => $item['quantity'],
-                        'options' => $item['options'],
+                        'quantity' => $quantity,
+                        'options' => $options,
                         'created_at' => date('Y-m-d H:i:s'),
                         'notes' => 'Criado automaticamente pela ferramenta de reparo'
                     ]);
@@ -343,7 +399,7 @@ class IntegrationController extends AdminController {
                     'success',
                     [
                         'admin_id' => $_SESSION['user']['id'],
-                        'admin_name' => $_SESSION['user']['name'],
+                        'admin_name' => SecurityManager::sanitize($_SESSION['user']['name']),
                         'items_count' => count($customPrintItems)
                     ]
                 );
@@ -369,7 +425,7 @@ class IntegrationController extends AdminController {
                         'success',
                         [
                             'admin_id' => $_SESSION['user']['id'],
-                            'admin_name' => $_SESSION['user']['name'],
+                            'admin_name' => SecurityManager::sanitize($_SESSION['user']['name']),
                             'updated_count' => $updatedCount
                         ]
                     );
@@ -380,16 +436,16 @@ class IntegrationController extends AdminController {
                 $_SESSION['info'] = 'O pedido não precisava de reparo ou não foi possível repará-lo automaticamente.';
             }
             
-            header('Location: ' . BASE_URL . 'admin/orders/view/' . $orderId);
-            exit;
+            $this->redirect('admin/orders/view/' . $orderId);
+            return;
         } catch (Exception $e) {
             // Registrar erro no log
             app_log("Erro ao reparar pedido: " . $e->getMessage(), 'error');
             
             // Exibir mensagem de erro
-            $_SESSION['error'] = 'Ocorreu um erro ao reparar o pedido: ' . $e->getMessage();
-            header('Location: ' . BASE_URL . 'admin/integration/incomplete');
-            exit;
+            $_SESSION['error'] = 'Ocorreu um erro ao reparar o pedido: ' . SecurityManager::sanitize($e->getMessage());
+            $this->redirect('admin/integration/incomplete');
+            return;
         }
     }
     
@@ -475,6 +531,9 @@ class IntegrationController extends AdminController {
      * @return array Estatísticas de reparo
      */
     private function repairOrphanedJobs($daysBack) {
+        // Validar daysBack
+        $daysBack = max(1, min(30, (int)$daysBack));
+        
         $orphanedJobs = $this->integrationLogModel->findOrphanedJobs($daysBack);
         $stats = [
             'found' => count($orphanedJobs),
@@ -512,7 +571,7 @@ class IntegrationController extends AdminController {
                 
             } catch (Exception $e) {
                 $stats['failed']++;
-                $stats['details'][] = "Job #{$job['id']}: Erro: " . $e->getMessage();
+                $stats['details'][] = "Job #{$job['id']}: Erro: " . SecurityManager::sanitize($e->getMessage());
             }
         }
         
@@ -526,6 +585,9 @@ class IntegrationController extends AdminController {
      * @return array Estatísticas de reparo
      */
     private function repairIncompleteFlows($daysBack) {
+        // Validar daysBack
+        $daysBack = max(1, min(30, (int)$daysBack));
+        
         $incompleteFlows = $this->integrationLogModel->findIncompleteIntegrationFlows($daysBack);
         $stats = [
             'found' => count($incompleteFlows),
@@ -565,14 +627,24 @@ class IntegrationController extends AdminController {
                     
                     // Criar job se não existir
                     if (!$jobExists) {
+                        // Sanitizar dados
+                        $productName = SecurityManager::sanitize($item['product_name']);
+                        $options = isset($item['options']) ? SecurityManager::sanitize($item['options']) : '';
+                        $quantity = isset($item['quantity']) ? (int)$item['quantity'] : 1;
+                        
+                        // Validar quantidade
+                        if ($quantity <= 0) {
+                            $quantity = 1;
+                        }
+                        
                         $this->printQueueModel->createJob([
                             'order_id' => $order['id'],
-                            'order_item_id' => $item['id'],
-                            'product_id' => $item['product_id'],
-                            'product_name' => $item['product_name'],
+                            'order_item_id' => (int)$item['id'],
+                            'product_id' => (int)$item['product_id'],
+                            'product_name' => $productName,
                             'status' => $this->mapOrderStatusToPrintJobStatus($order['status']),
-                            'quantity' => $item['quantity'],
-                            'options' => $item['options'],
+                            'quantity' => $quantity,
+                            'options' => $options,
                             'created_at' => date('Y-m-d H:i:s'),
                             'notes' => 'Criado automaticamente pela ferramenta de reparo'
                         ]);
@@ -591,7 +663,7 @@ class IntegrationController extends AdminController {
                 
             } catch (Exception $e) {
                 $stats['failed']++;
-                $stats['details'][] = "Pedido #{$order['id']}: Erro: " . $e->getMessage();
+                $stats['details'][] = "Pedido #{$order['id']}: Erro: " . SecurityManager::sanitize($e->getMessage());
             }
         }
         
@@ -606,6 +678,15 @@ class IntegrationController extends AdminController {
      * @return bool Verdadeiro se o job foi sincronizado
      */
     private function synchronizeJobWithOrder($job, $order) {
+        // Validar que job e order são arrays com os campos necessários
+        if (!is_array($job) || !isset($job['id']) || !isset($job['status'])) {
+            return false;
+        }
+        
+        if (!is_array($order) || !isset($order['status'])) {
+            return false;
+        }
+        
         // Mapear status do pedido para status do job
         $expectedJobStatus = $this->mapOrderStatusToPrintJobStatus($order['status']);
         
@@ -625,6 +706,9 @@ class IntegrationController extends AdminController {
      * @return string Status equivalente do job de impressão
      */
     private function mapOrderStatusToPrintJobStatus($orderStatus) {
+        // Validar e sanitizar orderStatus
+        $orderStatus = SecurityManager::sanitize($orderStatus);
+        
         switch ($orderStatus) {
             case 'pending':
                 return 'pending';
@@ -640,5 +724,33 @@ class IntegrationController extends AdminController {
             default:
                 return 'pending';
         }
+    }
+    
+    /**
+     * Valida um ID, garantindo que seja um inteiro positivo
+     * 
+     * @param mixed $id ID a ser validado
+     * @return int ID validado
+     * @throws Exception Se o ID for inválido
+     */
+    private function validateId($id) {
+        $id = (int)$id;
+        
+        if ($id <= 0) {
+            throw new Exception("ID inválido");
+        }
+        
+        return $id;
+    }
+    
+    /**
+     * Método para redirecionamento seguro
+     * 
+     * @param string $path Caminho para redirecionamento
+     * @return void
+     */
+    private function redirect($path) {
+        header('Location: ' . BASE_URL . $path);
+        return;
     }
 }

@@ -23,8 +23,8 @@ class CustomerModelModel {
      * @return int|bool ID do modelo inserido ou false em caso de erro
      */
     public function saveModel($userId, $fileName, $originalName, $fileSize, $fileType, $notes = '', $status = 'pending_validation', $validationResult = null) {
-        $sql = "INSERT INTO customer_models (user_id, file_name, original_name, file_size, file_type, notes, status, validation_data) 
-                VALUES (:user_id, :file_name, :original_name, :file_size, :file_type, :notes, :status, :validation_data)";
+        $sql = "INSERT INTO customer_models (user_id, file_name, original_name, file_size, file_type, notes, status, validation_data, created_at) 
+                VALUES (:user_id, :file_name, :original_name, :file_size, :file_type, :notes, :status, :validation_data, NOW())";
         
         // Serializar o resultado da validação para armazenamento
         $validationData = null;
@@ -47,7 +47,7 @@ class CustomerModelModel {
             $this->db->execute($sql, $params);
             return $this->db->lastInsertId();
         } catch (Exception $e) {
-            app_log('Erro ao salvar modelo 3D: ' . $e->getMessage());
+            error_log('Erro ao salvar modelo 3D: ' . $e->getMessage());
             return false;
         }
     }
@@ -62,7 +62,7 @@ class CustomerModelModel {
      */
     public function updateStatus($modelId, $status, $notes = null) {
         $sql = "UPDATE customer_models 
-                SET status = :status";
+                SET status = :status, updated_at = NOW()";
         
         $params = [
             ':status' => $status,
@@ -70,7 +70,7 @@ class CustomerModelModel {
         ];
         
         if ($notes !== null) {
-            $sql .= ", notes = :notes";
+            $sql .= ", admin_notes = :notes";
             $params[':notes'] = $notes;
         }
         
@@ -79,7 +79,7 @@ class CustomerModelModel {
         try {
             return $this->db->execute($sql, $params);
         } catch (Exception $e) {
-            app_log('Erro ao atualizar status do modelo 3D: ' . $e->getMessage());
+            error_log('Erro ao atualizar status do modelo 3D: ' . $e->getMessage());
             return false;
         }
     }
@@ -92,7 +92,7 @@ class CustomerModelModel {
      * @return bool True se atualizado com sucesso, false caso contrário
      */
     public function updateNotes($modelId, $notes) {
-        $sql = "UPDATE customer_models SET notes = :notes WHERE id = :id";
+        $sql = "UPDATE customer_models SET notes = :notes, updated_at = NOW() WHERE id = :id";
         
         $params = [
             ':notes' => $notes,
@@ -102,7 +102,7 @@ class CustomerModelModel {
         try {
             return $this->db->execute($sql, $params);
         } catch (Exception $e) {
-            app_log('Erro ao atualizar notas do modelo 3D: ' . $e->getMessage());
+            error_log('Erro ao atualizar notas do modelo 3D: ' . $e->getMessage());
             return false;
         }
     }
@@ -115,7 +115,7 @@ class CustomerModelModel {
      * @return bool True se atualizado com sucesso, false caso contrário
      */
     public function updateValidationData($modelId, $validationData) {
-        $sql = "UPDATE customer_models SET validation_data = :validation_data WHERE id = :id";
+        $sql = "UPDATE customer_models SET validation_data = :validation_data, updated_at = NOW() WHERE id = :id";
         
         $params = [
             ':validation_data' => json_encode($validationData),
@@ -125,7 +125,7 @@ class CustomerModelModel {
         try {
             return $this->db->execute($sql, $params);
         } catch (Exception $e) {
-            app_log('Erro ao atualizar dados de validação do modelo 3D: ' . $e->getMessage());
+            error_log('Erro ao atualizar dados de validação do modelo 3D: ' . $e->getMessage());
             return false;
         }
     }
@@ -149,7 +149,7 @@ class CustomerModelModel {
             
             return $model;
         } catch (Exception $e) {
-            app_log('Erro ao obter modelo 3D: ' . $e->getMessage());
+            error_log('Erro ao obter modelo 3D: ' . $e->getMessage());
             return false;
         }
     }
@@ -184,7 +184,7 @@ class CustomerModelModel {
             
             return $models;
         } catch (Exception $e) {
-            app_log('Erro ao listar modelos 3D do usuário: ' . $e->getMessage());
+            error_log('Erro ao listar modelos 3D do usuário: ' . $e->getMessage());
             return [];
         }
     }
@@ -213,7 +213,7 @@ class CustomerModelModel {
             
             return $models;
         } catch (Exception $e) {
-            app_log('Erro ao listar modelos 3D pendentes: ' . $e->getMessage());
+            error_log('Erro ao listar modelos 3D pendentes: ' . $e->getMessage());
             return [];
         }
     }
@@ -238,7 +238,23 @@ class CustomerModelModel {
             
             // Se a exclusão no banco foi bem sucedida, excluir o arquivo físico
             if ($result) {
-                $filePath = UPLOADS_PATH . '/3d_models/' . $model['file_name'];
+                // Determinar o diretório baseado no status
+                $baseDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/models/';
+                
+                switch ($model['status']) {
+                    case 'pending_validation':
+                        $filePath = $baseDir . 'quarantine/' . $model['file_name'];
+                        break;
+                    case 'approved':
+                        $filePath = $baseDir . 'approved/' . $model['file_name'];
+                        break;
+                    case 'rejected':
+                        $filePath = $baseDir . 'rejected/' . $model['file_name'];
+                        break;
+                    default:
+                        $filePath = $baseDir . 'quarantine/' . $model['file_name'];
+                }
+                
                 if (file_exists($filePath)) {
                     unlink($filePath);
                 }
@@ -246,7 +262,7 @@ class CustomerModelModel {
             
             return $result;
         } catch (Exception $e) {
-            app_log('Erro ao excluir modelo 3D: ' . $e->getMessage());
+            error_log('Erro ao excluir modelo 3D: ' . $e->getMessage());
             return false;
         }
     }
@@ -270,8 +286,53 @@ class CustomerModelModel {
             
             return ($result && $result['count'] > 0);
         } catch (Exception $e) {
-            app_log('Erro ao verificar proprietário do modelo: ' . $e->getMessage());
+            error_log('Erro ao verificar proprietário do modelo: ' . $e->getMessage());
             return false;
+        }
+    }
+    
+    /**
+     * Conta modelos enviados pelo usuário em um período de tempo
+     *
+     * @param int $userId ID do usuário
+     * @param int $minutes Período em minutos (padrão: 60 minutos = 1 hora)
+     * @return int Número de modelos enviados no período
+     */
+    public function countRecentUploads($userId, $minutes = 60) {
+        $sql = "SELECT COUNT(*) as count FROM customer_models 
+                WHERE user_id = :user_id 
+                AND created_at >= DATE_SUB(NOW(), INTERVAL :minutes MINUTE)";
+        
+        try {
+            $result = $this->db->fetchSingle($sql, [
+                ':user_id' => $userId,
+                ':minutes' => $minutes
+            ]);
+            
+            return ($result) ? $result['count'] : 0;
+        } catch (Exception $e) {
+            error_log('Erro ao contar uploads recentes: ' . $e->getMessage());
+            return 0;
+        }
+    }
+    
+    /**
+     * Calcula o espaço total usado por modelos de um usuário
+     *
+     * @param int $userId ID do usuário
+     * @return int Total de bytes utilizados
+     */
+    public function calculateUserStorageUsage($userId) {
+        $sql = "SELECT SUM(file_size) as total_size FROM customer_models 
+                WHERE user_id = :user_id";
+        
+        try {
+            $result = $this->db->fetchSingle($sql, [':user_id' => $userId]);
+            
+            return ($result && $result['total_size']) ? $result['total_size'] : 0;
+        } catch (Exception $e) {
+            error_log('Erro ao calcular uso de armazenamento: ' . $e->getMessage());
+            return 0;
         }
     }
     
@@ -320,14 +381,21 @@ class CustomerModelModel {
                 }
             }
             
+            // Uso total de armazenamento
+            $sql = "SELECT SUM(file_size) as total_size FROM customer_models";
+            $sizeResult = $this->db->fetchSingle($sql);
+            $totalSize = $sizeResult ? $sizeResult['total_size'] : 0;
+            
             // Retornar estatísticas
             return [
                 'total' => $total,
                 'by_status' => $statusStats,
-                'by_type' => $typeStats
+                'by_type' => $typeStats,
+                'total_storage' => $totalSize,
+                'total_storage_formatted' => $this->formatFileSize($totalSize)
             ];
         } catch (Exception $e) {
-            app_log('Erro ao obter estatísticas de modelos 3D: ' . $e->getMessage());
+            error_log('Erro ao obter estatísticas de modelos 3D: ' . $e->getMessage());
             return [
                 'total' => 0,
                 'by_status' => [
@@ -335,8 +403,87 @@ class CustomerModelModel {
                     'approved' => 0,
                     'rejected' => 0
                 ],
-                'by_type' => []
+                'by_type' => [],
+                'total_storage' => 0,
+                'total_storage_formatted' => '0 B'
             ];
+        }
+    }
+    
+    /**
+     * Formata tamanho do arquivo para exibição
+     * 
+     * @param int $bytes Tamanho em bytes
+     * @param int $precision Precisão de casas decimais
+     * @return string Tamanho formatado
+     */
+    private function formatFileSize($bytes, $precision = 2) {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        
+        $bytes /= pow(1024, $pow);
+        
+        return round($bytes, $precision) . ' ' . $units[$pow];
+    }
+    
+    /**
+     * Registra um evento de auditoria para modelo 3D
+     *
+     * @param int $modelId ID do modelo
+     * @param int $userId ID do usuário que realizou a ação
+     * @param string $action Ação realizada (upload, review, delete, etc.)
+     * @param array $data Dados adicionais sobre a ação
+     * @return bool True se registrado com sucesso, false caso contrário
+     */
+    public function logModelEvent($modelId, $userId, $action, $data = []) {
+        $sql = "INSERT INTO audit_log (model_id, user_id, action, action_data, created_at) 
+                VALUES (:model_id, :user_id, :action, :action_data, NOW())";
+        
+        $params = [
+            ':model_id' => $modelId,
+            ':user_id' => $userId,
+            ':action' => $action,
+            ':action_data' => json_encode($data)
+        ];
+        
+        try {
+            return $this->db->execute($sql, $params);
+        } catch (Exception $e) {
+            error_log('Erro ao registrar evento de auditoria: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Obtém eventos de auditoria de um modelo
+     *
+     * @param int $modelId ID do modelo
+     * @return array Lista de eventos
+     */
+    public function getModelEvents($modelId) {
+        $sql = "SELECT al.*, u.name as user_name 
+                FROM audit_log al
+                JOIN users u ON al.user_id = u.id
+                WHERE al.model_id = :model_id
+                ORDER BY al.created_at DESC";
+        
+        try {
+            $events = $this->db->fetchAll($sql, [':model_id' => $modelId]);
+            
+            // Deserializar os dados da ação para cada evento
+            foreach ($events as &$event) {
+                if (isset($event['action_data']) && !empty($event['action_data'])) {
+                    $event['action_data'] = json_decode($event['action_data'], true);
+                }
+            }
+            
+            return $events;
+        } catch (Exception $e) {
+            error_log('Erro ao obter eventos de auditoria: ' . $e->getMessage());
+            return [];
         }
     }
 }

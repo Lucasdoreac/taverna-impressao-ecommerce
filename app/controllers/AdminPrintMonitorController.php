@@ -244,7 +244,7 @@ class AdminPrintMonitorController extends Controller {
     public function addOrUpdateStatus() {
         // Verificar se é uma requisição POST
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->redirect('admin/impressoes');
+            $this->safeRedirect('admin/impressoes');
             return;
         }
         
@@ -261,7 +261,7 @@ class AdminPrintMonitorController extends Controller {
         // Validar dados essenciais
         if (empty($printStatusId) && (empty($orderId) || empty($productId) || empty($printQueueId))) {
             $this->session->setFlash('error', 'Dados insuficientes para criar/atualizar o status.');
-            $this->redirect('admin/impressoes');
+            $this->safeRedirect('admin/impressoes');
             return;
         }
         
@@ -306,7 +306,7 @@ class AdminPrintMonitorController extends Controller {
                 }
             }
             
-            $this->redirect('admin/impressao/' . $printStatusId);
+            $this->safeRedirect('admin/impressao/' . $printStatusId);
             return;
         }
         
@@ -325,12 +325,13 @@ class AdminPrintMonitorController extends Controller {
         
         if ($newStatusId) {
             $this->session->setFlash('success', 'Novo status de impressão criado com sucesso.');
-            $this->redirect('admin/impressao/' . $newStatusId);
+            $this->safeRedirect('admin/impressao/' . $newStatusId);
         } else {
             $this->session->setFlash('error', 'Erro ao criar novo status de impressão.');
-            $this->redirect('admin/impressoes');
+            $this->safeRedirect('admin/impressoes');
         }
     }
+
     
     /**
      * Adiciona uma mensagem a um status de impressão

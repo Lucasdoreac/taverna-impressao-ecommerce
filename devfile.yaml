@@ -1,0 +1,16 @@
+schemaVersion: 2.0.0
+metadata:
+  name: php-web-application
+components:
+  - name: dev
+    container:
+      image: public.ecr.aws/aws-mde/universal-image:latest
+commands:
+  - id: install
+    exec:
+      component: dev
+      commandLine: "composer install"
+  - id: test
+    exec:
+      component: dev
+      commandLine: "php vendor/bin/phpunit admin/tests && php vendor/bin/phpunit app/tests"

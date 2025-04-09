@@ -23,6 +23,7 @@
                     <?php endif; ?>
                     
                     <form action="<?= BASE_URL ?>login" method="post">
+                        <?= CsrfProtection::getFormField() ?>
                         <div class="mb-3">
                             <label for="email" class="form-label">E-mail</label>
                             <input type="email" class="form-control <?= isset($errors['email']) ? 'is-invalid' : '' ?>" 

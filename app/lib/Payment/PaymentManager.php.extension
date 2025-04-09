@@ -1,0 +1,387 @@
+    /**
+     * Captura um pagamento PayPal previamente autorizado
+     * 
+     * @param string $transactionId ID da transação/ordem do PayPal
+     * @param string $payerId ID do pagador (recebido no retorno do PayPal)
+     * @return array Resultado da captura
+     * @throws \Exception Em caso de falha
+     */
+    public function capturePayPalPayment(string $transactionId, string $payerId): array {
+        try {
+            // Validar parâmetros
+            if (empty($transactionId) || empty($payerId)) {
+                throw new \Exception("Parâmetros inválidos para captura de pagamento PayPal");
+            }
+            
+            // Obter gateway PayPal
+            $gateway = $this->getGateway('paypal');
+            
+            // Efetuar captura de pagamento usando API não-pública do gateway
+            $reflectionMethod = new \ReflectionMethod($gateway, 'capturePayment');
+            $reflectionMethod->setAccessible(true);
+            $result = $reflectionMethod->invoke($gateway, $transactionId);
+            
+            // Registrar resultado
+            $success = isset($result['success']) && $result['success'];
+            error_log("Captura de pagamento PayPal " . ($success ? "bem-sucedida" : "falhou") . ": " . json_encode($result));
+            
+            return $result;
+        } catch (\Exception $e) {
+            error_log("Erro ao capturar pagamento PayPal: " . $e->getMessage());
+            
+            // Retornar erro estruturado
+            return [
+                'success' => false,
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode()
+            ];
+        }
+    }
+    
+    /**
+     * Verifica se um pedido tem transação de PayPal associada
+     * 
+     * @param int $orderId ID do pedido a ser verificado
+     * @return array|null Informações da transação PayPal ou null se não encontrada
+     */
+    public function getPayPalTransactionForOrder(int $orderId): ?array {
+        try {
+            // Buscar transação de pagamento associada ao pedido
+            $pdo = \Database::getInstance()->getPdo();
+            $stmt = $pdo->prepare("
+                SELECT * FROM payment_transactions 
+                WHERE order_id = ? AND gateway_name = 'paypal'
+                ORDER BY id DESC LIMIT 1
+            ");
+            
+            $stmt->execute([$orderId]);
+            $transaction = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if (!$transaction) {
+                return null;
+            }
+            
+            // Processar dados adicionais
+            if (!empty($transaction['additional_data'])) {
+                $additionalData = json_decode($transaction['additional_data'], true);
+                $transaction = array_merge($transaction, $additionalData ?? []);
+            }
+            
+            return $transaction;
+        } catch (\PDOException $e) {
+            error_log("Erro ao buscar transação PayPal para pedido: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Processa uma notificação IPN (Instant Payment Notification) do PayPal
+     * 
+     * @param array $ipnData Dados recebidos na notificação IPN
+     * @return array Resultado do processamento
+     */
+    public function processPayPalIPN(array $ipnData): array {
+        try {
+            // Validar dados mínimos
+            if (empty($ipnData) || !isset($ipnData['txn_id'])) {
+                throw new \Exception("Dados IPN inválidos ou incompletos");
+            }
+            
+            // Verificar autenticidade com PayPal
+            $verificationResult = $this->verifyPayPalIPN($ipnData);
+            
+            if (!$verificationResult) {
+                throw new \Exception("Verificação de IPN falhou");
+            }
+            
+            // Log completo dos dados de IPN para auditoria
+            $safeData = $this->removeSensitiveData($ipnData);
+            error_log("IPN PayPal válido recebido: " . json_encode($safeData));
+            
+            // Processa de acordo com o tipo de notificação
+            $transactionType = $ipnData['txn_type'] ?? '';
+            $paymentStatus = $ipnData['payment_status'] ?? '';
+            
+            // Identificar transação
+            $txnId = $ipnData['txn_id'] ?? '';
+            $orderId = $this->getOrderIdFromPayPalTransaction($txnId, $ipnData);
+            
+            if (!$orderId) {
+                error_log("Pedido não encontrado para IPN PayPal: " . json_encode($safeData));
+                return [
+                    'success' => false,
+                    'message' => 'Pedido não encontrado'
+                ];
+            }
+            
+            // Atualizar status de acordo com a notificação
+            switch ($paymentStatus) {
+                case 'Completed':
+                    $this->updateOrderPaymentStatus($orderId, 'approved', $ipnData);
+                    break;
+                    
+                case 'Refunded':
+                case 'Reversed':
+                    $this->updateOrderPaymentStatus($orderId, 'refunded', $ipnData);
+                    break;
+                    
+                case 'Failed':
+                case 'Denied':
+                    $this->updateOrderPaymentStatus($orderId, 'failed', $ipnData);
+                    break;
+                    
+                case 'Pending':
+                    $pendingReason = $ipnData['pending_reason'] ?? '';
+                    $this->updateOrderPaymentStatus($orderId, 'pending', $ipnData, 
+                        "Pagamento pendente: {$pendingReason}");
+                    break;
+                    
+                default:
+                    error_log("Status de pagamento IPN não mapeado: {$paymentStatus}");
+                    return [
+                        'success' => true,
+                        'message' => 'Status não processado: ' . $paymentStatus
+                    ];
+            }
+            
+            return [
+                'success' => true,
+                'order_id' => $orderId,
+                'txn_id' => $txnId,
+                'payment_status' => $paymentStatus
+            ];
+        } catch (\Exception $e) {
+            error_log("Erro ao processar IPN PayPal: " . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'error_message' => $e->getMessage()
+            ];
+        }
+    }
+    
+    /**
+     * Verifica a autenticidade de uma notificação IPN do PayPal
+     * 
+     * @param array $ipnData Dados recebidos na notificação
+     * @return bool Resultado da verificação
+     */
+    private function verifyPayPalIPN(array $ipnData): bool {
+        // Determinar endpoint para verificação
+        $isSandbox = $this->gatewayConfigs['paypal']['sandbox'] ?? true;
+        $verifyEndpoint = $isSandbox ? 
+            'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr' : 
+            'https://ipnpb.paypal.com/cgi-bin/webscr';
+        
+        // Preparar dados para verificação
+        $verifyData = 'cmd=_notify-validate&' . http_build_query($ipnData);
+        
+        // Configurar chamada curl com práticas seguras
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $verifyEndpoint,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $verifyData,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => false,
+            CURLOPT_HTTPHEADER => [
+                'Connection: close',
+                'User-Agent: Taverna-da-Impressao-3D/1.0'
+            ],
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_CONNECTTIMEOUT => 30
+        ]);
+        
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        // Verificar erros de curl
+        if ($error) {
+            error_log("Erro de comunicação na verificação de IPN: {$error}");
+            return false;
+        }
+        
+        // Verificar resposta
+        if ($response === 'VERIFIED') {
+            return true;
+        } else {
+            error_log("Verificação de IPN falhou. Resposta: {$response}");
+            return false;
+        }
+    }
+    
+    /**
+     * Obtém ID do pedido a partir de dados de transação PayPal
+     * 
+     * @param string $txnId ID da transação PayPal
+     * @param array $ipnData Dados completos da notificação
+     * @return int|null ID do pedido ou null se não encontrado
+     */
+    private function getOrderIdFromPayPalTransaction(string $txnId, array $ipnData): ?int {
+        try {
+            // Verificar custom field que deve conter o ID do pedido
+            if (!empty($ipnData['custom'])) {
+                $customData = json_decode($ipnData['custom'], true);
+                if (isset($customData['order_id'])) {
+                    return (int)$customData['order_id'];
+                }
+            }
+            
+            // Verificar reference (invoice) que pode conter o número do pedido
+            if (!empty($ipnData['invoice'])) {
+                $pdo = \Database::getInstance()->getPdo();
+                $stmt = $pdo->prepare("SELECT id FROM orders WHERE order_number = ? LIMIT 1");
+                $stmt->execute([$ipnData['invoice']]);
+                $order = $stmt->fetch(\PDO::FETCH_ASSOC);
+                
+                if ($order) {
+                    return (int)$order['id'];
+                }
+            }
+            
+            // Buscar por transação existente com o mesmo ID
+            $pdo = \Database::getInstance()->getPdo();
+            $stmt = $pdo->prepare("
+                SELECT order_id FROM payment_transactions 
+                WHERE transaction_id = ? OR additional_data LIKE ? 
+                LIMIT 1
+            ");
+            $stmt->execute([$txnId, '%' . $txnId . '%']);
+            $transaction = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if ($transaction) {
+                return (int)$transaction['order_id'];
+            }
+            
+            return null;
+        } catch (\PDOException $e) {
+            error_log("Erro ao buscar pedido para transação PayPal: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Atualiza status de pagamento de um pedido a partir de IPN
+     * 
+     * @param int $orderId ID do pedido
+     * @param string $paymentStatus Status de pagamento
+     * @param array $ipnData Dados completos da notificação
+     * @param string $notes Notas adicionais (opcional)
+     * @return bool Resultado da operação
+     */
+    private function updateOrderPaymentStatus(int $orderId, string $paymentStatus, array $ipnData, string $notes = ''): bool {
+        try {
+            // Preparar dados adicionais seguros
+            $additionalData = $this->removeSensitiveData($ipnData);
+            
+            // Determinar status do pedido
+            $orderStatus = $this->getOrderStatusFromPaymentStatus($paymentStatus);
+            
+            // Atualizar pedido
+            $pdo = \Database::getInstance()->getPdo();
+            $stmt = $pdo->prepare("
+                UPDATE orders 
+                SET status = ?, payment_status = ?, updated_at = NOW() 
+                WHERE id = ?
+            ");
+            $stmt->execute([$orderStatus, $paymentStatus, $orderId]);
+            
+            // Registrar histórico
+            $stmt = $pdo->prepare("
+                INSERT INTO order_status_history 
+                (order_id, status, payment_status, details, notes, created_at) 
+                VALUES (?, ?, ?, ?, ?, NOW())
+            ");
+            
+            $notesText = $notes ?: "Atualização via IPN PayPal: {$paymentStatus}";
+            $stmt->execute([
+                $orderId, 
+                $orderStatus, 
+                $paymentStatus, 
+                json_encode($additionalData), 
+                $notesText
+            ]);
+            
+            // Atualizar ou criar registro de transação se necessário
+            $this->updateOrCreatePayPalTransaction($orderId, $paymentStatus, $ipnData);
+            
+            return true;
+        } catch (\PDOException $e) {
+            error_log("Erro ao atualizar status do pedido via IPN: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Atualiza ou cria registro de transação PayPal
+     * 
+     * @param int $orderId ID do pedido
+     * @param string $status Status de pagamento
+     * @param array $ipnData Dados completos da notificação
+     * @return bool Resultado da operação
+     */
+    private function updateOrCreatePayPalTransaction(int $orderId, string $status, array $ipnData): bool {
+        try {
+            $pdo = \Database::getInstance()->getPdo();
+            $txnId = $ipnData['txn_id'] ?? '';
+            
+            // Verificar se transação já existe
+            $stmt = $pdo->prepare("
+                SELECT id FROM payment_transactions 
+                WHERE order_id = ? AND (transaction_id = ? OR additional_data LIKE ?)
+                LIMIT 1
+            ");
+            $stmt->execute([$orderId, $txnId, '%' . $txnId . '%']);
+            $transaction = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            // Sanitizar dados
+            $amount = isset($ipnData['mc_gross']) ? (float)$ipnData['mc_gross'] : 0;
+            $currency = SecurityManager::sanitize($ipnData['mc_currency'] ?? 'BRL');
+            $paymentMethod = SecurityManager::sanitize($ipnData['payment_type'] ?? 'paypal');
+            $additionalData = json_encode($this->removeSensitiveData($ipnData));
+            
+            if ($transaction) {
+                // Atualizar transação existente
+                $stmt = $pdo->prepare("
+                    UPDATE payment_transactions 
+                    SET status = ?, additional_data = ?, updated_at = NOW() 
+                    WHERE id = ?
+                ");
+                $stmt->execute([$status, $additionalData, $transaction['id']]);
+            } else {
+                // Criar nova transação
+                $stmt = $pdo->prepare("
+                    INSERT INTO payment_transactions 
+                    (order_id, gateway_name, transaction_id, status, amount, currency, payment_method, additional_data, created_at) 
+                    VALUES (?, 'paypal', ?, ?, ?, ?, ?, ?, NOW())
+                ");
+                $stmt->execute([$orderId, $txnId, $status, $amount, $currency, $paymentMethod, $additionalData]);
+            }
+            
+            return true;
+        } catch (\PDOException $e) {
+            error_log("Erro ao atualizar transação PayPal: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Mapeia status de pagamento para status de pedido
+     * 
+     * @param string $paymentStatus Status do pagamento
+     * @return string Status correspondente do pedido
+     */
+    private function getOrderStatusFromPaymentStatus(string $paymentStatus): string {
+        $statusMap = [
+            'pending' => 'pending',
+            'authorized' => 'processing',
+            'approved' => 'processing',
+            'cancelled' => 'cancelled',
+            'refunded' => 'refunded',
+            'failed' => 'failed'
+        ];
+        
+        return $statusMap[$paymentStatus] ?? 'pending';
+    }

@@ -1,29 +1,42 @@
 <?php
 /**
  * AdminUserController - Controlador para gerenciamento de usuários no painel administrativo
+ * 
+ * @package Taverna\Controllers
+ * @author Taverna da Impressão
+ * @version 1.1.0
  */
 class AdminUserController {
+    // Implementação do trait de validação
+    use InputValidationTrait;
+    
     private $userModel;
     
+    /**
+     * Construtor
+     */
     public function __construct() {
         // Verificar se é administrador
         AdminHelper::checkAdminAccess();
         
         // Carregar modelo de usuário
         $this->userModel = new UserModel();
+        
+        // Carregar InputValidationTrait
+        require_once APP_PATH . '/lib/Security/InputValidationTrait.php';
     }
     
     /**
      * Exibe a página de listagem de usuários
      */
     public function index() {
-        // Definir paginação
-        $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+        // Definir paginação com validação
+        $page = $this->getValidatedParam('page', 'int', ['default' => 1, 'min' => 1]);
         $limit = 10;
         
-        // Obter parâmetros de filtro
-        $search = isset($_GET['search']) ? $_GET['search'] : '';
-        $role = isset($_GET['role']) ? $_GET['role'] : '';
+        // Obter parâmetros de filtro com validação
+        $search = $this->getValidatedParam('search', 'string', ['allowEmpty' => true]);
+        $role = $this->getValidatedParam('role', 'string', ['allowEmpty' => true]);
         
         // Buscar usuários
         $usersData = $this->userModel->getAdminList($page, $limit, $search, $role);
@@ -49,9 +62,11 @@ class AdminUserController {
     
     /**
      * Exibe a página de detalhes de um usuário
+     * 
+     * @param array $params Parâmetros da rota
      */
     public function view($params) {
-        $userId = $params['id'] ?? null;
+        $userId = isset($params['id']) ? (int)$params['id'] : null;
         
         if (!$userId) {
             $_SESSION['error'] = 'ID de usuário não especificado.';
@@ -97,9 +112,11 @@ class AdminUserController {
     
     /**
      * Exibe o formulário para editar um usuário existente
+     * 
+     * @param array $params Parâmetros da rota
      */
     public function edit($params) {
-        $userId = $params['id'] ?? null;
+        $userId = isset($params['id']) ? (int)$params['id'] : null;
         
         if (!$userId) {
             $_SESSION['error'] = 'ID de usuário não especificado.';
@@ -130,52 +147,29 @@ class AdminUserController {
             exit;
         }
         
-        // Obter dados do formulário
-        $userId = isset($_POST['id']) ? intval($_POST['id']) : null;
-        $data = [
-            'name' => $_POST['name'] ?? '',
-            'email' => $_POST['email'] ?? '',
-            'phone' => $_POST['phone'] ?? '',
-            'role' => $_POST['role'] ?? 'customer'
+        // Validar token CSRF
+        if (!CsrfProtection::validateRequest()) {
+            $_SESSION['error'] = 'Erro de validação de segurança. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'admin/usuarios');
+            exit;
+        }
+        
+        // Obter dados do formulário com validação
+        $userId = $this->postValidatedParam('id', 'int', ['default' => null]);
+        
+        // Validar campos do formulário
+        $validations = [
+            'name' => ['type' => 'string', 'required' => true, 'minLength' => 3, 'maxLength' => 100],
+            'email' => ['type' => 'email', 'required' => true, 'maxLength' => 255],
+            'phone' => ['type' => 'string', 'required' => false, 'maxLength' => 20],
+            'role' => ['type' => 'string', 'required' => true, 'options' => ['customer', 'admin', 'editor']]
         ];
         
-        // Validar dados
-        $errors = [];
+        $data = $this->postValidatedParams($validations);
         
-        if (empty($data['name'])) {
-            $errors[] = 'O nome é obrigatório.';
-        }
-        
-        if (empty($data['email'])) {
-            $errors[] = 'O e-mail é obrigatório.';
-        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'O e-mail informado é inválido.';
-        }
-        
-        // Verificar se é um novo usuário ou atualização
-        if (!$userId) {
-            // Novo usuário - senha obrigatória
-            if (empty($_POST['password'])) {
-                $errors[] = 'A senha é obrigatória para novos usuários.';
-            } elseif (strlen($_POST['password']) < 6) {
-                $errors[] = 'A senha deve ter pelo menos 6 caracteres.';
-            } else {
-                $data['password'] = $_POST['password'];
-            }
-        } else {
-            // Atualização - senha opcional
-            if (!empty($_POST['password'])) {
-                if (strlen($_POST['password']) < 6) {
-                    $errors[] = 'A senha deve ter pelo menos 6 caracteres.';
-                } else {
-                    $data['password'] = $_POST['password'];
-                }
-            }
-        }
-        
-        // Se houver erros, voltar para o formulário
-        if ($errors) {
-            $_SESSION['error'] = implode('<br>', $errors);
+        // Se não há dados validados ou há erros, retornar erro
+        if (!$data || $this->hasValidationErrors()) {
+            $_SESSION['error'] = implode('<br>', $this->getValidationErrors());
             
             if ($userId) {
                 header('Location: ' . BASE_URL . 'admin/usuarios/edit/' . $userId);
@@ -183,6 +177,39 @@ class AdminUserController {
                 header('Location: ' . BASE_URL . 'admin/usuarios/create');
             }
             exit;
+        }
+        
+        // Verificar status ativo
+        $data['is_active'] = $this->postValidatedParam('is_active', 'bool', ['default' => false]) ? 1 : 0;
+        
+        // Verificar se é um novo usuário ou atualização
+        if (!$userId) {
+            // Novo usuário - senha obrigatória
+            $password = $this->postValidatedParam('password', 'string', ['required' => true, 'minLength' => 6]);
+            
+            if (!$password || $this->hasValidationErrors()) {
+                $_SESSION['error'] = implode('<br>', $this->getValidationErrors());
+                header('Location: ' . BASE_URL . 'admin/usuarios/create');
+                exit;
+            }
+            
+            $data['password'] = $password;
+        } else {
+            // Atualização - senha opcional
+            $password = $this->postValidatedParam('password', 'string', ['required' => false]);
+            
+            if ($password) {
+                // Validar comprimento mínimo apenas se senha foi fornecida
+                $passwordLength = $this->postValidatedParam('password', 'string', ['minLength' => 6]);
+                
+                if (!$passwordLength || $this->hasValidationErrors()) {
+                    $_SESSION['error'] = implode('<br>', $this->getValidationErrors());
+                    header('Location: ' . BASE_URL . 'admin/usuarios/edit/' . $userId);
+                    exit;
+                }
+                
+                $data['password'] = $password;
+            }
         }
         
         // Salvar usuário
@@ -217,12 +244,23 @@ class AdminUserController {
     
     /**
      * Altera o status (ativo/inativo) de um usuário
+     * 
+     * @param array $params Parâmetros da rota
      */
     public function toggleStatus($params) {
-        $userId = $params['id'] ?? null;
+        $userId = isset($params['id']) ? (int)$params['id'] : null;
         
         if (!$userId) {
             $_SESSION['error'] = 'ID de usuário não especificado.';
+            header('Location: ' . BASE_URL . 'admin/usuarios');
+            exit;
+        }
+        
+        // Validar token CSRF (para links, é recomendado usar o token na URL)
+        $csrfToken = $this->getValidatedParam('csrf_token', 'string', ['required' => true]);
+        
+        if (!$csrfToken || !CsrfProtection::validateToken($csrfToken)) {
+            $_SESSION['error'] = 'Erro de validação de segurança. Por favor, tente novamente.';
             header('Location: ' . BASE_URL . 'admin/usuarios');
             exit;
         }
@@ -262,10 +300,18 @@ class AdminUserController {
             exit;
         }
         
-        $userId = isset($_POST['id']) ? intval($_POST['id']) : null;
+        // Validar token CSRF
+        if (!CsrfProtection::validateRequest()) {
+            $_SESSION['error'] = 'Erro de validação de segurança. Por favor, tente novamente.';
+            header('Location: ' . BASE_URL . 'admin/usuarios');
+            exit;
+        }
         
-        if (!$userId) {
-            $_SESSION['error'] = 'ID de usuário não especificado.';
+        // Validar ID do usuário
+        $userId = $this->postValidatedParam('id', 'int', ['required' => true]);
+        
+        if (!$userId || $this->hasValidationErrors()) {
+            $_SESSION['error'] = 'ID de usuário inválido.';
             header('Location: ' . BASE_URL . 'admin/usuarios');
             exit;
         }

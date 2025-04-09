@@ -1,263 +1,280 @@
 <?php
 /**
- * NotificationController - Controlador para gerenciamento de notificações
+ * NotificationController - Controlador de notificações para usuários
  * 
- * Este controlador gerencia as notificações para clientes e administradores,
- * especialmente relacionadas ao sistema de impressão 3D.
+ * Gerencia a listagem, filtragem e marcação de notificações para usuários finais,
+ * seguindo os guardrails de segurança estabelecidos.
+ * 
+ * @package App\Controllers
+ * @version 1.0.0
+ * @author Taverna da Impressão 3D
  */
+
+require_once __DIR__ . '/../lib/Controller.php';
+require_once __DIR__ . '/../lib/Security/InputValidationTrait.php';
+require_once __DIR__ . '/../lib/Security/SecurityManager.php';
+require_once __DIR__ . '/../lib/Security/CsrfProtection.php';
+require_once __DIR__ . '/../lib/Security/SecurityHeaders.php';
+require_once __DIR__ . '/../lib/Notification/NotificationManager.php';
+require_once __DIR__ . '/../models/NotificationModel.php';
+require_once __DIR__ . '/../models/NotificationPreferenceModel.php';
+
 class NotificationController extends Controller {
-    private $notificationModel;
-    private $authHelper;
+    use InputValidationTrait;
     
+    /**
+     * @var NotificationManager
+     */
+    private $notificationManager;
+    
+    /**
+     * @var NotificationModel
+     */
+    private $notificationModel;
+    
+    /**
+     * @var NotificationPreferenceModel
+     */
+    private $preferenceModel;
+    
+    /**
+     * @var \PDO
+     */
+    private $pdo;
+    
+    /**
+     * Constructor
+     */
     public function __construct() {
-        // Inicializar modelo e helper
+        parent::__construct();
+        
+        // Inicializar conexão com banco de dados
+        $this->pdo = Database::getConnection();
+        
+        // Inicializar modelos
+        $this->notificationManager = NotificationManager::getInstance();
         $this->notificationModel = new NotificationModel();
-        $this->authHelper = new AuthHelper();
+        $this->preferenceModel = new NotificationPreferenceModel();
         
-        // Verificar autenticação para todas as ações
-        $this->checkAuthentication();
-        
-        // Verificar permissões de admin para ações administrativas
-        $adminActions = ['index', 'config', 'send'];
-        if (in_array($this->getCurrentAction(), $adminActions)) {
-            $this->checkAdminPermission();
-        }
+        // Verificar autenticação para todos os métodos
+        $this->requireAuthentication();
     }
     
     /**
-     * Exibe a lista de notificações enviadas (para administradores)
+     * Página de listagem de notificações
      */
     public function index() {
-        // Obter parâmetros de filtro
-        $filters = [
-            'user_id' => isset($_GET['user_id']) ? $_GET['user_id'] : null,
-            'type' => isset($_GET['type']) ? $_GET['type'] : null,
-            'status' => isset($_GET['status']) ? $_GET['status'] : null,
-            'date_from' => isset($_GET['date_from']) ? $_GET['date_from'] : null,
-            'date_to' => isset($_GET['date_to']) ? $_GET['date_to'] : null
-        ];
-        
-        // Obter lista de notificações com paginação
-        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $perPage = 20;
-        
-        $notifications = $this->notificationModel->getAllNotifications($filters, $page, $perPage);
-        $totalNotifications = $this->notificationModel->countAllNotifications($filters);
-        
-        $totalPages = ceil($totalNotifications / $perPage);
-        
-        // Obter lista de usuários para o filtro
-        $userModel = new UserModel();
-        $users = $userModel->getAllUsers();
-        
-        // Renderizar a view
-        $this->view('admin/notifications/index', [
-            'notifications' => $notifications,
-            'users' => $users,
-            'filters' => $filters,
-            'page' => $page,
-            'perPage' => $perPage,
-            'totalPages' => $totalPages,
-            'totalNotifications' => $totalNotifications,
-            'title' => 'Gerenciamento de Notificações'
-        ]);
-    }
-    
-    /**
-     * Exibe e processa o formulário de configuração de notificações (para administradores)
-     */
-    public function config() {
-        // Processar envio do formulário
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $settings = [
-                'notify_on_status_change' => isset($_POST['notify_on_status_change']) ? 1 : 0,
-                'notify_on_printer_assignment' => isset($_POST['notify_on_printer_assignment']) ? 1 : 0,
-                'notify_on_completion' => isset($_POST['notify_on_completion']) ? 1 : 0,
-                'notify_on_failure' => isset($_POST['notify_on_failure']) ? 1 : 0,
-                'notify_on_delay' => isset($_POST['notify_on_delay']) ? 1 : 0,
-                'automatic_notifications' => isset($_POST['automatic_notifications']) ? 1 : 0
-            ];
-            
-            // Salvar configurações
-            $settingsModel = new SettingsModel();
-            foreach ($settings as $key => $value) {
-                $settingsModel->setSetting('notifications_' . $key, $value);
-            }
-            
-            $_SESSION['success'] = 'Configurações de notificações atualizadas com sucesso.';
-            header('Location: ' . BASE_URL . 'admin/print_queue/notificacoes/config');
-            exit;
-        }
-        
-        // Obter configurações atuais
-        $settingsModel = new SettingsModel();
-        $settings = [
-            'notify_on_status_change' => $settingsModel->getSetting('notifications_notify_on_status_change', 1),
-            'notify_on_printer_assignment' => $settingsModel->getSetting('notifications_notify_on_printer_assignment', 1),
-            'notify_on_completion' => $settingsModel->getSetting('notifications_notify_on_completion', 1),
-            'notify_on_failure' => $settingsModel->getSetting('notifications_notify_on_failure', 1),
-            'notify_on_delay' => $settingsModel->getSetting('notifications_notify_on_delay', 1),
-            'automatic_notifications' => $settingsModel->getSetting('notifications_automatic_notifications', 1)
-        ];
-        
-        // Renderizar a view
-        $this->view('admin/notifications/config', [
-            'settings' => $settings,
-            'title' => 'Configuração de Notificações'
-        ]);
-    }
-    
-    /**
-     * Processa o envio de uma notificação manual (para administradores)
-     */
-    public function send() {
-        // Verificar método da requisição
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'admin/print_queue/notificacoes');
-            exit;
-        }
-        
-        // Obter dados da requisição
-        $userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : null;
-        $orderId = isset($_POST['order_id']) ? (int)$_POST['order_id'] : null;
-        $queueItemId = isset($_POST['queue_item_id']) ? (int)$_POST['queue_item_id'] : null;
-        $type = isset($_POST['type']) ? $_POST['type'] : 'info';
-        $title = isset($_POST['title']) ? $_POST['title'] : '';
-        $message = isset($_POST['message']) ? $_POST['message'] : '';
-        
-        // Validar dados obrigatórios
-        if (empty($userId) || empty($title) || empty($message)) {
-            $_SESSION['error'] = 'Por favor, preencha todos os campos obrigatórios.';
-            header('Location: ' . BASE_URL . 'admin/print_queue/notificacoes');
-            exit;
-        }
-        
-        // Preparar dados da notificação
-        $notificationData = [
-            'user_id' => $userId,
-            'order_id' => $orderId,
-            'queue_item_id' => $queueItemId,
-            'type' => $type,
-            'title' => $title,
-            'message' => $message,
-            'created_by' => $_SESSION['user']['id'],
-            'status' => 'unread'
-        ];
-        
-        // Salvar notificação
-        $notificationId = $this->notificationModel->create($notificationData);
-        
-        if ($notificationId) {
-            $_SESSION['success'] = 'Notificação enviada com sucesso.';
-        } else {
-            $_SESSION['error'] = 'Erro ao enviar notificação. Por favor, tente novamente.';
-        }
-        
-        header('Location: ' . BASE_URL . 'admin/print_queue/notificacoes');
-        exit;
-    }
-    
-    /**
-     * Marca uma ou mais notificações como lidas (para clientes)
-     */
-    public function markAsRead() {
-        // Verificar método da requisição
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . BASE_URL . 'minha-conta');
-            exit;
-        }
-        
-        // Obter dados da requisição
-        $notificationId = isset($_POST['notification_id']) ? (int)$_POST['notification_id'] : null;
-        $markAll = isset($_POST['mark_all']) ? (bool)$_POST['mark_all'] : false;
+        // Aplicar cabeçalhos de segurança
+        SecurityHeaders::apply();
         
         // Obter ID do usuário atual
-        $userId = $_SESSION['user']['id'];
+        $userId = $_SESSION['user_id'];
         
-        if ($markAll) {
-            // Marcar todas as notificações do usuário como lidas
-            $result = $this->notificationModel->markAllAsRead($userId);
-            
-            $message = 'Todas as notificações foram marcadas como lidas.';
-        } else if ($notificationId) {
-            // Marcar uma notificação específica como lida
-            $result = $this->notificationModel->markAsRead($notificationId, $userId);
-            
-            $message = 'Notificação marcada como lida.';
-        } else {
-            // Dados inválidos
-            $_SESSION['error'] = 'Dados inválidos. Por favor, tente novamente.';
-            header('Location: ' . BASE_URL . 'minha-conta');
-            exit;
+        // Validar parâmetros de paginação
+        $page = $this->getValidatedParam('page', 'int', [
+            'default' => 1,
+            'min' => 1
+        ]);
+        
+        $limit = $this->getValidatedParam('limit', 'int', [
+            'default' => 10,
+            'min' => 1,
+            'max' => 50
+        ]);
+        
+        // Validar parâmetros de filtro
+        $filterType = $this->getValidatedParam('type', 'string', [
+            'allowedValues' => ['unread', 'process_status', 'process_results', 'process_completed', 'process_failed']
+        ]);
+        
+        // Construir filtro para consulta
+        $filter = [];
+        if ($filterType === 'unread') {
+            $filter['status'] = 'unread';
+        } elseif (!empty($filterType)) {
+            $filter['types'] = [$filterType];
         }
         
-        // Verificar se a requisição é AJAX
-        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-            // Responder com JSON
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => (bool)$result,
-                'message' => $result ? $message : 'Erro ao marcar notificação(ões) como lida(s).'
-            ]);
-            exit;
-        } else {
-            // Responder com redirecionamento
-            if ($result) {
-                $_SESSION['success'] = $message;
-            } else {
-                $_SESSION['error'] = 'Erro ao marcar notificação(ões) como lida(s). Por favor, tente novamente.';
-            }
-            
-            header('Location: ' . BASE_URL . 'minha-conta');
-            exit;
+        // Adicionar tipos relacionados a processos assíncronos por padrão
+        if (empty($filter['types'])) {
+            $filter['types'] = [
+                'process_status', 'process_progress', 'process_completed', 
+                'process_failed', 'process_results', 'process_expiration'
+            ];
         }
+        
+        // Calcular offset para paginação
+        $offset = ($page - 1) * $limit;
+        
+        // Obter notificações
+        $notifications = $this->notificationManager->getUserNotifications(
+            $userId,
+            array_merge($filter, [
+                'limit' => $limit,
+                'offset' => $offset
+            ])
+        );
+        
+        // Obter contagem total para paginação
+        $totalCount = $this->notificationManager->countUserNotifications(
+            $userId,
+            $filter
+        );
+        
+        // Verificar se existem notificações não lidas
+        $unreadCount = $this->notificationManager->countUnreadNotifications($userId);
+        $unreadNotifications = $unreadCount > 0;
+        
+        // Calcular informações de paginação
+        $totalPages = ceil($totalCount / $limit);
+        $currentPage = $page;
+        
+        // Construir string de consulta para links de paginação
+        $filterQuery = !empty($filterType) ? '&type=' . urlencode($filterType) : '';
+        
+        // Renderizar view
+        $data = [
+            'notifications' => $notifications,
+            'totalCount' => $totalCount,
+            'currentPage' => $currentPage,
+            'totalPages' => $totalPages,
+            'limit' => $limit,
+            'filterType' => $filterType,
+            'filterQuery' => $filterQuery,
+            'unreadNotifications' => $unreadNotifications
+        ];
+        
+        // Incluir a view diretamente
+        include(VIEWS_PATH . '/user_account/notifications.php');
     }
     
     /**
-     * Obtém a ação atual da requisição
+     * Página de preferências de notificações
+     */
+    public function preferences() {
+        // Aplicar cabeçalhos de segurança
+        SecurityHeaders::apply();
+        
+        // Obter ID do usuário atual
+        $userId = $_SESSION['user_id'];
+        
+        // Obter tipos de notificação disponíveis
+        $notificationTypes = $this->notificationModel->getNotificationTypes([
+            'category' => 'async_process'
+        ]);
+        
+        // Obter preferências atuais do usuário
+        $userPreferences = $this->preferenceModel->getUserNotificationPreferences($userId);
+        
+        // Organizar preferências por tipo para fácil acesso
+        $preferencesByType = [];
+        foreach ($userPreferences as $pref) {
+            $preferencesByType[$pref['notification_type']] = $pref;
+        }
+        
+        // Verificar se houve submissão de formulário
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->processPreferencesForm($userId);
+        }
+        
+        // Renderizar view
+        $data = [
+            'notificationTypes' => $notificationTypes,
+            'userPreferences' => $preferencesByType
+        ];
+        
+        // Incluir a view diretamente
+        include(VIEWS_PATH . '/user_account/notification_preferences.php');
+    }
+    
+    /**
+     * Processa submissão de formulário de preferências
      * 
-     * @return string Nome da ação atual
+     * @param int $userId ID do usuário
      */
-    private function getCurrentAction() {
-        $uri = $_SERVER['REQUEST_URI'];
-        $parts = explode('/', trim($uri, '/'));
+    private function processPreferencesForm($userId) {
+        // Verificar CSRF token
+        $csrfToken = $this->postValidatedParam('csrf_token', 'string', ['required' => true]);
+        if (!SecurityManager::validateCsrfToken($csrfToken)) {
+            $this->setFlashMessage('error', 'Erro de validação do formulário. Tente novamente.');
+            return;
+        }
         
-        // Verificar se a URI contém '/admin/print_queue/notificacoes'
-        if (count($parts) >= 3 && $parts[0] === 'admin' && $parts[1] === 'print_queue' && $parts[2] === 'notificacoes') {
-            if (count($parts) >= 4 && $parts[3] === 'config') {
-                return 'config';
-            } else if (count($parts) >= 4 && $parts[3] === 'enviar-notificacao') {
-                return 'send';
-            } else {
-                return 'index';
+        // Obter preferências enviadas
+        $formPreferences = $_POST['preferences'] ?? [];
+        
+        if (!is_array($formPreferences)) {
+            $this->setFlashMessage('error', 'Dados de preferências inválidos.');
+            return;
+        }
+        
+        // Array para armazenar preferências sanitizadas
+        $sanitizedPreferences = [];
+        
+        // Sanitizar e validar cada preferência
+        foreach ($formPreferences as $type => $channels) {
+            // Validar tipo de notificação
+            $type = $this->validateString($type, [
+                'pattern' => '/^[a-z_]+$/',
+                'maxLength' => 50
+            ]);
+            
+            if ($type === null) {
+                continue;
             }
-        } else if (count($parts) >= 2 && $parts[0] === 'notificacoes' && $parts[1] === 'marcar-como-lidas') {
-            return 'markAsRead';
+            
+            // Valores padrão
+            $isEnabled = false;
+            $emailEnabled = false;
+            $pushEnabled = false;
+            
+            // Verificar canais habilitados
+            if (is_array($channels)) {
+                $isEnabled = true; // Se pelo menos um canal for selecionado
+                $emailEnabled = isset($channels['email']);
+                $pushEnabled = isset($channels['push']);
+            }
+            
+            // Adicionar à lista de preferências sanitizadas
+            $sanitizedPreferences[$type] = [
+                'is_enabled' => $isEnabled,
+                'email_enabled' => $emailEnabled,
+                'push_enabled' => $pushEnabled
+            ];
         }
         
-        return '';
+        // Atualizar preferências no banco de dados
+        $success = $this->preferenceModel->updateUserNotificationPreferences($userId, $sanitizedPreferences);
+        
+        if ($success) {
+            $this->setFlashMessage('success', 'Preferências de notificação atualizadas com sucesso.');
+        } else {
+            $this->setFlashMessage('error', 'Ocorreu um erro ao atualizar suas preferências. Tente novamente.');
+        }
     }
     
     /**
-     * Verifica se o usuário está autenticado
+     * Verifica autenticação e redireciona se não estiver autenticado
      */
-    private function checkAuthentication() {
-        if (!isset($_SESSION['user_logged_in']) || !$_SESSION['user_logged_in']) {
-            $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-            $_SESSION['error'] = 'É necessário fazer login para acessar esta página.';
-            header('Location: ' . BASE_URL . 'login');
+    private function requireAuthentication() {
+        if (!SecurityManager::checkAuthentication()) {
+            // Redirecionar para login com URL de retorno
+            $returnUrl = urlencode($_SERVER['REQUEST_URI']);
+            header("Location: /login?return={$returnUrl}");
             exit;
         }
     }
     
     /**
-     * Verifica se o usuário tem permissões de administrador
+     * Define uma mensagem flash para exibição na próxima requisição
+     * 
+     * @param string $type Tipo da mensagem (success, error, info, warning)
+     * @param string $message Texto da mensagem
      */
-    private function checkAdminPermission() {
-        if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
-            $_SESSION['error'] = 'Você não tem permissão para acessar esta página.';
-            header('Location: ' . BASE_URL);
-            exit;
-        }
+    private function setFlashMessage($type, $message) {
+        $_SESSION['flash_message'] = [
+            'type' => $type,
+            'message' => $message
+        ];
     }
 }

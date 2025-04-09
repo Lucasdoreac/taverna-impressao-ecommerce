@@ -16,6 +16,7 @@
                     <?php endif; ?>
                     
                     <form action="<?= BASE_URL ?>cadastro" method="post">
+                        <?= CsrfProtection::getFormField() ?>
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="name" class="form-label">Nome Completo</label>

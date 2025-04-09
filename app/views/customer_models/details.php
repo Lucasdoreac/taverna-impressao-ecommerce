@@ -1,291 +1,198 @@
-<?php require_once VIEWS_PATH . '/partials/header.php'; ?>
-<?php 
-// Incluir o helper do visualizador 3D
-require_once APP_PATH . '/helpers/ModelViewerHelper.php'; 
-?>
+<?php include_once VIEWS_PATH . '/partials/header.php'; ?>
 
-<?= ModelViewerHelper::getViewerCSS() ?>
-<?= ModelViewerHelper::includeThreeJs() ?>
-
-<div class="container py-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="<?= BASE_URL ?>">Home</a></li>
-            <li class="breadcrumb-item"><a href="<?= BASE_URL ?>customer-models/list">Meus Modelos 3D</a></li>
-            <li class="breadcrumb-item active">Detalhes do Modelo</li>
-        </ol>
-    </nav>
-    
-    <?php include_once VIEWS_PATH . '/partials/flash_messages.php'; ?>
-    
+<div class="container py-5">
     <div class="row">
-        <div class="col-md-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h2 class="h5 mb-0">
-                        <i class="fas fa-cube me-2"></i> <?= htmlspecialchars($model['original_name']) ?>
-                    </h2>
-                    <span class="badge 
-                        <?= $model['status'] === 'approved' ? 'bg-success' : 
-                            ($model['status'] === 'rejected' ? 'bg-danger' : 
-                             ($model['status'] === 'needs_repair' ? 'bg-warning' : 'bg-primary')) ?>">
-                        <?= $model['status'] === 'pending_validation' ? 'Pendente de Validação' : 
-                            ($model['status'] === 'approved' ? 'Aprovado' : 
-                             ($model['status'] === 'rejected' ? 'Rejeitado' : 'Precisa de Reparo')) ?>
-                    </span>
-                </div>
-                <div class="card-body">
-                    <!-- Visualizador 3D (NOVO) -->
-                    <div class="mb-4">
-                        <?= ModelViewerHelper::createCustomerModelViewer($model, [
-                            'height' => '350px',
-                            'backgroundColor' => '#f0f0f0',
-                            'modelColor' => '#3d7b9c',
-                            'showGrid' => true,
-                            'showControls' => true,
-                            'autoRotate' => true
-                        ]) ?>
-                        <div class="mt-2 text-center text-muted small">
-                            <i class="fas fa-mouse me-1"></i> Clique e arraste para rotacionar o modelo. Use a roda do mouse para zoom.
-                        </div>
+        <div class="col-md-10 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="h4 mb-0">
+                            <i class="fas <?= $model['file_type'] === 'stl' ? 'fa-cube' : 'fa-object-group' ?> me-2"></i>
+                            Detalhes do Modelo
+                        </h2>
+                        <span class="badge fs-6 <?= 
+                            $model['status'] === 'pending_validation' ? 'bg-warning' : 
+                            ($model['status'] === 'approved' ? 'bg-success' : 'bg-danger') 
+                        ?>">
+                            <?= 
+                                $model['status'] === 'pending_validation' ? 'Aguardando Validação' : 
+                                ($model['status'] === 'approved' ? 'Aprovado' : 'Rejeitado') 
+                            ?>
+                        </span>
                     </div>
+                </div>
+                
+                <div class="card-body">
+                    <?php include_once VIEWS_PATH . '/partials/flash_messages.php'; ?>
                     
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <p><strong>Data de Envio:</strong> <?= date('d/m/Y H:i', strtotime($model['created_at'])) ?></p>
-                            <p><strong>Tipo de Arquivo:</strong> <?= strtoupper($model['file_type']) ?></p>
-                            <p><strong>Tamanho:</strong> <?= number_format($model['file_size'] / 1024 / 1024, 2) ?> MB</p>
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <h3 class="h5 mb-3">Informações do Modelo</h3>
+                            
+                            <div class="row mb-2">
+                                <div class="col-md-4 fw-bold">Nome Original:</div>
+                                <div class="col-md-8"><?= htmlspecialchars($model['original_name']) ?></div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-md-4 fw-bold">Tipo de Arquivo:</div>
+                                <div class="col-md-8"><?= strtoupper(htmlspecialchars($model['file_type'])) ?></div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-md-4 fw-bold">Tamanho:</div>
+                                <div class="col-md-8"><?= number_format($model['file_size'] / 1024 / 1024, 2) ?> MB</div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-md-4 fw-bold">Data de Envio:</div>
+                                <div class="col-md-8"><?= date('d/m/Y H:i', strtotime($model['created_at'])) ?></div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-md-4 fw-bold">Status Atual:</div>
+                                <div class="col-md-8">
+                                    <span class="badge <?= 
+                                        $model['status'] === 'pending_validation' ? 'bg-warning' : 
+                                        ($model['status'] === 'approved' ? 'bg-success' : 'bg-danger') 
+                                    ?>">
+                                        <?= 
+                                            $model['status'] === 'pending_validation' ? 'Aguardando Validação' : 
+                                            ($model['status'] === 'approved' ? 'Aprovado' : 'Rejeitado') 
+                                        ?>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <?php if (!empty($model['updated_at'])): ?>
+                                <div class="row mb-2">
+                                    <div class="col-md-4 fw-bold">Última Atualização:</div>
+                                    <div class="col-md-8"><?= date('d/m/Y H:i', strtotime($model['updated_at'])) ?></div>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($model['notes'])): ?>
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <div class="fw-bold mb-2">Observações:</div>
+                                        <div class="p-3 bg-light rounded">
+                                            <?= nl2br(htmlspecialchars($model['notes'])) ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if ($model['status'] === 'rejected' && !empty($model['admin_notes'])): ?>
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <div class="alert alert-danger">
+                                            <h4 class="h6">Motivo da Rejeição:</h4>
+                                            <p class="mb-0"><?= nl2br(htmlspecialchars($model['admin_notes'])) ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <div class="col-md-6">
-                            <?php if (isset($model['validation_data']) && is_array($model['validation_data'])): ?>
-                                <p><strong>Validação:</strong> 
-                                    <?php if ($model['validation_data']['is_valid']): ?>
-                                        <span class="text-success">
-                                            <i class="fas fa-check-circle me-1"></i> Válido para impressão
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="text-danger">
-                                            <i class="fas fa-times-circle me-1"></i> Problemas detectados
-                                        </span>
-                                    <?php endif; ?>
-                                </p>
+                        
+                        <div class="col-md-4">
+                            <?php if (isset($model['validation_data']) && !empty($model['validation_data'])): ?>
+                                <h3 class="h5 mb-3">Detalhes Técnicos</h3>
                                 
-                                <?php if (isset($model['validation_data']['stats']['dimensions'])): ?>
-                                    <p><strong>Dimensões:</strong> 
-                                        <?= number_format($model['validation_data']['stats']['dimensions']['width'], 2) ?> x 
-                                        <?= number_format($model['validation_data']['stats']['dimensions']['height'], 2) ?> x 
-                                        <?= number_format($model['validation_data']['stats']['dimensions']['depth'], 2) ?> mm
-                                    </p>
+                                <?php 
+                                $metadata = isset($model['validation_data']['metadata']) ? 
+                                    $model['validation_data']['metadata'] : 
+                                    $model['validation_data'];
+                                    
+                                if (is_array($metadata)):
+                                ?>
+                                    <div class="card">
+                                        <div class="list-group list-group-flush">
+                                            <?php if (isset($metadata['format'])): ?>
+                                                <div class="list-group-item">
+                                                    <small class="text-muted d-block">Formato:</small>
+                                                    <strong><?= htmlspecialchars($metadata['format']) ?></strong>
+                                                </div>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (isset($metadata['triangles'])): ?>
+                                                <div class="list-group-item">
+                                                    <small class="text-muted d-block">Triângulos:</small>
+                                                    <strong><?= number_format($metadata['triangles']) ?></strong>
+                                                </div>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (isset($metadata['vertices'])): ?>
+                                                <div class="list-group-item">
+                                                    <small class="text-muted d-block">Vértices:</small>
+                                                    <strong><?= number_format($metadata['vertices']) ?></strong>
+                                                </div>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (isset($metadata['faces'])): ?>
+                                                <div class="list-group-item">
+                                                    <small class="text-muted d-block">Faces:</small>
+                                                    <strong><?= number_format($metadata['faces']) ?></strong>
+                                                </div>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (isset($metadata['width']) && isset($metadata['height']) && isset($metadata['depth'])): ?>
+                                                <div class="list-group-item">
+                                                    <small class="text-muted d-block">Dimensões (unidades do modelo):</small>
+                                                    <strong>
+                                                        <?= number_format($metadata['width'], 2) ?> x 
+                                                        <?= number_format($metadata['height'], 2) ?> x 
+                                                        <?= number_format($metadata['depth'], 2) ?>
+                                                    </strong>
+                                                </div>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (isset($metadata['model_name'])): ?>
+                                                <div class="list-group-item">
+                                                    <small class="text-muted d-block">Nome do Modelo:</small>
+                                                    <strong><?= htmlspecialchars($metadata['model_name']) ?></strong>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
-                                
-                                <?php if (isset($model['validation_data']['stats']['triangles'])): ?>
-                                    <p><strong>Polígonos:</strong> <?= number_format($model['validation_data']['stats']['triangles']) ?></p>
-                                <?php elseif (isset($model['validation_data']['stats']['faces'])): ?>
-                                    <p><strong>Faces:</strong> <?= number_format($model['validation_data']['stats']['faces']) ?></p>
-                                <?php endif; ?>
+                            <?php endif; ?>
+                            
+                            <?php if ($model['status'] === 'pending_validation'): ?>
+                                <div class="alert alert-info mt-4">
+                                    <h4 class="h6"><i class="fas fa-info-circle me-2"></i>Aguardando Verificação</h4>
+                                    <p class="small mb-0">Seu modelo está na fila para análise técnica. Este processo geralmente leva até 24 horas úteis.</p>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if ($model['status'] === 'approved'): ?>
+                                <div class="alert alert-success mt-4">
+                                    <h4 class="h6"><i class="fas fa-check-circle me-2"></i>Modelo Aprovado</h4>
+                                    <p class="small mb-0">Seu modelo foi aprovado e está pronto para impressão. Você pode solicitar a impressão a partir da sua área de cliente.</p>
+                                </div>
                             <?php endif; ?>
                         </div>
                     </div>
-                    
-                    <?php if ($model['notes']): ?>
-                        <div class="card bg-light mb-3">
-                            <div class="card-header">
-                                <h3 class="h6 mb-0">Notas e Observações</h3>
-                            </div>
-                            <div class="card-body">
-                                <pre class="mb-0" style="white-space: pre-wrap;"><?= htmlspecialchars($model['notes']) ?></pre>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <?php if (isset($model['validation_data']) && is_array($model['validation_data'])): ?>
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h3 class="h6 mb-0">Resultados da Validação</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <?php if (!empty($model['validation_data']['errors'])): ?>
-                                        <div class="col-md-12 mb-3">
-                                            <h4 class="h6 text-danger"><i class="fas fa-exclamation-circle me-1"></i> Erros</h4>
-                                            <ul class="list-group list-group-flush">
-                                                <?php foreach ($model['validation_data']['errors'] as $error): ?>
-                                                    <li class="list-group-item list-group-item-danger"><?= htmlspecialchars($error) ?></li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        </div>
-                                    <?php endif; ?>
-                                    
-                                    <?php if (!empty($model['validation_data']['warnings'])): ?>
-                                        <div class="col-md-12 mb-3">
-                                            <h4 class="h6 text-warning"><i class="fas fa-exclamation-triangle me-1"></i> Avisos</h4>
-                                            <ul class="list-group list-group-flush">
-                                                <?php foreach ($model['validation_data']['warnings'] as $warning): ?>
-                                                    <li class="list-group-item list-group-item-warning"><?= htmlspecialchars($warning) ?></li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        </div>
-                                    <?php endif; ?>
-                                    
-                                    <?php if (!empty($model['validation_data']['info'])): ?>
-                                        <div class="col-md-12 mb-3">
-                                            <h4 class="h6 text-info"><i class="fas fa-info-circle me-1"></i> Informações</h4>
-                                            <ul class="list-group list-group-flush">
-                                                <?php foreach ($model['validation_data']['info'] as $info): ?>
-                                                    <li class="list-group-item list-group-item-info"><?= htmlspecialchars($info) ?></li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        </div>
-                                    <?php endif; ?>
-                                    
-                                    <?php if (!empty($model['validation_data']['repair_suggestions'])): ?>
-                                        <div class="col-md-12 mb-3">
-                                            <h4 class="h6 text-primary"><i class="fas fa-tools me-1"></i> Sugestões de Reparo</h4>
-                                            <ul class="list-group list-group-flush">
-                                                <?php foreach ($model['validation_data']['repair_suggestions'] as $suggestion): ?>
-                                                    <li class="list-group-item list-group-item-primary"><?= htmlspecialchars($suggestion) ?></li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                
-                                <?php if (isset($model['validation_data']['stats']) && !empty($model['validation_data']['stats'])): ?>
-                                    <div class="mt-3">
-                                        <h4 class="h6"><i class="fas fa-chart-bar me-1"></i> Estatísticas Detalhadas</h4>
-                                        <table class="table table-sm table-bordered">
-                                            <tbody>
-                                                <?php foreach ($model['validation_data']['stats'] as $key => $value): ?>
-                                                    <?php if (is_array($value)): ?>
-                                                        <?php if ($key === 'dimensions'): ?>
-                                                            <tr>
-                                                                <th>Dimensões</th>
-                                                                <td>
-                                                                    Largura: <?= number_format($value['width'], 2) ?> mm<br>
-                                                                    Altura: <?= number_format($value['height'], 2) ?> mm<br>
-                                                                    Profundidade: <?= number_format($value['depth'], 2) ?> mm
-                                                                </td>
-                                                            </tr>
-                                                        <?php elseif ($key === 'bounding_box'): ?>
-                                                            <tr>
-                                                                <th>Bounding Box</th>
-                                                                <td>
-                                                                    Min: [<?= number_format($value['min'][0], 2) ?>, <?= number_format($value['min'][1], 2) ?>, <?= number_format($value['min'][2], 2) ?>]<br>
-                                                                    Max: [<?= number_format($value['max'][0], 2) ?>, <?= number_format($value['max'][1], 2) ?>, <?= number_format($value['max'][2], 2) ?>]
-                                                                </td>
-                                                            </tr>
-                                                        <?php endif; ?>
-                                                    <?php else: ?>
-                                                        <tr>
-                                                            <th><?= ucfirst(str_replace('_', ' ', $key)) ?></th>
-                                                            <td><?= is_numeric($value) ? number_format($value) : htmlspecialchars($value) ?></td>
-                                                        </tr>
-                                                    <?php endif; ?>
-                                                <?php endforeach; ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
                 </div>
-                <div class="card-footer">
-                    <div class="d-flex justify-content-between">
+                
+                <div class="card-footer bg-light d-flex justify-content-between">
+                    <a href="<?= BASE_URL ?>customer-models/list" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Voltar para Lista
+                    </a>
+                    
+                    <div>
                         <?php if ($model['status'] === 'approved'): ?>
-                            <a href="<?= BASE_URL ?>carrinho/adicionar-modelo/<?= $model['id'] ?>" class="btn btn-success">
-                                <i class="fas fa-cart-plus me-1"></i> Adicionar ao Carrinho
+                            <a href="<?= BASE_URL ?>viewer3d/view/<?= $model['id'] ?>" class="btn btn-primary me-2">
+                                <i class="fas fa-cube me-1"></i> Visualizar em 3D
                             </a>
-                        <?php elseif ($model['status'] === 'needs_repair'): ?>
-                            <div>
-                                <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#repairInfoModal">
-                                    <i class="fas fa-tools me-1"></i> Ver Instruções de Reparo
-                                </button>
-                            </div>
-                        <?php elseif ($model['status'] === 'pending_validation'): ?>
-                            <div class="text-muted">
-                                <i class="fas fa-clock me-1"></i> Aguardando validação pela nossa equipe
-                            </div>
+                            <a href="<?= BASE_URL ?>print-queue/add/<?= $model['id'] ?>" class="btn btn-success me-2">
+                                <i class="fas fa-print me-1"></i> Solicitar Impressão
+                            </a>
                         <?php endif; ?>
                         
-                        <a href="<?= BASE_URL ?>customer-models/delete/<?= $model['id'] ?>" 
-                           class="btn btn-outline-danger" 
-                           onclick="return confirm('Tem certeza que deseja excluir este modelo?')">
-                            <i class="fas fa-trash-alt me-1"></i> Excluir
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-4">
-            <!-- Painel lateral para administradores -->
-            <?php if (isset($isAdmin) && $isAdmin): ?>
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h3 class="h5 mb-0"><i class="fas fa-cogs me-2"></i> Ações Administrativas</h3>
-                    </div>
-                    <div class="card-body">
-                        <!-- Formulário para alterar status do modelo -->
-                        <form action="<?= BASE_URL ?>admin/customer-models/update-status/<?= $model['id'] ?>" method="post">
-                            <div class="mb-3">
-                                <label for="status" class="form-label">Alterar Status:</label>
-                                <select name="status" id="status" class="form-select">
-                                    <option value="pending_validation" <?= $model['status'] === 'pending_validation' ? 'selected' : '' ?>>Pendente de Validação</option>
-                                    <option value="approved" <?= $model['status'] === 'approved' ? 'selected' : '' ?>>Aprovado</option>
-                                    <option value="needs_repair" <?= $model['status'] === 'needs_repair' ? 'selected' : '' ?>>Precisa de Reparo</option>
-                                    <option value="rejected" <?= $model['status'] === 'rejected' ? 'selected' : '' ?>>Rejeitado</option>
-                                </select>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="admin_notes" class="form-label">Notas Administrativas:</label>
-                                <textarea name="notes" id="admin_notes" class="form-control" rows="4" placeholder="Observações sobre o modelo ou instruções para o cliente"></textarea>
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary w-100">
-                                <i class="fas fa-save me-1"></i> Salvar Alterações
-                            </button>
-                        </form>
-                        
-                        <hr>
-                        
-                        <!-- Ações adicionais -->
-                        <div class="d-grid gap-2">
-                            <a href="<?= BASE_URL ?>admin/customer-models/revalidate/<?= $model['id'] ?>" class="btn btn-outline-secondary">
-                                <i class="fas fa-sync-alt me-1"></i> Revalidar Modelo
-                            </a>
-                            
-                            <a href="<?= BASE_URL ?>admin/print-queue/add/<?= $model['id'] ?>" class="btn btn-outline-success">
-                                <i class="fas fa-print me-1"></i> Adicionar à Fila de Impressão
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            <?php endif; ?>
-            
-            <!-- Informações sobre visualização e validação 3D (ATUALIZADO) -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-info text-white">
-                    <h3 class="h5 mb-0"><i class="fas fa-info-circle me-2"></i> Informações sobre Visualização 3D</h3>
-                </div>
-                <div class="card-body">
-                    <h4 class="h6 mb-2">Como usar o visualizador:</h4>
-                    <ul class="mb-3">
-                        <li><i class="fas fa-mouse me-2"></i> <strong>Rotação:</strong> Clique e arraste para rotacionar</li>
-                        <li><i class="fas fa-search-plus me-2"></i> <strong>Zoom:</strong> Use a roda do mouse</li>
-                        <li><i class="fas fa-arrows-alt me-2"></i> <strong>Pan:</strong> Clique com botão direito e arraste</li>
-                        <li><i class="fas fa-sync-alt me-2"></i> <strong>Auto-rotação:</strong> Clique no botão de rotação</li>
-                        <li><i class="fas fa-home me-2"></i> <strong>Reset:</strong> Clique no botão de home</li>
-                        <li><i class="fas fa-expand me-2"></i> <strong>Tela cheia:</strong> Clique no botão de expandir</li>
-                    </ul>
-                    
-                    <p>
-                        O visualizador 3D permite analisar seu modelo de todos os ângulos e verificar detalhes antes de prosseguir com a impressão.
-                    </p>
-                    
-                    <div class="alert alert-info">
-                        <i class="fas fa-lightbulb me-1"></i> <strong>Dica:</strong> Para melhores resultados, certifique-se de que seu modelo tenha uma base plana para impressão e evite detalhes muito pequenos que podem ser difíceis de imprimir.
+                        <button type="button" class="btn btn-danger" 
+                                onclick="confirmDelete(<?= $model['id'] ?>, '<?= htmlspecialchars($model['original_name']) ?>')">
+                            <i class="fas fa-trash-alt me-1"></i> Excluir Modelo
+                        </button>
                     </div>
                 </div>
             </div>
@@ -293,68 +200,37 @@ require_once APP_PATH . '/helpers/ModelViewerHelper.php';
     </div>
 </div>
 
-<!-- Modal de Instruções de Reparo -->
-<?php if ($model['status'] === 'needs_repair'): ?>
-<div class="modal fade" id="repairInfoModal" tabindex="-1" aria-labelledby="repairInfoModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+<!-- Modal de confirmação de exclusão -->
+<div class="modal fade" id="deleteModelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title" id="repairInfoModalLabel">
-                    <i class="fas fa-tools me-2"></i> Instruções para Reparo do Modelo
-                </h5>
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <div class="alert alert-warning">
-                    <p><i class="fas fa-exclamation-triangle me-1"></i> <strong>Atenção:</strong> Seu modelo requer algumas correções antes de poder ser impresso.</p>
-                </div>
-                
-                <?php if (isset($model['validation_data']) && is_array($model['validation_data'])): ?>
-                    <?php if (!empty($model['validation_data']['errors'])): ?>
-                        <h5>Problemas Detectados:</h5>
-                        <ul class="list-group mb-4">
-                            <?php foreach ($model['validation_data']['errors'] as $error): ?>
-                                <li class="list-group-item list-group-item-danger"><?= htmlspecialchars($error) ?></li>
-                            <?php endforeach; ?>
-                            
-                            <?php if (!empty($model['validation_data']['warnings'])): ?>
-                                <?php foreach ($model['validation_data']['warnings'] as $warning): ?>
-                                    <li class="list-group-item list-group-item-warning"><?= htmlspecialchars($warning) ?></li>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </ul>
-                    <?php endif; ?>
-                    
-                    <?php if (!empty($model['validation_data']['repair_suggestions'])): ?>
-                        <h5>Sugestões para Correção:</h5>
-                        <ul class="list-group mb-4">
-                            <?php foreach ($model['validation_data']['repair_suggestions'] as $suggestion): ?>
-                                <li class="list-group-item list-group-item-primary"><?= htmlspecialchars($suggestion) ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                    <?php endif; ?>
-                <?php endif; ?>
-                
-                <h5>Próximos Passos:</h5>
-                <ol>
-                    <li>Faça as correções necessárias no seu modelo 3D usando seu software de modelagem.</li>
-                    <li>Depois de corrigido, exclua este modelo e envie a versão atualizada.</li>
-                    <li>Caso tenha dúvidas sobre como corrigir algum problema específico, entre em contato conosco pelo formulário de suporte.</li>
-                </ol>
-                
-                <div class="alert alert-info">
-                    <p><i class="fas fa-info-circle me-1"></i> <strong>Dica:</strong> Software como o <a href="https://www.meshmixer.com/" target="_blank">Meshmixer</a> (gratuito) ou o <a href="https://www.netfabb.com/" target="_blank">Netfabb</a> podem ajudar na correção de muitos problemas comuns em modelos 3D.</p>
-                </div>
+                <p>Tem certeza que deseja excluir o modelo <strong id="modelName"></strong>?</p>
+                <p class="mb-0">Esta ação não pode ser desfeita.</p>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                <a href="<?= BASE_URL ?>suporte" class="btn btn-primary">
-                    <i class="fas fa-question-circle me-1"></i> Pedir Ajuda
-                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="deleteForm" action="" method="post">
+                    <input type="hidden" name="csrf_token" value="<?= CsrfProtection::getToken() ?>">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
             </div>
         </div>
     </div>
 </div>
-<?php endif; ?>
 
-<?php require_once VIEWS_PATH . '/partials/footer.php'; ?>
+<script>
+    function confirmDelete(modelId, modelName) {
+        document.getElementById('modelName').textContent = modelName;
+        document.getElementById('deleteForm').action = '<?= BASE_URL ?>customer-models/delete/' + modelId;
+        
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModelModal'));
+        deleteModal.show();
+    }
+</script>
+
+<?php include_once VIEWS_PATH . '/partials/footer.php'; ?>

@@ -1,0 +1,396 @@
+
+    /**
+     * Exibe página de pagamento com PayPal
+     * 
+     * @param int $orderId ID do pedido
+     */
+    public function paypal($orderId) {
+        try {
+            // Validar parâmetros
+            $orderId = (int)$orderId;
+            
+            if ($orderId <= 0) {
+                $_SESSION['error'] = 'Pedido inválido.';
+                header('Location: ' . BASE_URL . 'meus-pedidos');
+                exit;
+            }
+            
+            // Verificar se pedido existe e pertence ao usuário logado
+            $userID = (int)$_SESSION['user']['id'];
+            $order = $this->getOrder($orderId, $userID);
+            
+            if (!$order) {
+                $_SESSION['error'] = 'Pedido não encontrado ou você não tem permissão para acessá-lo.';
+                header('Location: ' . BASE_URL . 'meus-pedidos');
+                exit;
+            }
+            
+            // Verificar se pedido está apto para pagamento
+            if (!in_array($order['payment_status'], ['pending', 'failed'])) {
+                $_SESSION['error'] = 'Este pedido não está disponível para pagamento.';
+                header('Location: ' . BASE_URL . 'pedido/detalhes/' . $orderId);
+                exit;
+            }
+            
+            // Obter configurações do PayPal
+            $paypalConfig = [];
+            
+            try {
+                $gateway = $this->paymentManager->getGateway('paypal');
+                $paypalConfig = $gateway->getFrontendConfig();
+            } catch (\Exception $e) {
+                // Registrar erro
+                error_log("Erro ao obter configurações do PayPal: " . $e->getMessage());
+                
+                // Exibir mensagem para o usuário
+                $_SESSION['error'] = 'Pagamento via PayPal não está disponível no momento. Por favor, tente outro método.';
+                header('Location: ' . BASE_URL . 'pedido/pagar/' . $orderId);
+                exit;
+            }
+            
+            // Variáveis para template
+            $pageTitle = 'Pagamento com PayPal';
+            $orderNumber = $order['order_number'];
+            $total = $order['total'];
+            $clientId = $paypalConfig['client_id'] ?? '';
+            $isSandbox = $paypalConfig['is_sandbox'] ?? true;
+            $currency = $paypalConfig['currency'] ?? 'BRL';
+            
+            // Gerar token CSRF para requisições AJAX
+            $csrf_token = CsrfProtection::getToken();
+            
+            // Carregar view
+            require_once VIEWS_PATH . '/payment/paypal_checkout.php';
+        } catch (Exception $e) {
+            // Registrar erro
+            error_log("Erro ao exibir página de PayPal: " . $e->getMessage());
+            
+            // Exibir mensagem para o usuário
+            $_SESSION['error'] = 'Ocorreu um erro ao carregar o pagamento via PayPal: ' . SecurityManager::sanitize($e->getMessage());
+            header('Location: ' . BASE_URL . 'meus-pedidos');
+            exit;
+        }
+    }
+    
+    /**
+     * Cria uma ordem de pagamento no PayPal (endpoint AJAX)
+     */
+    public function createPayPalOrder() {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->jsonResponse(['success' => false, 'message' => 'Método não permitido'], 405);
+                return;
+            }
+            
+            // Verificar token CSRF
+            if (!CsrfProtection::validateRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Token inválido'], 403);
+                return;
+            }
+            
+            // Obter e decodificar dados JSON
+            $json = file_get_contents('php://input');
+            $data = json_decode($json, true);
+            
+            // Validar dados
+            if (!$data || !isset($data['order_id'])) {
+                $this->jsonResponse(['success' => false, 'message' => 'Dados incompletos'], 400);
+                return;
+            }
+            
+            $orderId = (int)$data['order_id'];
+            
+            // Verificar se pedido existe e pertence ao usuário logado
+            $userID = (int)$_SESSION['user']['id'];
+            $order = $this->getOrder($orderId, $userID);
+            
+            if (!$order) {
+                $this->jsonResponse(['success' => false, 'message' => 'Pedido não encontrado'], 404);
+                return;
+            }
+            
+            // Obter dados do cliente
+            $customer = $this->getCustomerData($userID);
+            
+            // Obter endereço de entrega
+            $shippingAddress = $this->getShippingAddress($order['shipping_address_id']);
+            
+            // Mesclar dados do cliente com endereço
+            $customerData = array_merge($customer, $shippingAddress);
+            
+            // Preparar dados do pedido
+            $orderData = [
+                'id' => $order['id'],
+                'order_number' => $order['order_number'],
+                'total' => $order['total'],
+                'subtotal' => $order['subtotal'],
+                'shipping_cost' => $order['shipping_cost'],
+                'discount' => $order['discount'],
+                'items' => $this->getOrderItems($order['id'])
+            ];
+            
+            // Preparar dados de pagamento
+            $paymentData = [
+                'payment_method' => 'paypal'
+            ];
+            
+            // Processar pagamento via PaymentManager
+            $result = $this->paymentManager->processPayment($orderData, $customerData, $paymentData);
+            
+            // Verificar resultado
+            if (!($result['success'] ?? false)) {
+                $this->jsonResponse([
+                    'success' => false, 
+                    'error_message' => $result['error_message'] ?? 'Erro ao processar pagamento'
+                ], 400);
+                return;
+            }
+            
+            // Retornar dados da transação
+            $this->jsonResponse([
+                'success' => true,
+                'transaction_id' => $result['transaction_id'],
+                'status' => $result['status'] ?? 'pending'
+            ]);
+        } catch (Exception $e) {
+            // Registrar erro
+            error_log("Erro ao criar ordem PayPal: " . $e->getMessage());
+            
+            // Retornar erro em JSON
+            $this->jsonResponse([
+                'success' => false,
+                'error_message' => 'Erro interno ao processar pagamento',
+                'debug' => DEBUG ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+    
+    /**
+     * Captura um pagamento PayPal aprovado (endpoint AJAX)
+     */
+    public function capturePayPalOrder() {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->jsonResponse(['success' => false, 'message' => 'Método não permitido'], 405);
+                return;
+            }
+            
+            // Verificar token CSRF
+            if (!CsrfProtection::validateRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Token inválido'], 403);
+                return;
+            }
+            
+            // Obter e decodificar dados JSON
+            $json = file_get_contents('php://input');
+            $data = json_decode($json, true);
+            
+            // Validar dados
+            if (!$data || !isset($data['order_id']) || !isset($data['paypal_order_id'])) {
+                $this->jsonResponse(['success' => false, 'message' => 'Dados incompletos'], 400);
+                return;
+            }
+            
+            $orderId = (int)$data['order_id'];
+            $paypalOrderId = SecurityManager::sanitize($data['paypal_order_id']);
+            
+            // Verificar se pedido existe e pertence ao usuário logado
+            $userID = (int)$_SESSION['user']['id'];
+            $order = $this->getOrder($orderId, $userID);
+            
+            if (!$order) {
+                $this->jsonResponse(['success' => false, 'message' => 'Pedido não encontrado'], 404);
+                return;
+            }
+            
+            // Capturar pagamento via PaymentManager
+            $result = $this->paymentManager->capturePayPalPayment($paypalOrderId, 'user-' . $userID);
+            
+            // Verificar resultado
+            if (!($result['success'] ?? false)) {
+                $this->jsonResponse([
+                    'success' => false, 
+                    'error_message' => $result['error_message'] ?? 'Erro ao capturar pagamento'
+                ], 400);
+                return;
+            }
+            
+            // Atualizar pedido com dados da transação
+            $this->updateOrderPaymentInfo($orderId, $result, 'paypal');
+            
+            // Retornar resultado
+            $this->jsonResponse([
+                'success' => true,
+                'status' => $result['status'] ?? 'approved',
+                'redirect_url' => BASE_URL . 'pedido/sucesso/' . $order['order_number']
+            ]);
+        } catch (Exception $e) {
+            // Registrar erro
+            error_log("Erro ao capturar pagamento PayPal: " . $e->getMessage());
+            
+            // Retornar erro em JSON
+            $this->jsonResponse([
+                'success' => false,
+                'error_message' => 'Erro interno ao processar pagamento',
+                'debug' => DEBUG ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+    
+    /**
+     * Registra cancelamento de pagamento PayPal (endpoint AJAX)
+     */
+    public function cancelPayPalOrder() {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->jsonResponse(['success' => false, 'message' => 'Método não permitido'], 405);
+                return;
+            }
+            
+            // Verificar token CSRF
+            if (!CsrfProtection::validateRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Token inválido'], 403);
+                return;
+            }
+            
+            // Obter e decodificar dados JSON
+            $json = file_get_contents('php://input');
+            $data = json_decode($json, true);
+            
+            // Validar dados
+            if (!$data || !isset($data['order_id'])) {
+                $this->jsonResponse(['success' => false, 'message' => 'Dados incompletos'], 400);
+                return;
+            }
+            
+            $orderId = (int)$data['order_id'];
+            $reason = isset($data['reason']) ? SecurityManager::sanitize($data['reason']) : 'user_cancelled';
+            
+            // Verificar se pedido existe e pertence ao usuário logado
+            $userID = (int)$_SESSION['user']['id'];
+            $order = $this->getOrder($orderId, $userID);
+            
+            if (!$order) {
+                $this->jsonResponse(['success' => false, 'message' => 'Pedido não encontrado'], 404);
+                return;
+            }
+            
+            // Registrar cancelamento
+            $pdo = $this->db->getPdo();
+            $stmt = $pdo->prepare("
+                INSERT INTO payment_attempts 
+                (order_id, payment_method, gateway, status, amount, success, additional_data, created_at) 
+                VALUES (?, 'paypal', 'paypal', 'cancelled', ?, 0, ?, NOW())
+            ");
+            
+            $additionalData = json_encode(['reason' => $reason, 'cancelled_by' => 'user']);
+            $stmt->execute([$orderId, $order['total'], $additionalData]);
+            
+            // Retornar resultado
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Cancelamento registrado com sucesso'
+            ]);
+        } catch (Exception $e) {
+            // Registrar erro
+            error_log("Erro ao cancelar pagamento PayPal: " . $e->getMessage());
+            
+            // Retornar erro em JSON
+            $this->jsonResponse([
+                'success' => false,
+                'error_message' => 'Erro interno ao registrar cancelamento',
+                'debug' => DEBUG ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+    
+    /**
+     * Registra erro de pagamento (endpoint AJAX)
+     */
+    public function logError() {
+        try {
+            // Verificar método da requisição
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->jsonResponse(['success' => false, 'message' => 'Método não permitido'], 405);
+                return;
+            }
+            
+            // Verificar token CSRF
+            if (!CsrfProtection::validateRequest()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Token inválido'], 403);
+                return;
+            }
+            
+            // Obter e decodificar dados JSON
+            $json = file_get_contents('php://input');
+            $data = json_decode($json, true);
+            
+            // Validar dados mínimos
+            if (!$data || !isset($data['order_id']) || !isset($data['error_type'])) {
+                $this->jsonResponse(['success' => false, 'message' => 'Dados incompletos'], 400);
+                return;
+            }
+            
+            // Sanitizar dados
+            $orderId = (int)$data['order_id'];
+            $paymentMethod = SecurityManager::sanitize($data['payment_method'] ?? 'unknown');
+            $errorType = SecurityManager::sanitize($data['error_type']);
+            $errorMessage = SecurityManager::sanitize($data['error_message'] ?? 'No details provided');
+            
+            // Registrar erro no log
+            error_log("Erro de pagamento [{$errorType}] para pedido #{$orderId}: {$errorMessage}");
+            
+            // Registrar na base de dados para análise
+            $pdo = $this->db->getPdo();
+            $stmt = $pdo->prepare("
+                INSERT INTO payment_attempts 
+                (order_id, payment_method, gateway, status, success, additional_data, created_at) 
+                VALUES (?, ?, ?, 'error', 0, ?, NOW())
+            ");
+            
+            $additionalData = json_encode([
+                'error_type' => $errorType,
+                'error_message' => $errorMessage,
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+                'ip' => $this->getClientIp()
+            ]);
+            
+            $stmt->execute([$orderId, $paymentMethod, $paymentMethod, $additionalData]);
+            
+            // Retornar resultado
+            $this->jsonResponse(['success' => true]);
+        } catch (Exception $e) {
+            // Registrar erro
+            error_log("Erro ao registrar erro de pagamento: " . $e->getMessage());
+            
+            // Retornar sempre sucesso para não complicar fluxo do cliente
+            $this->jsonResponse(['success' => true]);
+        }
+    }
+    
+    /**
+     * Obtém IP do cliente com suporte a proxies
+     * 
+     * @return string IP do cliente
+     */
+    private function getClientIp(): string {
+        $ipAddress = '';
+        
+        // Verificar IP encaminhado por proxy
+        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ipAddresses = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            $ipAddress = trim($ipAddresses[0]);
+        } elseif (isset($_SERVER['HTTP_CLIENT_IP'])) {
+            $ipAddress = $_SERVER['HTTP_CLIENT_IP'];
+        } elseif (isset($_SERVER['REMOTE_ADDR'])) {
+            $ipAddress = $_SERVER['REMOTE_ADDR'];
+        }
+        
+        // Sanitizar e validar
+        $ipAddress = filter_var($ipAddress, FILTER_VALIDATE_IP) ?: 'Unknown';
+        
+        return $ipAddress;
+    }

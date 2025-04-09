@@ -1,8 +1,14 @@
 <?php
 /**
  * CategoryController - Controlador para páginas de categorias
+ * 
+ * @version     1.2.0
+ * @author      Taverna da Impressão
  */
 class CategoryController extends Controller {
+    // Implementação do trait de validação de entrada
+    use InputValidationTrait;
+    
     private $categoryModel;
     private $productModel;
     
@@ -10,6 +16,9 @@ class CategoryController extends Controller {
         try {
             $this->categoryModel = new CategoryModel();
             $this->productModel = new ProductModel();
+            
+            // Carregar o trait de validação
+            require_once APP_PATH . '/lib/Security/InputValidationTrait.php';
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao inicializar CategoryController");
         }
@@ -25,7 +34,14 @@ class CategoryController extends Controller {
                 error_log("Executando CategoryController::show() com parâmetros: " . json_encode($params));
             }
             
-            $slug = isset($params['slug']) ? trim($params['slug']) : '';
+            // Validar slug usando InputValidationTrait
+            $slug = isset($params['slug']) ? $this->requestValidatedParam('slug', 'string', [
+                'required' => true,
+                'default' => $params['slug'],
+                'minLength' => 1,
+                'maxLength' => 100,
+                'pattern' => '/^[a-z0-9-]+$/'
+            ]) : '';
             
             if (empty($slug)) {
                 error_log("Erro: Slug de categoria vazio ou não fornecido");
@@ -81,14 +97,27 @@ class CategoryController extends Controller {
                 error_log("Aviso: Categoria sem subcategorias ou não é array");
             }
             
-            // Obter parâmetros de paginação, ordenação e filtragem dos query params
-            $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-            $limit = isset($_GET['limit']) ? min(48, max(4, intval($_GET['limit']))) : 12;
+            // Obter parâmetros de paginação, ordenação e filtragem dos query params usando InputValidationTrait
+            // Validar página
+            $page = $this->getValidatedParam('page', 'int', [
+                'required' => false,
+                'default' => 1,
+                'min' => 1
+            ]);
+            
+            // Validar limite por página
+            $limit = $this->getValidatedParam('limit', 'int', [
+                'required' => false,
+                'default' => 12,
+                'min' => 4,
+                'max' => 48
+            ]);
             
             // Processar inclusão de subcategorias
-            $includeSubcategories = isset($_GET['include_subcategories']) ? 
-                                    filter_var($_GET['include_subcategories'], FILTER_VALIDATE_BOOLEAN) : 
-                                    true;
+            $includeSubcategories = $this->getValidatedParam('include_subcategories', 'bool', [
+                'required' => false,
+                'default' => true
+            ]);
             
             // Processar ordenação
             $validOrderBy = [
@@ -101,35 +130,63 @@ class CategoryController extends Controller {
                 'default' => 'p.is_tested DESC, p.name ASC'
             ];
             
-            $orderBy = isset($_GET['order_by']) && isset($validOrderBy[$_GET['order_by']]) ? 
-                       $validOrderBy[$_GET['order_by']] : 
-                       $validOrderBy['default'];
+            $orderByKey = $this->getValidatedParam('order_by', 'enum', [
+                'required' => false,
+                'default' => 'default',
+                'allowedValues' => array_keys($validOrderBy)
+            ]);
+            
+            $orderBy = $validOrderBy[$orderByKey];
             
             // Processar filtros
             $filters = [];
             
-            // Filtro de preço
-            if (isset($_GET['price_min']) && is_numeric($_GET['price_min'])) {
-                $filters['price_min'] = floatval($_GET['price_min']);
+            // Filtro de preço mínimo
+            $priceMin = $this->getValidatedParam('price_min', 'float', [
+                'required' => false,
+                'min' => 0
+            ]);
+            
+            if ($priceMin !== null) {
+                $filters['price_min'] = $priceMin;
             }
             
-            if (isset($_GET['price_max']) && is_numeric($_GET['price_max'])) {
-                $filters['price_max'] = floatval($_GET['price_max']);
+            // Filtro de preço máximo
+            $priceMax = $this->getValidatedParam('price_max', 'float', [
+                'required' => false,
+                'min' => 0
+            ]);
+            
+            if ($priceMax !== null) {
+                $filters['price_max'] = $priceMax;
             }
             
             // Filtro de disponibilidade
-            if (isset($_GET['availability']) && in_array($_GET['availability'], ['all', 'in_stock', 'custom_order'])) {
-                $filters['availability'] = $_GET['availability'];
+            $availability = $this->getValidatedParam('availability', 'enum', [
+                'required' => false,
+                'allowedValues' => ['all', 'in_stock', 'custom_order']
+            ]);
+            
+            if ($availability !== null) {
+                $filters['availability'] = $availability;
             }
             
             // Filtro para produtos personalizáveis
-            if (isset($_GET['customizable'])) {
-                $filters['customizable'] = filter_var($_GET['customizable'], FILTER_VALIDATE_BOOLEAN);
+            $customizable = $this->getValidatedParam('customizable', 'bool', [
+                'required' => false
+            ]);
+            
+            if ($customizable !== null) {
+                $filters['customizable'] = $customizable;
             }
             
             // Filtro para produtos em oferta
-            if (isset($_GET['on_sale'])) {
-                $filters['on_sale'] = filter_var($_GET['on_sale'], FILTER_VALIDATE_BOOLEAN);
+            $onSale = $this->getValidatedParam('on_sale', 'bool', [
+                'required' => false
+            ]);
+            
+            if ($onSale !== null) {
+                $filters['on_sale'] = $onSale;
             }
             
             // Log dos parâmetros de filtragem para debug
@@ -451,7 +508,14 @@ class CategoryController extends Controller {
                 error_log("Executando CategoryController::subcategories() com parâmetros: " . json_encode($params));
             }
             
-            $slug = isset($params['slug']) ? trim($params['slug']) : '';
+            // Validar slug usando InputValidationTrait
+            $slug = isset($params['slug']) ? $this->requestValidatedParam('slug', 'string', [
+                'required' => true,
+                'default' => $params['slug'],
+                'minLength' => 1,
+                'maxLength' => 100,
+                'pattern' => '/^[a-z0-9-]+$/'
+            ]) : '';
             
             if (empty($slug)) {
                 error_log("Erro: Slug de categoria vazio ou não fornecido para subcategorias");
@@ -578,8 +642,17 @@ class CategoryController extends Controller {
      */
     public function breadcrumb($params) {
         try {
-            $id = isset($params['id']) ? intval($params['id']) : 0;
-            $slug = isset($params['slug']) ? trim($params['slug']) : '';
+            // Validar parâmetros usando InputValidationTrait
+            $id = $this->requestValidatedParam('id', 'int', [
+                'required' => false,
+                'default' => isset($params['id']) ? (int)$params['id'] : 0
+            ]);
+            
+            $slug = $this->requestValidatedParam('slug', 'string', [
+                'required' => false,
+                'default' => isset($params['slug']) ? $params['slug'] : '',
+                'pattern' => '/^[a-z0-9-]*$/'
+            ]);
             
             if ($id <= 0 && empty($slug)) {
                 // Sem identificador válido
@@ -613,7 +686,11 @@ class CategoryController extends Controller {
             
             // Verificar se a resposta foi solicitada como JSON
             $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-            $wantsJson = $isAjax || (isset($_GET['format']) && $_GET['format'] === 'json');
+            $wantsJson = $isAjax || $this->getValidatedParam('format', 'string', [
+                'required' => false,
+                'default' => '',
+                'allowedValues' => ['json', '']
+            ]) === 'json';
             
             if ($wantsJson) {
                 // Retornar como JSON

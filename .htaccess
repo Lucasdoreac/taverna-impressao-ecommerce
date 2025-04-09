@@ -1,50 +1,77 @@
-# Configurações de segurança e performance para TAVERNA DA IMPRESSÃO
+# Arquivo .htaccess - Taverna da Impressão 3D
+# Configuração para servidor compartilhado Hostinger
 
-# Ativar o motor de reescrita
+# Ativar motor de reescrita
 RewriteEngine On
 
-# Forçar HTTPS
-RewriteCond %{HTTPS} off
-RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# Definir diretório base para o módulo de reescrita
+RewriteBase /
 
-# Remover www
-RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
-RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+# Diretivas de segurança
 
-# IMPORTANTE: Permitir acesso direto a arquivos de diagnóstico
-RewriteRule ^public/diag\.php$ - [L]
-RewriteRule ^public/diagnostico-classes\.php$ - [L]
-RewriteRule ^public/verificar-constantes\.php$ - [L]
-RewriteRule ^public/status\.php$ - [L]
-
-# Redirecionar todas as requisições para a pasta public
-# IMPORTANTE: Simplificamos as regras para máxima compatibilidade com Hostinger
-RewriteCond %{REQUEST_URI} !^/public/
-RewriteRule ^(.*)$ public/$1 [L]
-
-# Se acessar diretamente a raiz, redirecionar para public/index.php
-RewriteRule ^$ public/index.php [L]
-
-# Proteger arquivos e diretórios sensíveis
-<FilesMatch "^(\.ht|\.env|\.json|config\.php|composer\.(json|lock)|README\.md)$">
-  Require all denied
+# Bloquear acesso a arquivos de sistema
+<FilesMatch "(^\..*|composer\.json|composer\.lock|package\.json|package-lock\.json|\.gitignore|\.env)$">
+    Order allow,deny
+    Deny from all
 </FilesMatch>
 
-# Exceto arquivos de diagnóstico
-<FilesMatch "^(diag\.php|diagnostico-classes\.php|verificar-constantes\.php|status\.php)$">
-  Require all granted
+# Impedir acesso direto aos diretórios de aplicação
+RewriteRule ^app/.* index.php [L,NC]
+RewriteRule ^tests/.* - [F,L]
+RewriteRule ^utils/.* - [F,L]
+
+# Proteger arquivos importantes
+<FilesMatch "(project-status\.json|PLANNING\.md|TASK\.md|continuity-guide\.md)$">
+    Order allow,deny
+    Deny from all
 </FilesMatch>
 
-# Desativar listagem de diretórios
-Options -Indexes
+# Reescrita para URL amigáveis
+# Redirecionar todas as requisições para arquivos ou diretórios que não existem para o index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
 
-# Configurações de PHP para todo o site
-php_value upload_max_filesize 20M
-php_value post_max_size 20M
-php_value memory_limit 128M
-php_value max_execution_time 300
-php_value max_input_time 300
+# Configurações PHP recomendadas para servidores compartilhados
+<IfModule mod_php7.c>
+    # Limitar upload de arquivos
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    
+    # Segurança
+    php_flag display_errors off
+    php_flag log_errors on
+    php_flag allow_url_fopen off
+    php_flag expose_php off
 
-# Habilitar logs para depuração (temporário)
-php_flag log_errors on
-php_value error_log logs/php_errors.log
+    # Configurações de sessão
+    php_value session.cookie_httponly 1
+    php_value session.use_only_cookies 1
+    php_value session.cookie_secure 1
+</IfModule>
+
+# Headers de segurança
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+# Compressão Gzip
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/x-javascript
+</IfModule>
+
+# Cache de navegador
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpg "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+</IfModule>

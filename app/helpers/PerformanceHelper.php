@@ -269,12 +269,12 @@ class PerformanceHelper {
                     if ($ttfbCount > 0) {
                         $avgTtfb = $ttfbSum / $ttfbCount;
                         
-                        if ($avgTtfb > 500) {
-                            $recommendations[] = 'O tempo até o primeiro byte (TTFB) está muito alto (acima de 500ms). Considere otimizações no servidor ou no backend.';
+                        if ($avgTtfb > 200) {
+                            $recommendations[] = 'O tempo até o primeiro byte (TTFB) está muito alto (acima de 200ms). Considere otimizações no servidor ou no backend.';
                             $recommendations[] = 'Verifique a configuração do servidor web e possíveis gargalos no processamento PHP.';
-                            $recommendations[] = 'Considere implementar ou melhorar o sistema de cache no servidor.';
-                        } else if ($avgTtfb > 200) {
-                            $recommendations[] = 'O tempo até o primeiro byte (TTFB) está acima do ideal. Considere melhorias no backend.';
+                            $recommendations[] = 'Implemente caching no nível de aplicação e banco de dados.';
+                        } else if ($avgTtfb > 100) {
+                            $recommendations[] = 'O tempo até o primeiro byte (TTFB) está acima do ideal (> 100ms). Considere melhorias no backend e cache.';
                         }
                     }
                 }

@@ -1,0 +1,20 @@
+<?php
+
+class UserModel extends Model {
+    public function logout() {
+        // Log security event before clearing session
+        $securityLog = new SecurityLog();
+        $securityLog->log(
+            'logout',
+            $_SESSION['user']['id'] ?? null,
+            $_SESSION['user']['email'] ?? 'unknown',
+            'success',
+            $_SERVER['REMOTE_ADDR']
+        );
+        
+        // Clear session data
+        SessionManager::clearUserData();
+        SessionManager::regenerateSession();
+        SessionManager::destroy();
+    }
+}

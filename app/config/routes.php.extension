@@ -1,0 +1,12 @@
+
+// Rotas de pagamento com PayPal
+$router->add('pagamento/paypal/([0-9]+)', ['controller' => 'Payment', 'action' => 'paypal', 'params' => ['orderId']]);
+$router->add('payment/create-paypal-order', ['controller' => 'Payment', 'action' => 'createPayPalOrder']);
+$router->add('payment/capture-paypal-order', ['controller' => 'Payment', 'action' => 'capturePayPalOrder']);
+$router->add('payment/cancel-paypal-order', ['controller' => 'Payment', 'action' => 'cancelPayPalOrder']);
+$router->add('payment/log-error', ['controller' => 'Payment', 'action' => 'logError']);
+
+// Callbacks e notificações do PayPal
+$router->add('payment/callback/paypal-success', ['controller' => 'PaymentCallback', 'action' => 'paypalSuccess']);
+$router->add('payment/callback/paypal-cancel', ['controller' => 'PaymentCallback', 'action' => 'paypalCancel']);
+$router->add('payment/ipn/paypal', ['controller' => 'PaymentCallback', 'action' => 'paypalIPN']);

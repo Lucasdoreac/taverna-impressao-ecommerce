@@ -1,13 +1,23 @@
 <?php
 /**
  * ProductController - Controlador para páginas de produtos
+ * 
+ * Implementa validação consistente de entradas usando InputValidationTrait.
  */
 class ProductController {
+    /**
+     * Incluir o trait de validação de entrada
+     */
+    use InputValidationTrait;
+    
     private $productModel;
     private $categoryModel;
     
     public function __construct() {
         try {
+            // Incluir o trait
+            require_once dirname(__FILE__) . '/../lib/Security/InputValidationTrait.php';
+            
             $this->productModel = new ProductModel();
             $this->categoryModel = new CategoryModel();
         } catch (Exception $e) {
@@ -25,18 +35,49 @@ class ProductController {
                 error_log("Executando ProductController::index()");
             }
             
-            // Obter parâmetros de paginação e filtros
-            $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+            // Validar parâmetros de entrada com o novo sistema de validação
+            $validatedParams = $this->getValidatedParams([
+                'page' => [
+                    'type' => 'int',
+                    'min' => 1,
+                    'default' => 1
+                ],
+                'categoria' => [
+                    'type' => 'string',
+                    'default' => null
+                ],
+                'personalizavel' => [
+                    'type' => 'bool',
+                    'default' => null
+                ],
+                'disponibilidade' => [
+                    'type' => 'enum',
+                    'allowedValues' => ['all', 'tested', 'custom'],
+                    'default' => 'all'
+                ],
+                'ordenar' => [
+                    'type' => 'enum',
+                    'allowedValues' => ['preco_asc', 'preco_desc', 'nome_asc', 'nome_desc', 'recentes'],
+                    'default' => 'recentes'
+                ]
+            ]);
+            
+            // Extrair os parâmetros validados
+            $page = $validatedParams['page'];
+            $categorySlug = $validatedParams['categoria'];
+            $isCustomizable = $validatedParams['personalizavel'];
+            $availability = $validatedParams['disponibilidade'];
+            $orderBy = $validatedParams['ordenar'];
+            
+            // Número de itens por página
             $limit = 12;
             
-            // Processar parâmetros de filtragem
+            // Preparar condições e parâmetros para a consulta
             $conditions = "p.is_active = 1";
             $params = [];
-            $orderBy = "p.created_at DESC"; // Padrão: mais recentes
             
-            // Filtro de categoria
-            if (isset($_GET['categoria']) && !empty($_GET['categoria'])) {
-                $categorySlug = trim($_GET['categoria']);
+            // Aplicar filtro de categoria se fornecido
+            if ($categorySlug !== null) {
                 $category = $this->categoryModel->getBySlug($categorySlug);
                 if ($category) {
                     $conditions .= " AND p.category_id = :category_id";
@@ -44,43 +85,34 @@ class ProductController {
                 }
             }
             
-            // Filtro de personalização
-            if (isset($_GET['personalizavel']) && $_GET['personalizavel'] !== '') {
-                $isCustomizable = (int)$_GET['personalizavel'];
+            // Aplicar filtro de personalização se fornecido
+            if ($isCustomizable !== null) {
                 $conditions .= " AND p.is_customizable = :is_customizable";
-                $params['is_customizable'] = $isCustomizable;
+                $params['is_customizable'] = $isCustomizable ? 1 : 0;
             }
             
-            // Filtro de disponibilidade (novo)
-            $availability = isset($_GET['disponibilidade']) ? trim($_GET['disponibilidade']) : 'all';
-            if (!in_array($availability, ['all', 'tested', 'custom'])) {
-                $availability = 'all';
-            }
-            
-            // Ordenação
-            if (isset($_GET['ordenar'])) {
-                switch ($_GET['ordenar']) {
-                    case 'preco_asc':
-                        $orderBy = "p.price ASC";
-                        break;
-                    case 'preco_desc':
-                        $orderBy = "p.price DESC";
-                        break;
-                    case 'nome_asc':
-                        $orderBy = "p.name ASC";
-                        break;
-                    case 'nome_desc':
-                        $orderBy = "p.name DESC";
-                        break;
-                    default:
-                        $orderBy = "p.created_at DESC";
-                }
+            // Aplicar ordenação
+            switch ($orderBy) {
+                case 'preco_asc':
+                    $orderByClause = "p.price ASC";
+                    break;
+                case 'preco_desc':
+                    $orderByClause = "p.price DESC";
+                    break;
+                case 'nome_asc':
+                    $orderByClause = "p.name ASC";
+                    break;
+                case 'nome_desc':
+                    $orderByClause = "p.name DESC";
+                    break;
+                default: // recentes
+                    $orderByClause = "p.created_at DESC";
             }
             
             // Obter produtos paginados com filtros
-            $products = $this->productModel->paginate($page, $limit, $conditions, $params, $availability, $orderBy);
+            $products = $this->productModel->paginate($page, $limit, $conditions, $params, $availability, $orderByClause);
             
-            // Validar produtos
+            // Validar a estrutura dos resultados
             if (!isset($products['items']) || !is_array($products['items'])) {
                 error_log("Estrutura inválida retornada pelo método paginate");
                 $products = [
@@ -118,10 +150,11 @@ class ProductController {
                 error_log("Executando ProductController::show() com parâmetros: " . json_encode($params));
             }
             
-            // Validar slug
-            $slug = isset($params['slug']) ? trim($params['slug']) : null;
+            // Validar slug com o novo sistema de validação
+            $slug = isset($params['slug']) ? $params['slug'] : null;
+            $slug = $this->validateSlug($slug);
             
-            if (empty($slug)) {
+            if ($slug === null) {
                 error_log("Erro: Slug vazio ou não fornecido");
                 header('Location: ' . BASE_URL . 'produtos');
                 exit;
@@ -150,67 +183,20 @@ class ProductController {
                 exit;
             }
             
-            // CORREÇÃO: Verificar se o produto é um array antes de tentar acessá-lo
+            // Verificar se o produto é um array válido
             if (!is_array($product)) {
                 error_log("Produto retornado não é um array válido");
                 throw new Exception("Dados de produto inválidos");
             }
             
             // Verificar campos obrigatórios do produto
-            $requiredFields = ['id', 'name', 'price'];
-            foreach ($requiredFields as $field) {
-                if (!isset($product[$field])) {
-                    error_log("Campo obrigatório ausente no produto: " . $field);
-                    throw new Exception("Dados incompletos do produto: campo {$field} ausente");
-                }
-            }
+            $this->validateProductFields($product);
             
-            // CORREÇÃO: Garantir que todos os campos opcionais importantes existam com valores padrão
-            $product['description'] = isset($product['description']) ? $product['description'] : '';
-            $product['short_description'] = isset($product['short_description']) ? $product['short_description'] : '';
-            $product['sale_price'] = isset($product['sale_price']) ? $product['sale_price'] : null;
-            $product['stock'] = isset($product['stock']) ? $product['stock'] : 0;
-            $product['is_customizable'] = isset($product['is_customizable']) ? $product['is_customizable'] : 0;
-            $product['is_tested'] = isset($product['is_tested']) ? $product['is_tested'] : 0;
-            $product['print_time_hours'] = isset($product['print_time_hours']) ? $product['print_time_hours'] : 0;
-            $product['filament_type'] = isset($product['filament_type']) ? $product['filament_type'] : 'PLA';
-            $product['filament_usage_grams'] = isset($product['filament_usage_grams']) ? $product['filament_usage_grams'] : 0;
-            $product['dimensions'] = isset($product['dimensions']) ? $product['dimensions'] : '';
-            $product['scale'] = isset($product['scale']) ? $product['scale'] : '28mm';
+            // Garantir campos opcionais com valores padrão
+            $product = $this->ensureProductDefaultValues($product);
             
-            // Valores padrão para campos importantes mas não obrigatórios
-            if (!isset($product['category_name'])) {
-                $product['category_name'] = 'Sem categoria';
-                error_log("Aviso: Produto sem category_name definido");
-            }
-            
-            if (!isset($product['category_slug'])) {
-                $product['category_slug'] = 'produtos';
-                error_log("Aviso: Produto sem category_slug definido");
-            }
-            
-            if (!isset($product['images']) || !is_array($product['images'])) {
-                $product['images'] = [];
-                error_log("Aviso: Produto sem imagens");
-            }
-            
-            if (!isset($product['filament_colors']) || !is_array($product['filament_colors'])) {
-                $product['filament_colors'] = [];
-                error_log("Aviso: Produto sem cores de filamento definidas");
-            }
-            
-            // CORREÇÃO: Tratamento mais robusto para produtos relacionados
-            $related_products = [];
-            try {
-                // Verificar se temos category_id antes de tentar buscar produtos relacionados
-                if (isset($product['category_id']) && !empty($product['category_id'])) {
-                    $related_products = $this->productModel->getRelated($product['id'], $product['category_id']);
-                } else {
-                    error_log("Aviso: Produto sem category_id, não é possível buscar produtos relacionados");
-                }
-            } catch (Exception $e) {
-                error_log("Erro ao obter produtos relacionados: " . $e->getMessage());
-            }
+            // Obter produtos relacionados
+            $related_products = $this->getRelatedProducts($product);
             
             // Verificar se a view existe
             if (!file_exists(VIEWS_PATH . '/product.php')) {
@@ -234,28 +220,33 @@ class ProductController {
                 error_log("Executando ProductController::category() com parâmetros: " . json_encode($params));
             }
             
-            $slug = isset($params['slug']) ? trim($params['slug']) : null;
+            // Validar slug com o novo sistema de validação
+            $slug = isset($params['slug']) ? $params['slug'] : null;
+            $slug = $this->validateSlug($slug);
             
-            if (empty($slug)) {
+            if ($slug === null) {
                 error_log("Erro: Slug de categoria vazio ou não fornecido");
                 header('Location: ' . BASE_URL . 'produtos');
                 exit;
             }
             
-            // Log do slug para debug
-            if (ENVIRONMENT === 'development') {
-                error_log("Buscando categoria com slug: " . $slug);
-            }
+            // Validar parâmetros de entrada
+            $validatedParams = $this->getValidatedParams([
+                'page' => [
+                    'type' => 'int',
+                    'min' => 1,
+                    'default' => 1
+                ],
+                'disponibilidade' => [
+                    'type' => 'enum',
+                    'allowedValues' => ['all', 'tested', 'custom'],
+                    'default' => 'all'
+                ]
+            ]);
             
-            // Obter parâmetros de paginação e filtros
-            $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+            $page = $validatedParams['page'];
+            $availability = $validatedParams['disponibilidade'];
             $limit = 12;
-            
-            // Filtro de disponibilidade (novo)
-            $availability = isset($_GET['disponibilidade']) ? trim($_GET['disponibilidade']) : 'all';
-            if (!in_array($availability, ['all', 'tested', 'custom'])) {
-                $availability = 'all';
-            }
             
             // Obter categoria
             $category = $this->categoryModel->getBySlug($slug);
@@ -273,49 +264,8 @@ class ProductController {
             $categoryProducts = $this->productModel->getByCategory($category['id'], $page, $limit, $availability);
             $category['products'] = $categoryProducts;
             
-            // Debug do resultado para rastreamento
-            if (ENVIRONMENT === 'development') {
-                error_log("Resultado da busca por categoria: " . ($category ? "Categoria encontrada (ID: {$category['id']})" : "Categoria não encontrada"));
-            }
-            
-            // CORREÇÃO: Verificar se a categoria é um array válido
-            if (!is_array($category)) {
-                error_log("Categoria retornada não é um array válido");
-                throw new Exception("Dados de categoria inválidos");
-            }
-            
             // Validar estrutura da categoria
-            if (!isset($category['products']) || !is_array($category['products'])) {
-                error_log("Dados de produtos ausentes na resposta do getCategoryWithProducts");
-                $category['products'] = [
-                    'items' => [],
-                    'total' => 0,
-                    'currentPage' => $page,
-                    'perPage' => $limit,
-                    'lastPage' => 1,
-                    'availability' => $availability
-                ];
-            } else {
-                // Validar a estrutura completa de produtos
-                if (!isset($category['products']['items'])) {
-                    $category['products']['items'] = [];
-                }
-                if (!isset($category['products']['total'])) {
-                    $category['products']['total'] = 0;
-                }
-                if (!isset($category['products']['currentPage'])) {
-                    $category['products']['currentPage'] = $page;
-                }
-                if (!isset($category['products']['perPage'])) {
-                    $category['products']['perPage'] = $limit;
-                }
-                if (!isset($category['products']['lastPage'])) {
-                    $category['products']['lastPage'] = 1;
-                }
-                if (!isset($category['products']['availability'])) {
-                    $category['products']['availability'] = $availability;
-                }
-            }
+            $category = $this->validateCategoryStructure($category, $page, $limit, $availability);
             
             // Verificar se a view existe
             if (!file_exists(VIEWS_PATH . '/category.php')) {
@@ -339,27 +289,41 @@ class ProductController {
                 error_log("Executando ProductController::search()");
             }
             
-            $query = isset($_GET['q']) ? trim($_GET['q']) : '';
+            // Validar parâmetros de entrada
+            $validatedParams = $this->getValidatedParams([
+                'q' => [
+                    'type' => 'string',
+                    'required' => true,
+                    'minLength' => 1,
+                    'requiredMessage' => 'O termo de busca é obrigatório'
+                ],
+                'page' => [
+                    'type' => 'int',
+                    'min' => 1,
+                    'default' => 1
+                ],
+                'disponibilidade' => [
+                    'type' => 'enum',
+                    'allowedValues' => ['all', 'tested', 'custom'],
+                    'default' => 'all'
+                ]
+            ]);
             
-            if (empty($query)) {
+            // Se houver erros de validação, redirecionar para produtos
+            if ($this->hasValidationErrors()) {
                 header('Location: ' . BASE_URL . 'produtos');
                 exit;
             }
             
-            // Obter parâmetros de paginação
-            $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+            $query = $validatedParams['q'];
+            $page = $validatedParams['page'];
+            $availability = $validatedParams['disponibilidade'];
             $limit = 12;
-            
-            // Filtro de disponibilidade (novo)
-            $availability = isset($_GET['disponibilidade']) ? trim($_GET['disponibilidade']) : 'all';
-            if (!in_array($availability, ['all', 'tested', 'custom'])) {
-                $availability = 'all';
-            }
             
             // Realizar busca com filtro de disponibilidade
             $searchResults = $this->productModel->search($query, $page, $limit, $availability);
             
-            // CORREÇÃO: Validar estrutura de resultados da busca
+            // Validar estrutura de resultados da busca
             if (!isset($searchResults['items']) || !is_array($searchResults['items'])) {
                 error_log("Estrutura inválida retornada pelo método search");
                 $searchResults = [
@@ -384,6 +348,159 @@ class ProductController {
         } catch (Exception $e) {
             $this->handleError($e, "Erro ao buscar produtos");
         }
+    }
+    
+    /**
+     * Valida um slug manualmente (método auxiliar)
+     * 
+     * @param string $slug Slug a ser validado
+     * @return string|null Slug validado ou null se inválido
+     */
+    private function validateSlug($slug) {
+        if (empty($slug)) {
+            return null;
+        }
+        
+        // Remover espaços e garantir apenas caracteres válidos para slug
+        $slug = trim($slug);
+        if (!preg_match('/^[a-z0-9-]+$/', $slug)) {
+            return null;
+        }
+        
+        return $slug;
+    }
+    
+    /**
+     * Valida os campos obrigatórios de um produto
+     * 
+     * @param array $product Dados do produto
+     * @throws Exception Se campos obrigatórios estiverem ausentes
+     */
+    private function validateProductFields($product) {
+        $requiredFields = ['id', 'name', 'price'];
+        foreach ($requiredFields as $field) {
+            if (!isset($product[$field])) {
+                error_log("Campo obrigatório ausente no produto: " . $field);
+                throw new Exception("Dados incompletos do produto: campo {$field} ausente");
+            }
+        }
+    }
+    
+    /**
+     * Garante que todos os campos opcionais importantes existam com valores padrão
+     * 
+     * @param array $product Dados do produto
+     * @return array Produto com valores padrão para campos opcionais
+     */
+    private function ensureProductDefaultValues($product) {
+        // Definir valores padrão para campos opcionais
+        $defaultValues = [
+            'description' => '',
+            'short_description' => '',
+            'sale_price' => null,
+            'stock' => 0,
+            'is_customizable' => 0,
+            'is_tested' => 0,
+            'print_time_hours' => 0,
+            'filament_type' => 'PLA',
+            'filament_usage_grams' => 0,
+            'dimensions' => '',
+            'scale' => '28mm',
+            'category_name' => 'Sem categoria',
+            'category_slug' => 'produtos',
+            'images' => [],
+            'filament_colors' => []
+        ];
+        
+        // Aplicar valores padrão apenas para campos não definidos
+        foreach ($defaultValues as $field => $value) {
+            if (!isset($product[$field]) || ($field === 'images' && !is_array($product[$field])) || ($field === 'filament_colors' && !is_array($product[$field]))) {
+                $product[$field] = $value;
+                
+                if (ENVIRONMENT === 'development') {
+                    error_log("Aviso: Produto sem {$field} definido, usando valor padrão");
+                }
+            }
+        }
+        
+        return $product;
+    }
+    
+    /**
+     * Obtém produtos relacionados a um produto
+     * 
+     * @param array $product Dados do produto
+     * @return array Produtos relacionados
+     */
+    private function getRelatedProducts($product) {
+        $related_products = [];
+        
+        try {
+            // Verificar se temos category_id antes de tentar buscar produtos relacionados
+            if (isset($product['category_id']) && !empty($product['category_id'])) {
+                $related_products = $this->productModel->getRelated($product['id'], $product['category_id']);
+            } else {
+                if (ENVIRONMENT === 'development') {
+                    error_log("Aviso: Produto sem category_id, não é possível buscar produtos relacionados");
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Erro ao obter produtos relacionados: " . $e->getMessage());
+        }
+        
+        return $related_products;
+    }
+    
+    /**
+     * Valida a estrutura de categoria e garante campos padrão
+     * 
+     * @param array $category Dados da categoria
+     * @param int $page Página atual
+     * @param int $limit Itens por página
+     * @param string $availability Filtro de disponibilidade
+     * @return array Categoria com estrutura validada
+     */
+    private function validateCategoryStructure($category, $page, $limit, $availability) {
+        // Verificar se a categoria é um array válido
+        if (!is_array($category)) {
+            error_log("Categoria retornada não é um array válido");
+            throw new Exception("Dados de categoria inválidos");
+        }
+        
+        // Validar estrutura da categoria
+        if (!isset($category['products']) || !is_array($category['products'])) {
+            error_log("Dados de produtos ausentes na resposta do getCategoryWithProducts");
+            $category['products'] = [
+                'items' => [],
+                'total' => 0,
+                'currentPage' => $page,
+                'perPage' => $limit,
+                'lastPage' => 1,
+                'availability' => $availability
+            ];
+        } else {
+            // Validar a estrutura completa de produtos
+            if (!isset($category['products']['items'])) {
+                $category['products']['items'] = [];
+            }
+            if (!isset($category['products']['total'])) {
+                $category['products']['total'] = 0;
+            }
+            if (!isset($category['products']['currentPage'])) {
+                $category['products']['currentPage'] = $page;
+            }
+            if (!isset($category['products']['perPage'])) {
+                $category['products']['perPage'] = $limit;
+            }
+            if (!isset($category['products']['lastPage'])) {
+                $category['products']['lastPage'] = 1;
+            }
+            if (!isset($category['products']['availability'])) {
+                $category['products']['availability'] = $availability;
+            }
+        }
+        
+        return $category;
     }
     
     /**

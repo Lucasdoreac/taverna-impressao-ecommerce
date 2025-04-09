@@ -1,0 +1,389 @@
+solid complex_model
+  # Base
+  facet normal 0 0 1
+    outer loop
+      vertex -25 -25 0
+      vertex -25 25 0
+      vertex 25 25 0
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -25 -25 0
+      vertex 25 25 0
+      vertex 25 -25 0
+    endloop
+  endfacet
+  
+  # Top
+  facet normal 0 0 -1
+    outer loop
+      vertex -25 -25 50
+      vertex 25 25 50
+      vertex -25 25 50
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex -25 -25 50
+      vertex 25 -25 50
+      vertex 25 25 50
+    endloop
+  endfacet
+  
+  # Front
+  facet normal 0 -1 0
+    outer loop
+      vertex -25 -25 0
+      vertex 25 -25 50
+      vertex -25 -25 50
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex -25 -25 0
+      vertex 25 -25 0
+      vertex 25 -25 50
+    endloop
+  endfacet
+  
+  # Back
+  facet normal 0 1 0
+    outer loop
+      vertex -25 25 0
+      vertex -25 25 50
+      vertex 25 25 50
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex -25 25 0
+      vertex 25 25 50
+      vertex 25 25 0
+    endloop
+  endfacet
+  
+  # Left
+  facet normal -1 0 0
+    outer loop
+      vertex -25 -25 0
+      vertex -25 -25 50
+      vertex -25 25 50
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex -25 -25 0
+      vertex -25 25 50
+      vertex -25 25 0
+    endloop
+  endfacet
+  
+  # Right
+  facet normal 1 0 0
+    outer loop
+      vertex 25 -25 0
+      vertex 25 25 50
+      vertex 25 -25 50
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 25 -25 0
+      vertex 25 25 0
+      vertex 25 25 50
+    endloop
+  endfacet
+  
+  # Internal features - Holes
+  # Cylindrical Hole 1
+  facet normal 0 0 1
+    outer loop
+      vertex -10 -10 20
+      vertex -10 0 20
+      vertex 0 0 20
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex -10 -10 20
+      vertex 0 0 20
+      vertex 0 -10 20
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex -10 -10 30
+      vertex 0 0 30
+      vertex -10 0 30
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex -10 -10 30
+      vertex 0 -10 30
+      vertex 0 0 30
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex -10 0 20
+      vertex -10 0 30
+      vertex 0 0 30
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex -10 0 20
+      vertex 0 0 30
+      vertex 0 0 20
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex -10 -10 20
+      vertex 0 -10 30
+      vertex -10 -10 30
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex -10 -10 20
+      vertex 0 -10 20
+      vertex 0 -10 30
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 0 -10 20
+      vertex 0 0 20
+      vertex 0 0 30
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 0 -10 20
+      vertex 0 0 30
+      vertex 0 -10 30
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex -10 -10 20
+      vertex -10 -10 30
+      vertex -10 0 30
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex -10 -10 20
+      vertex -10 0 30
+      vertex -10 0 20
+    endloop
+  endfacet
+  
+  # Cylindrical Hole 2
+  facet normal 0 0 1
+    outer loop
+      vertex 5 5 20
+      vertex 5 15 20
+      vertex 15 15 20
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 5 5 20
+      vertex 15 15 20
+      vertex 15 5 20
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 5 5 30
+      vertex 15 15 30
+      vertex 5 15 30
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 5 5 30
+      vertex 15 5 30
+      vertex 15 15 30
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex 5 15 20
+      vertex 5 15 30
+      vertex 15 15 30
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex 5 15 20
+      vertex 15 15 30
+      vertex 15 15 20
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 5 5 20
+      vertex 15 5 30
+      vertex 5 5 30
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 5 5 20
+      vertex 15 5 20
+      vertex 15 5 30
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 15 5 20
+      vertex 15 15 20
+      vertex 15 15 30
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 15 5 20
+      vertex 15 15 30
+      vertex 15 5 30
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 5 5 20
+      vertex 5 5 30
+      vertex 5 15 30
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 5 5 20
+      vertex 5 15 30
+      vertex 5 15 20
+    endloop
+  endfacet
+  
+  # Additional shapes for complexity
+  # Pyramidal protrusion
+  facet normal 0.5773 0.5773 0.5773
+    outer loop
+      vertex -15 10 40
+      vertex -5 10 40
+      vertex -10 15 45
+    endloop
+  endfacet
+  facet normal -0.5773 0.5773 0.5773
+    outer loop
+      vertex -15 10 40
+      vertex -10 15 45
+      vertex -15 20 40
+    endloop
+  endfacet
+  facet normal -0.5773 -0.5773 0.5773
+    outer loop
+      vertex -15 10 40
+      vertex -15 20 40
+      vertex -10 15 35
+    endloop
+  endfacet
+  facet normal 0.5773 -0.5773 0.5773
+    outer loop
+      vertex -15 10 40
+      vertex -10 15 35
+      vertex -5 10 40
+    endloop
+  endfacet
+  
+  # Spherical feature approximation
+  facet normal 0.7071 0 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 15 -15 30
+      vertex 15 -10 30
+    endloop
+  endfacet
+  facet normal 0.7071 0 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 15 -10 30
+      vertex 10 -10 35
+    endloop
+  endfacet
+  facet normal 0 0.7071 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 10 -10 35
+      vertex 5 -10 30
+    endloop
+  endfacet
+  facet normal 0 0.7071 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 5 -10 30
+      vertex 5 -15 30
+    endloop
+  endfacet
+  facet normal -0.7071 0 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 5 -15 30
+      vertex 5 -20 30
+    endloop
+  endfacet
+  facet normal -0.7071 0 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 5 -20 30
+      vertex 10 -20 35
+    endloop
+  endfacet
+  facet normal 0 -0.7071 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 10 -20 35
+      vertex 15 -20 30
+    endloop
+  endfacet
+  facet normal 0 -0.7071 0.7071
+    outer loop
+      vertex 10 -15 35
+      vertex 15 -20 30
+      vertex 15 -15 30
+    endloop
+  endfacet
+  
+  # Additional complex features
+  facet normal 0.5773 0.5773 0.5773
+    outer loop
+      vertex -20 -20 40
+      vertex -20 -10 40
+      vertex -10 -15 50
+    endloop
+  endfacet
+  facet normal -0.5773 0.5773 0.5773
+    outer loop
+      vertex -20 -20 40
+      vertex -10 -15 50
+      vertex -15 -5 40
+    endloop
+  endfacet
+  facet normal -0.5773 -0.5773 0.5773
+    outer loop
+      vertex -20 -20 40
+      vertex -15 -5 40
+      vertex -5 -10 40
+    endloop
+  endfacet
+  facet normal 0.5773 -0.5773 0.5773
+    outer loop
+      vertex -20 -20 40
+      vertex -5 -10 40
+      vertex -20 -10 40
+    endloop
+  endfacet
+endsolid complex_model

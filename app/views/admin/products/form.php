@@ -31,6 +31,7 @@ unset($_SESSION['form_data']);
 
 <!-- Product Form -->
 <form action="<?= $formAction ?>" method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+    <?php echo CsrfProtection::getFormField(); ?>
     <input type="hidden" name="id" value="<?= $isEdit ? $product['id'] : '' ?>">
     
     <div class="row">

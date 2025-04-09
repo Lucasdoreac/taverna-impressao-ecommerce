@@ -86,6 +86,117 @@ class PrintStatusModel extends Model {
     }
     
     /**
+     * Adiciona um arquivo ao status de impressão
+     * 
+     * @param array $fileData Dados do arquivo
+     * @return int|false ID do arquivo ou false em caso de erro
+     */
+    public function addFile($fileData) {
+        try {
+            // Verificar dados obrigatórios
+            if (!isset($fileData['print_status_id']) || !isset($fileData['file_name']) || 
+                !isset($fileData['file_path']) || !isset($fileData['file_type'])) {
+                error_log("Dados de arquivo incompletos");
+                return false;
+            }
+            
+            // Definir timestamp de upload se não fornecido
+            if (!isset($fileData['uploaded_at'])) {
+                $fileData['uploaded_at'] = date('Y-m-d H:i:s');
+            }
+            
+            // Definir uploader se não fornecido
+            if (!isset($fileData['uploaded_by'])) {
+                $fileData['uploaded_by'] = 'system';
+            }
+            
+            // Inserir no banco de dados
+            $db = $this->db();
+            
+            // Preparar campos e valores para inserção
+            $columns = implode(', ', array_keys($fileData));
+            $placeholders = ':' . implode(', :', array_keys($fileData));
+            
+            $sql = "INSERT INTO print_status_files ($columns) VALUES ($placeholders)";
+            
+            // Executar inserção
+            $fileId = $db->execute($sql, $fileData);
+            
+            return $fileId;
+        } catch (Exception $e) {
+            error_log("Erro ao adicionar arquivo: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Obtém arquivos associados a um status de impressão
+     * 
+     * @param int $printStatusId ID do status de impressão
+     * @param string $fileType Tipo de arquivo (opcional)
+     * @return array Lista de arquivos
+     */
+    public function getFiles($printStatusId, $fileType = null) {
+        try {
+            $db = $this->db();
+            $params = ['print_status_id' => $printStatusId];
+            
+            $sql = "SELECT * FROM print_status_files 
+                    WHERE print_status_id = :print_status_id";
+            
+            if ($fileType !== null) {
+                $sql .= " AND file_type = :file_type";
+                $params['file_type'] = $fileType;
+            }
+            
+            $sql .= " ORDER BY uploaded_at DESC";
+            
+            return $db->select($sql, $params);
+        } catch (Exception $e) {
+            error_log("Erro ao obter arquivos: " . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Remove um arquivo
+     * 
+     * @param int $fileId ID do arquivo
+     * @return bool Sucesso da operação
+     */
+    public function removeFile($fileId) {
+        try {
+            // Primeiro, obter informações do arquivo
+            $db = $this->db();
+            $file = $db->select(
+                "SELECT * FROM print_status_files WHERE id = :id LIMIT 1", 
+                ['id' => $fileId]
+            );
+            
+            if (empty($file)) {
+                return false;
+            }
+            
+            $file = $file[0];
+            
+            // Tentar remover o arquivo físico se existir
+            $fullPath = APP_PATH . DIRECTORY_SEPARATOR . $file['file_path'];
+            if (file_exists($fullPath)) {
+                unlink($fullPath);
+            }
+            
+            // Remover registro do banco de dados
+            $sql = "DELETE FROM print_status_files WHERE id = :id";
+            $db->execute($sql, ['id' => $fileId]);
+            
+            return true;
+        } catch (Exception $e) {
+            error_log("Erro ao remover arquivo: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
      * Atualiza o status de uma impressão
      * 
      * @param int $printStatusId ID do status de impressão
@@ -493,6 +604,9 @@ class PrintStatusModel extends Model {
             
             // Obter as últimas 10 mensagens
             $status['recent_messages'] = $this->getStatusMessages($printStatusId, false, 10);
+            
+            // Obter arquivos associados
+            $status['files'] = $this->getFiles($printStatusId);
             
             // Calcular estatísticas adicionais
             $status['formatted_status'] = self::getAvailableStatuses()[$status['status']] ?? $status['status'];

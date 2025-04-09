@@ -12,6 +12,7 @@
     <?php endif; ?>
     
     <form action="<?= BASE_URL ?>checkout/finalizar" method="post" id="checkout-form">
+        <?= CsrfProtection::getFormField() ?>
         <div class="row">
             <!-- Formulário de Checkout -->
             <div class="col-lg-8">

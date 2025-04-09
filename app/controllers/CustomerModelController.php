@@ -1,501 +1,648 @@
 <?php
 /**
- * CustomerModelController - Gerencia o upload e validação de modelos 3D enviados pelos clientes
+ * CustomerModelController
+ * 
+ * Controller responsável por gerenciar o upload e manipulação de modelos 3D
+ * enviados por clientes.
  */
-class CustomerModelController {
-    private $customerModelModel;
-    private $uploadDir;
-    private $maxFileSize;
-    private $allowedExtensions;
+require_once __DIR__ . '/../lib/Controller.php';
+require_once __DIR__ . '/../lib/Security/SecurityManager.php';
+require_once __DIR__ . '/../lib/Security/CsrfProtection.php';
+require_once __DIR__ . '/../lib/Security/Model3DValidator.php';
+require_once __DIR__ . '/../lib/Security/InputValidationTrait.php';
+require_once __DIR__ . '/../models/CustomerModelModel.php';
+
+class CustomerModelController extends Controller {
+    // Incluir o trait de validação para ter acesso aos métodos de validação
+    use InputValidationTrait;
     
+    /**
+     * Diretório base onde os modelos serão armazenados
+     * @var string
+     */
+    private $uploadBaseDir = 'uploads/models';
+    
+    /**
+     * Diretório de quarentena para modelos não verificados
+     * @var string
+     */
+    private $quarantineDir = 'uploads/models/quarantine';
+    
+    /**
+     * Diretório para modelos verificados e aprovados
+     * @var string
+     */
+    private $approvedDir = 'uploads/models/approved';
+    
+    /**
+     * Diretório para modelos rejeitados
+     * @var string
+     */
+    private $rejectedDir = 'uploads/models/rejected';
+    
+    /**
+     * Extensões de arquivo permitidas
+     * @var array
+     */
+    private $allowedExtensions = ['stl', 'obj', '3mf'];
+    
+    /**
+     * Tamanho máximo de arquivo (50MB)
+     * @var int
+     */
+    private $maxFileSize = 52428800; // 50MB
+    
+    /**
+     * Modelo de dados para CustomerModel
+     * @var CustomerModelModel
+     */
+    private $customerModelModel;
+    
+    /**
+     * Construtor
+     */
     public function __construct() {
+        parent::__construct();
         $this->customerModelModel = new CustomerModelModel();
-        $this->uploadDir = UPLOADS_PATH . '/3d_models/';
-        $this->maxFileSize = 52428800; // 50MB em bytes
-        $this->allowedExtensions = ['stl', 'obj'];
-        
-        // Garantir que o diretório de upload exista
-        if (!file_exists($this->uploadDir)) {
-            mkdir($this->uploadDir, 0755, true);
-        }
+        $this->ensureDirectoriesExist();
     }
     
     /**
-     * Exibe a página de upload de modelos 3D
+     * Garante que os diretórios de upload existam
+     */
+    private function ensureDirectoriesExist() {
+        $baseDir = $_SERVER['DOCUMENT_ROOT'] . '/' . $this->uploadBaseDir;
+        $quarantineDir = $_SERVER['DOCUMENT_ROOT'] . '/' . $this->quarantineDir;
+        $approvedDir = $_SERVER['DOCUMENT_ROOT'] . '/' . $this->approvedDir;
+        $rejectedDir = $_SERVER['DOCUMENT_ROOT'] . '/' . $this->rejectedDir;
+        
+        // Criar os diretórios se não existirem
+        if (!is_dir($baseDir)) {
+            mkdir($baseDir, 0755, true);
+        }
+        
+        if (!is_dir($quarantineDir)) {
+            mkdir($quarantineDir, 0755, true);
+        }
+        
+        if (!is_dir($approvedDir)) {
+            mkdir($approvedDir, 0755, true);
+        }
+        
+        if (!is_dir($rejectedDir)) {
+            mkdir($rejectedDir, 0755, true);
+        }
+        
+        // Garantir permissões corretas nos diretórios
+        chmod($baseDir, 0755);
+        chmod($quarantineDir, 0755);
+        chmod($approvedDir, 0755);
+        chmod($rejectedDir, 0755);
+    }
+    
+    /**
+     * Exibe a página de upload de modelos
      */
     public function upload() {
-        // Verificar se o usuário está logado
-        if (!isUserLoggedIn()) {
-            setFlashMessage('error', 'Você precisa estar logado para enviar modelos 3D.');
-            redirect('login');
+        // Verificar se o usuário está autenticado
+        if (!SecurityManager::checkAuthentication()) {
+            $this->setFlashMessage('error', 'Você precisa estar logado para fazer upload de modelos.');
+            $this->redirect('/login');
+            return;
         }
         
-        // Carregar a view de upload
-        $pageTitle = 'Upload de Modelo 3D';
-        $page = 'customer_models/upload';
+        // Verificar se o usuário atingiu a cota de uploads
+        $userId = $_SESSION['user_id'];
+        $quotaCheck = $this->checkUserQuota($userId);
         
-        render($page, compact('pageTitle'));
+        if (!$quotaCheck['allowed']) {
+            $this->setFlashMessage('error', $quotaCheck['message']);
+            $this->redirect('/customer-models/list');
+            return;
+        }
+        
+        // Verificar se o usuário atingiu o limite de uploads por período
+        $rateLimitCheck = $this->checkUserRateLimit($userId);
+        
+        if (!$rateLimitCheck['allowed']) {
+            $this->setFlashMessage('error', $rateLimitCheck['message']);
+            $this->redirect('/customer-models/list');
+            return;
+        }
+        
+        // Renderizar a página de upload com token CSRF
+        $this->render('customer_models/upload', [
+            'pageTitle' => 'Upload de Modelo 3D',
+            'csrfToken' => CsrfProtection::getToken(),
+            'maxFileSize' => $this->maxFileSize,
+            'allowedExtensions' => $this->allowedExtensions,
+            'quotaInfo' => $quotaCheck,
+            'rateLimitInfo' => $rateLimitCheck
+        ]);
     }
     
     /**
-     * Processa o upload de modelos 3D
+     * Processa o upload de um modelo 3D
      */
     public function processUpload() {
-        // Verificar se o usuário está logado
-        if (!isUserLoggedIn()) {
-            setFlashMessage('error', 'Você precisa estar logado para enviar modelos 3D.');
-            redirect('login');
+        // Verificar se o usuário está autenticado
+        if (!SecurityManager::checkAuthentication()) {
+            $this->setFlashMessage('error', 'Você precisa estar logado para fazer upload de modelos.');
+            $this->redirect('/login');
+            return;
         }
         
-        // Verificar se é um POST e se tem arquivo
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_FILES['model_file'])) {
-            setFlashMessage('error', 'Nenhum arquivo enviado ou método inválido.');
-            redirect('customer-models/upload');
+        // Validar token CSRF
+        $csrfToken = $this->postValidatedParam('csrf_token', 'string', [
+            'required' => true
+        ]);
+        
+        if (!CsrfProtection::validateToken($csrfToken)) {
+            $this->setFlashMessage('error', 'Token de segurança inválido. Por favor, tente novamente.');
+            $this->redirect('/customer-models/upload');
+            return;
         }
         
-        // Obter informações do arquivo
-        $file = $_FILES['model_file'];
-        $fileName = $file['name'];
-        $fileTmpName = $file['tmp_name'];
-        $fileSize = $file['size'];
-        $fileError = $file['error'];
-        
-        // Verificar erros no upload
-        if ($fileError !== 0) {
-            $errorMessage = $this->getUploadErrorMessage($fileError);
-            setFlashMessage('error', 'Erro no upload: ' . $errorMessage);
-            redirect('customer-models/upload');
-        }
-        
-        // Verificar tamanho do arquivo
-        if ($fileSize > $this->maxFileSize) {
-            setFlashMessage('error', 'O arquivo é muito grande. O tamanho máximo permitido é 50MB.');
-            redirect('customer-models/upload');
-        }
-        
-        // Obter a extensão do arquivo
-        $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        
-        // Verificar se a extensão é permitida
-        if (!in_array($fileExt, $this->allowedExtensions)) {
-            setFlashMessage('error', 'Extensão de arquivo não permitida. São permitidos apenas arquivos STL e OBJ.');
-            redirect('customer-models/upload');
-        }
-        
-        // Gerar nome único para o arquivo
+        // Obter ID do usuário
         $userId = $_SESSION['user_id'];
-        $newFileName = 'model_' . $userId . '_' . time() . '_' . bin2hex(random_bytes(8)) . '.' . $fileExt;
-        $destination = $this->uploadDir . $newFileName;
         
-        // Mover o arquivo para o destino
-        if (!move_uploaded_file($fileTmpName, $destination)) {
-            setFlashMessage('error', 'Erro ao salvar o arquivo. Por favor, tente novamente.');
-            redirect('customer-models/upload');
+        // Verificar cota e limite de taxa
+        $quotaCheck = $this->checkUserQuota($userId);
+        $rateLimitCheck = $this->checkUserRateLimit($userId);
+        
+        if (!$quotaCheck['allowed']) {
+            $this->setFlashMessage('error', $quotaCheck['message']);
+            $this->redirect('/customer-models/list');
+            return;
         }
         
-        // Realizar validação avançada do modelo 3D
-        $validationResult = $this->validateModel($destination, $fileExt);
+        if (!$rateLimitCheck['allowed']) {
+            $this->setFlashMessage('error', $rateLimitCheck['message']);
+            $this->redirect('/customer-models/list');
+            return;
+        }
         
-        // Verificar se o modelo é válido para impressão
-        if (!$validationResult['is_valid']) {
-            // Remover o arquivo (modelo inválido)
-            unlink($destination);
+        // Verificar se há arquivo enviado
+        if (!isset($_FILES['model_file']) || $_FILES['model_file']['error'] == UPLOAD_ERR_NO_FILE) {
+            $this->setFlashMessage('error', 'Você deve selecionar um arquivo para upload.');
+            $this->redirect('/customer-models/upload');
+            return;
+        }
+        
+        try {
+            // Validar arquivo usando o Model3DValidator
+            $validationResult = Model3DValidator::validate($_FILES['model_file'], [
+                'maxSize' => $this->maxFileSize,
+                'allowedExtensions' => $this->allowedExtensions
+            ]);
             
-            // Obter a primeira mensagem de erro
-            $errorMessage = reset($validationResult['errors']);
+            if (!$validationResult['valid']) {
+                $this->setFlashMessage('error', 'Erro na validação do modelo: ' . $validationResult['message']);
+                $this->redirect('/customer-models/upload');
+                return;
+            }
             
-            setFlashMessage('error', 'O modelo 3D é inválido para impressão: ' . $errorMessage);
-            redirect('customer-models/upload');
-        }
-        
-        // Obter notas do formulário (se houver)
-        $notes = isset($_POST['notes']) ? $_POST['notes'] : '';
-        
-        // Adicionar resultados da validação às notas
-        $notes .= "\n\n--- Resultados da Validação ---\n";
-        
-        // Adicionar estatísticas
-        if (!empty($validationResult['stats'])) {
-            $notes .= "Estatísticas:\n";
-            foreach ($validationResult['stats'] as $key => $value) {
-                if (is_array($value)) {
-                    if ($key === 'dimensions') {
-                        $notes .= "- Dimensões: " . number_format($value['width'], 2) . "mm x " . 
-                                  number_format($value['height'], 2) . "mm x " . 
-                                  number_format($value['depth'], 2) . "mm\n";
-                    }
-                } else {
-                    $notes .= "- $key: $value\n";
-                }
+            // Obter notas adicionais
+            $notes = $this->postValidatedParam('notes', 'string', [
+                'required' => false,
+                'default' => '',
+                'maxLength' => 2000
+            ]);
+            
+            // Gerar nome de arquivo seguro
+            $originalName = $_FILES['model_file']['name'];
+            $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+            $safeFilename = $this->generateSecureFilename($userId, $extension);
+            
+            // Caminho para o diretório de quarentena
+            $quarantineFilePath = $_SERVER['DOCUMENT_ROOT'] . '/' . $this->quarantineDir . '/' . $safeFilename;
+            
+            // Mover o arquivo para o diretório de quarentena
+            if (!move_uploaded_file($_FILES['model_file']['tmp_name'], $quarantineFilePath)) {
+                throw new Exception("Falha ao mover o arquivo para o servidor.");
             }
-        }
-        
-        // Adicionar avisos
-        if (!empty($validationResult['warnings'])) {
-            $notes .= "\nAvisos:\n";
-            foreach ($validationResult['warnings'] as $warning) {
-                $notes .= "- $warning\n";
+            
+            // Definir permissões restritas do arquivo
+            chmod($quarantineFilePath, 0644);
+            
+            // Registrar o modelo no banco de dados
+            $modelId = $this->customerModelModel->saveModel(
+                $userId,
+                $safeFilename,
+                $originalName,
+                $_FILES['model_file']['size'],
+                $extension,
+                $notes,
+                'pending_validation',
+                $validationResult['data']
+            );
+            
+            if (!$modelId) {
+                // Se não conseguir salvar no banco de dados, excluir o arquivo
+                unlink($quarantineFilePath);
+                throw new Exception("Erro ao registrar o modelo no sistema.");
             }
+            
+            // Registrar upload bem-sucedido no log
+            $this->logModelUpload($userId, $modelId, $safeFilename, $originalName, $validationResult);
+            
+            // Redirecionar com mensagem de sucesso
+            $this->setFlashMessage('success', 'Modelo enviado com sucesso! Ele será analisado em breve pela nossa equipe.');
+            $this->redirect('/customer-models/list');
+            
+        } catch (Exception $e) {
+            $this->setFlashMessage('error', 'Erro ao fazer upload do modelo: ' . $e->getMessage());
+            $this->redirect('/customer-models/upload');
         }
-        
-        // Adicionar sugestões
-        if (!empty($validationResult['repair_suggestions'])) {
-            $notes .= "\nSugestões:\n";
-            foreach ($validationResult['repair_suggestions'] as $suggestion) {
-                $notes .= "- $suggestion\n";
-            }
-        }
-        
-        // Limitar o tamanho das notas para evitar problemas no banco de dados
-        $notes = substr($notes, 0, 2000);
-        
-        // Definir o status inicial baseado nos resultados da validação
-        $initialStatus = 'pending_validation';
-        if (!empty($validationResult['warnings'])) {
-            // Se houver avisos, marcar para uma revisão mais cuidadosa
-            $initialStatus = 'pending_validation';
-        }
-        
-        // Salvar informações no banco de dados
-        $modelId = $this->customerModelModel->saveModel(
-            $userId,
-            $newFileName,
-            $fileName,
-            $fileSize,
-            $fileExt,
-            $notes,
-            $initialStatus,
-            $validationResult
-        );
-        
-        if (!$modelId) {
-            // Erro ao salvar no banco, remover arquivo
-            unlink($destination);
-            setFlashMessage('error', 'Erro ao registrar o modelo no sistema. Por favor, tente novamente.');
-            redirect('customer-models/upload');
-        }
-        
-        // Sucesso!
-        app_log('Modelo 3D enviado com sucesso. ID: ' . $modelId . ', Usuário: ' . $userId);
-        
-        // Mensagem personalizada com base nos resultados da validação
-        if (!empty($validationResult['warnings'])) {
-            setFlashMessage('success', 'Modelo 3D enviado com sucesso! Alguns avisos foram detectados e o modelo passará por uma validação adicional pela nossa equipe.');
-        } else {
-            setFlashMessage('success', 'Modelo 3D enviado com sucesso! O modelo passará por uma validação técnica pela nossa equipe.');
-        }
-        
-        redirect('customer-models/list');
     }
     
     /**
-     * Lista os modelos 3D do usuário logado
+     * Lista os modelos do usuário atual
      */
     public function listUserModels() {
-        // Verificar se o usuário está logado
-        if (!isUserLoggedIn()) {
-            setFlashMessage('error', 'Você precisa estar logado para visualizar seus modelos 3D.');
-            redirect('login');
+        // Verificar se o usuário está autenticado
+        if (!SecurityManager::checkAuthentication()) {
+            $this->setFlashMessage('error', 'Você precisa estar logado para visualizar seus modelos.');
+            $this->redirect('/login');
+            return;
         }
         
+        // Obter ID do usuário
         $userId = $_SESSION['user_id'];
         
-        // Obter o status de filtro (se houver)
-        $status = isset($_GET['status']) ? $_GET['status'] : null;
+        // Filtro de status (opcional)
+        $status = $this->getValidatedParam('status', 'string', [
+            'required' => false,
+            'default' => null,
+            'allowedValues' => ['pending_validation', 'approved', 'rejected', null]
+        ]);
         
         // Obter modelos do usuário
         $models = $this->customerModelModel->getUserModels($userId, $status);
         
-        // Carregar a view de listagem
-        $pageTitle = 'Meus Modelos 3D';
-        $page = 'customer_models/list';
+        // Obter informações de cota
+        $quotaInfo = $this->checkUserQuota($userId);
         
-        render($page, compact('pageTitle', 'models', 'status'));
+        // Renderizar página de listagem
+        $this->render('customer_models/list', [
+            'pageTitle' => 'Meus Modelos 3D',
+            'models' => $models,
+            'status' => $status,
+            'quotaInfo' => $quotaInfo
+        ]);
     }
     
     /**
-     * Exibe os detalhes de um modelo 3D específico
+     * Exibe detalhes de um modelo específico
+     * 
+     * @param int $id ID do modelo
      */
-    public function details($modelId) {
-        // Verificar se o usuário está logado
-        if (!isUserLoggedIn()) {
-            setFlashMessage('error', 'Você precisa estar logado para visualizar detalhes de modelos 3D.');
-            redirect('login');
+    public function details($id) {
+        // Verificar se o usuário está autenticado
+        if (!SecurityManager::checkAuthentication()) {
+            $this->setFlashMessage('error', 'Você precisa estar logado para visualizar detalhes do modelo.');
+            $this->redirect('/login');
+            return;
         }
         
+        // Obter ID do usuário
         $userId = $_SESSION['user_id'];
-        $isAdmin = isAdmin();
+        
+        // Validar ID
+        $id = intval($id);
+        if ($id <= 0) {
+            $this->setFlashMessage('error', 'ID de modelo inválido.');
+            $this->redirect('/customer-models/list');
+            return;
+        }
         
         // Obter informações do modelo
-        $model = $this->customerModelModel->getModelById($modelId);
+        $model = $this->customerModelModel->getModelById($id);
         
-        // Verificar se o modelo existe
         if (!$model) {
-            setFlashMessage('error', 'Modelo 3D não encontrado.');
-            redirect('customer-models/list');
+            $this->setFlashMessage('error', 'Modelo não encontrado.');
+            $this->redirect('/customer-models/list');
+            return;
         }
         
-        // Verificar permissões (o usuário deve ser o dono do modelo ou um administrador)
-        if ($model['user_id'] != $userId && !$isAdmin) {
-            setFlashMessage('error', 'Você não tem permissão para visualizar este modelo 3D.');
-            redirect('customer-models/list');
+        // Verificar permissão (apenas o proprietário ou admin pode ver)
+        if ($model['user_id'] != $userId && !$this->isAdmin()) {
+            $this->setFlashMessage('error', 'Você não tem permissão para visualizar este modelo.');
+            $this->redirect('/customer-models/list');
+            return;
         }
         
-        // Carregar a view de detalhes
-        $pageTitle = 'Detalhes do Modelo 3D';
-        $page = 'customer_models/details';
+        // Verificar se o modelo está aprovado para visualização 3D
+        $canView3D = ($model['status'] === 'approved');
         
-        render($page, compact('pageTitle', 'model', 'isAdmin'));
+        // Renderizar página de detalhes
+        $this->render('customer_models/details', [
+            'pageTitle' => 'Detalhes do Modelo',
+            'model' => $model,
+            'canView3D' => $canView3D,
+            'csrfToken' => CsrfProtection::getToken()
+        ]);
     }
     
     /**
-     * Remove um modelo 3D do usuário
+     * Exclui um modelo
+     * 
+     * @param int $id ID do modelo
      */
-    public function delete($modelId) {
-        // Verificar se o usuário está logado
-        if (!isUserLoggedIn()) {
-            setFlashMessage('error', 'Você precisa estar logado para remover modelos 3D.');
-            redirect('login');
+    public function delete($id) {
+        // Verificar se o usuário está autenticado
+        if (!SecurityManager::checkAuthentication()) {
+            $this->setFlashMessage('error', 'Você precisa estar logado para excluir modelos.');
+            $this->redirect('/login');
+            return;
         }
         
+        // Validar token CSRF
+        $csrfToken = $this->getValidatedParam('csrf_token', 'string', [
+            'required' => true
+        ]);
+        
+        if (!CsrfProtection::validateToken($csrfToken)) {
+            $this->setFlashMessage('error', 'Token de segurança inválido. Por favor, tente novamente.');
+            $this->redirect('/customer-models/list');
+            return;
+        }
+        
+        // Obter ID do usuário
         $userId = $_SESSION['user_id'];
-        $isAdmin = isAdmin();
         
-        // Obter informações do modelo
-        $model = $this->customerModelModel->getModelById($modelId);
-        
-        // Verificar se o modelo existe
-        if (!$model) {
-            setFlashMessage('error', 'Modelo 3D não encontrado.');
-            redirect('customer-models/list');
+        // Validar ID
+        $id = intval($id);
+        if ($id <= 0) {
+            $this->setFlashMessage('error', 'ID de modelo inválido.');
+            $this->redirect('/customer-models/list');
+            return;
         }
         
-        // Verificar permissões (o usuário deve ser o dono do modelo ou um administrador)
-        if ($model['user_id'] != $userId && !$isAdmin) {
-            setFlashMessage('error', 'Você não tem permissão para remover este modelo 3D.');
-            redirect('customer-models/list');
+        // Verificar permissão (apenas o proprietário ou admin pode excluir)
+        if (!$this->customerModelModel->isModelOwnedByUser($id, $userId) && !$this->isAdmin()) {
+            $this->setFlashMessage('error', 'Você não tem permissão para excluir este modelo.');
+            $this->redirect('/customer-models/list');
+            return;
         }
         
-        // Remover o modelo
-        $result = $this->customerModelModel->deleteModel($modelId);
+        // Excluir o modelo
+        $result = $this->customerModelModel->deleteModel($id);
         
-        if (!$result) {
-            setFlashMessage('error', 'Erro ao remover o modelo 3D. Por favor, tente novamente.');
+        if ($result) {
+            $this->setFlashMessage('success', 'Modelo excluído com sucesso.');
         } else {
-            setFlashMessage('success', 'Modelo 3D removido com sucesso!');
-            app_log('Modelo 3D removido. ID: ' . $modelId . ', Usuário: ' . $userId);
+            $this->setFlashMessage('error', 'Erro ao excluir o modelo.');
         }
         
-        redirect('customer-models/list');
+        $this->redirect('/customer-models/list');
     }
     
     /**
-     * Lista todos os modelos 3D pendentes de validação (somente admin)
+     * Lista modelos pendentes de validação (apenas para administradores)
      */
     public function pendingModels() {
         // Verificar se o usuário é administrador
-        if (!isAdmin()) {
-            setFlashMessage('error', 'Acesso restrito a administradores.');
-            redirect('home');
+        if (!SecurityManager::checkAuthentication() || !$this->isAdmin()) {
+            $this->setFlashMessage('error', 'Você não tem permissão para acessar esta página.');
+            $this->redirect('/');
+            return;
         }
         
         // Obter modelos pendentes
         $models = $this->customerModelModel->getPendingModels();
         
-        // Carregar a view de modelos pendentes
-        $pageTitle = 'Modelos 3D Pendentes';
-        $page = 'admin/customer_models/pending';
-        
-        render($page, compact('pageTitle', 'models'));
+        // Renderizar página de modelos pendentes
+        $this->render('admin/pending_models', [
+            'pageTitle' => 'Modelos Pendentes de Validação',
+            'models' => $models
+        ]);
     }
     
     /**
-     * Atualiza o status de um modelo 3D (somente admin)
-     */
-    public function updateStatus($modelId) {
-        // Verificar se o usuário é administrador
-        if (!isAdmin()) {
-            setFlashMessage('error', 'Acesso restrito a administradores.');
-            redirect('home');
-        }
-        
-        // Verificar se é um POST
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            setFlashMessage('error', 'Método inválido.');
-            redirect('admin/customer-models/pending');
-        }
-        
-        // Obter informações do formulário
-        $status = isset($_POST['status']) ? $_POST['status'] : '';
-        $notes = isset($_POST['notes']) ? $_POST['notes'] : '';
-        
-        // Validar status
-        if (!in_array($status, ['approved', 'rejected'])) {
-            setFlashMessage('error', 'Status inválido.');
-            redirect('admin/customer-models/pending');
-        }
-        
-        // Atualizar status do modelo
-        $result = $this->customerModelModel->updateStatus($modelId, $status, $notes);
-        
-        if (!$result) {
-            setFlashMessage('error', 'Erro ao atualizar o status do modelo 3D. Por favor, tente novamente.');
-        } else {
-            $statusText = $status == 'approved' ? 'aprovado' : 'rejeitado';
-            setFlashMessage('success', 'O modelo 3D foi ' . $statusText . ' com sucesso!');
-            app_log('Status do modelo 3D atualizado. ID: ' . $modelId . ', Status: ' . $status);
-        }
-        
-        redirect('admin/customer-models/pending');
-    }
-    
-    /**
-     * Retorna mensagem de erro para códigos de erro de upload
-     */
-    private function getUploadErrorMessage($errorCode) {
-        switch ($errorCode) {
-            case UPLOAD_ERR_INI_SIZE:
-                return 'O arquivo excede o tamanho máximo permitido pelo servidor.';
-            case UPLOAD_ERR_FORM_SIZE:
-                return 'O arquivo excede o tamanho máximo permitido pelo formulário.';
-            case UPLOAD_ERR_PARTIAL:
-                return 'O upload do arquivo foi parcial.';
-            case UPLOAD_ERR_NO_FILE:
-                return 'Nenhum arquivo foi enviado.';
-            case UPLOAD_ERR_NO_TMP_DIR:
-                return 'Falta a pasta temporária.';
-            case UPLOAD_ERR_CANT_WRITE:
-                return 'Falha ao escrever o arquivo no disco.';
-            case UPLOAD_ERR_EXTENSION:
-                return 'Uma extensão PHP interrompeu o upload do arquivo.';
-            default:
-                return 'Erro desconhecido no upload.';
-        }
-    }
-    
-    /**
-     * Valida um modelo 3D usando o ModelValidator
+     * Atualiza o status de um modelo (apenas para administradores)
      * 
-     * @param string $filePath Caminho para o arquivo do modelo
-     * @param string $fileExtension Extensão do arquivo
-     * @return array Resultado da validação
+     * @param int $id ID do modelo
      */
-    private function validateModel($filePath, $fileExtension) {
-        // Verificar se o ModelValidator está disponível
-        if (!class_exists('ModelValidator')) {
-            require_once(HELPERS_PATH . '/ModelValidator.php');
-        }
-        
-        // Configurações de validação específicas
-        $config = [
-            'max_vertices' => 1000000,   // 1 milhão de vértices
-            'max_polygons' => 500000,    // 500 mil polígonos
-            'min_dimensions' => [1, 1, 1], // Dimensões mínimas em mm
-            'max_dimensions' => [220, 220, 250], // Dimensões máximas em mm (Ender 3)
-            'check_watertight' => true,  // Verificar se o modelo é estanque
-            'check_normals' => true,     // Verificar orientação normal das faces
-            'auto_repair' => false       // Não reparar automaticamente
-        ];
-        
-        // Inicializar o validador
-        $validator = new ModelValidator($config);
-        
-        // Executar validação
-        $validator->validate($filePath);
-        
-        // Obter resultado da validação
-        return $validator->getValidationResult();
-    }
-    
-    /**
-     * Executa validação adicional em um modelo 3D (somente admin)
-     */
-    public function revalidateModel($modelId) {
+    public function updateStatus($id) {
         // Verificar se o usuário é administrador
-        if (!isAdmin()) {
-            setFlashMessage('error', 'Acesso restrito a administradores.');
-            redirect('home');
+        if (!SecurityManager::checkAuthentication() || !$this->isAdmin()) {
+            $this->setFlashMessage('error', 'Você não tem permissão para acessar esta função.');
+            $this->redirect('/');
+            return;
         }
+        
+        // Validar token CSRF
+        $csrfToken = $this->postValidatedParam('csrf_token', 'string', [
+            'required' => true
+        ]);
+        
+        if (!CsrfProtection::validateToken($csrfToken)) {
+            $this->setFlashMessage('error', 'Token de segurança inválido. Por favor, tente novamente.');
+            $this->redirect('/admin/customer-models/pending');
+            return;
+        }
+        
+        // Validar ID
+        $id = intval($id);
+        if ($id <= 0) {
+            $this->setFlashMessage('error', 'ID de modelo inválido.');
+            $this->redirect('/admin/customer-models/pending');
+            return;
+        }
+        
+        // Obter novo status
+        $status = $this->postValidatedParam('status', 'string', [
+            'required' => true,
+            'allowedValues' => ['approved', 'rejected']
+        ]);
+        
+        // Obter notas de revisão
+        $notes = $this->postValidatedParam('admin_notes', 'string', [
+            'required' => false,
+            'default' => '',
+            'maxLength' => 2000
+        ]);
         
         // Obter informações do modelo
-        $model = $this->customerModelModel->getModelById($modelId);
+        $model = $this->customerModelModel->getModelById($id);
         
-        // Verificar se o modelo existe
         if (!$model) {
-            setFlashMessage('error', 'Modelo 3D não encontrado.');
-            redirect('admin/customer-models/pending');
+            $this->setFlashMessage('error', 'Modelo não encontrado.');
+            $this->redirect('/admin/customer-models/pending');
+            return;
         }
         
-        // Caminho para o arquivo
-        $filePath = $this->uploadDir . $model['file_name'];
-        
-        // Verificar se o arquivo existe
-        if (!file_exists($filePath)) {
-            setFlashMessage('error', 'Arquivo do modelo 3D não encontrado no servidor.');
-            redirect('admin/customer-models/pending');
+        // Verificar se o modelo está pendente
+        if ($model['status'] !== 'pending_validation') {
+            $this->setFlashMessage('error', 'Este modelo já foi revisado.');
+            $this->redirect('/admin/customer-models/pending');
+            return;
         }
         
-        // Executar validação avançada
-        $validationResult = $this->validateModel($filePath, $model['file_type']);
-        
-        // Atualizar as notas do modelo com os resultados da validação
-        $notes = $model['notes'] ?? '';
-        $notes .= "\n\n--- Revalidação " . date('Y-m-d H:i:s') . " ---\n";
-        
-        // Adicionar resultado da validação
-        $notes .= "Validação: " . ($validationResult['is_valid'] ? 'Passou' : 'Falhou') . "\n";
-        
-        // Adicionar estatísticas
-        if (!empty($validationResult['stats'])) {
-            $notes .= "Estatísticas:\n";
-            foreach ($validationResult['stats'] as $key => $value) {
-                if (is_array($value)) {
-                    if ($key === 'dimensions') {
-                        $notes .= "- Dimensões: " . number_format($value['width'], 2) . "mm x " . 
-                                  number_format($value['height'], 2) . "mm x " . 
-                                  number_format($value['depth'], 2) . "mm\n";
-                    }
-                } else {
-                    $notes .= "- $key: $value\n";
+        try {
+            // Mover o arquivo para o diretório apropriado
+            $sourceFile = $_SERVER['DOCUMENT_ROOT'] . '/' . $this->quarantineDir . '/' . $model['file_name'];
+            $targetDir = $status === 'approved' ? $this->approvedDir : $this->rejectedDir;
+            $targetFile = $_SERVER['DOCUMENT_ROOT'] . '/' . $targetDir . '/' . $model['file_name'];
+            
+            if (file_exists($sourceFile) && is_file($sourceFile)) {
+                if (!copy($sourceFile, $targetFile)) {
+                    throw new Exception('Erro ao mover o arquivo para o diretório de destino.');
                 }
+                
+                // Definir permissões restritas
+                chmod($targetFile, 0644);
+                
+                // Remover arquivo de quarentena
+                unlink($sourceFile);
             }
+            
+            // Atualizar status no banco de dados
+            $updateResult = $this->customerModelModel->updateStatus($id, $status, $notes);
+            
+            if (!$updateResult) {
+                throw new Exception('Erro ao atualizar o status do modelo no banco de dados.');
+            }
+            
+            // Registrar ação de revisão no log
+            $this->logModelStatusUpdate($id, $status, $notes);
+            
+            $this->setFlashMessage('success', 'Status do modelo atualizado com sucesso.');
+            $this->redirect('/admin/customer-models/pending');
+            
+        } catch (Exception $e) {
+            $this->setFlashMessage('error', 'Erro ao atualizar o status do modelo: ' . $e->getMessage());
+            $this->redirect('/admin/customer-models/pending');
+        }
+    }
+    
+    /**
+     * Verifica a cota de armazenamento do usuário
+     * 
+     * @param int $userId ID do usuário
+     * @return array Informações sobre a cota
+     */
+    private function checkUserQuota($userId) {
+        // Obter modelos do usuário para calcular o uso
+        $models = $this->customerModelModel->getUserModels($userId);
+        
+        // Definir cota máxima (200MB para usuários comuns)
+        $isAdmin = $this->isAdmin();
+        $maxQuota = $isAdmin ? 1073741824 : 209715200; // 1GB para admin, 200MB para usuários comuns
+        
+        // Calcular uso atual
+        $usedSpace = 0;
+        foreach ($models as $model) {
+            $usedSpace += $model['file_size'];
         }
         
-        // Adicionar erros
-        if (!empty($validationResult['errors'])) {
-            $notes .= "\nErros:\n";
-            foreach ($validationResult['errors'] as $error) {
-                $notes .= "- $error\n";
-            }
-        }
+        // Calcular espaço restante
+        $remainingSpace = $maxQuota - $usedSpace;
         
-        // Adicionar avisos
-        if (!empty($validationResult['warnings'])) {
-            $notes .= "\nAvisos:\n";
-            foreach ($validationResult['warnings'] as $warning) {
-                $notes .= "- $warning\n";
-            }
-        }
+        return [
+            'allowed' => $remainingSpace > 0,
+            'message' => $remainingSpace <= 0 ? 'Você atingiu sua cota de armazenamento.' : '',
+            'maxQuota' => $maxQuota,
+            'usedSpace' => $usedSpace,
+            'remainingSpace' => $remainingSpace,
+            'percentUsed' => ($usedSpace / $maxQuota) * 100,
+            'maxQuotaFormatted' => Model3DValidator::formatSize($maxQuota),
+            'usedSpaceFormatted' => Model3DValidator::formatSize($usedSpace),
+            'remainingSpaceFormatted' => Model3DValidator::formatSize($remainingSpace)
+        ];
+    }
+    
+    /**
+     * Verifica limite de taxa de upload do usuário
+     * 
+     * @param int $userId ID do usuário
+     * @return array Informações sobre limite de taxa
+     */
+    private function checkUserRateLimit($userId) {
+        // Definir limites (5 uploads por hora para usuários comuns)
+        $isAdmin = $this->isAdmin();
+        $maxUploadsPerHour = $isAdmin ? 50 : 5;
         
-        // Adicionar sugestões
-        if (!empty($validationResult['repair_suggestions'])) {
-            $notes .= "\nSugestões:\n";
-            foreach ($validationResult['repair_suggestions'] as $suggestion) {
-                $notes .= "- $suggestion\n";
-            }
-        }
+        // Contar uploads na última hora
+        // TODO: Implementar consulta real ao banco de dados
+        $recentUploads = 0; // Temporariamente definido como 0
         
-        // Limitar o tamanho das notas para evitar problemas no banco de dados
-        $notes = substr($notes, 0, 2000);
+        return [
+            'allowed' => $recentUploads < $maxUploadsPerHour,
+            'message' => $recentUploads >= $maxUploadsPerHour ? 
+                'Você excedeu o limite de uploads. Tente novamente mais tarde.' : '',
+            'maxUploadsPerHour' => $maxUploadsPerHour,
+            'recentUploads' => $recentUploads,
+            'remainingUploads' => $maxUploadsPerHour - $recentUploads
+        ];
+    }
+    
+    /**
+     * Gera um nome de arquivo seguro para armazenamento
+     * 
+     * @param int $userId ID do usuário
+     * @param string $extension Extensão do arquivo
+     * @return string Nome de arquivo seguro
+     */
+    private function generateSecureFilename($userId, $extension) {
+        // Gerar string aleatória
+        $randomStr = bin2hex(random_bytes(16));
         
-        // Atualizar as notas do modelo
-        $this->customerModelModel->updateNotes($modelId, $notes);
+        // Formar nome seguro: user_id + timestamp + random + extension
+        $safeFilename = 'user_' . $userId . '_' . time() . '_' . $randomStr . '.' . $extension;
         
-        // Sucesso!
-        setFlashMessage('success', 'Modelo 3D revalidado com sucesso! ' . 
-            ($validationResult['is_valid'] ? 'O modelo é válido para impressão.' : 'O modelo apresenta problemas que precisam ser corrigidos.'));
-        
-        // Redirecionar para a página de detalhes do modelo
-        redirect('admin/customer-model/' . $modelId);
+        return $safeFilename;
+    }
+    
+    /**
+     * Verifica se o usuário atual é administrador
+     * 
+     * @return bool True se o usuário for administrador
+     */
+    private function isAdmin() {
+        // TODO: Implementar verificação real de administrador
+        // Temporariamente, apenas o usuário ID 1 é admin
+        return isset($_SESSION['user_id']) && $_SESSION['user_id'] == 1;
+    }
+    
+    /**
+     * Registra o upload de um modelo no log
+     * 
+     * @param int $userId ID do usuário
+     * @param int $modelId ID do modelo
+     * @param string $filename Nome do arquivo
+     * @param string $originalName Nome original do arquivo
+     * @param array $validationResult Resultado da validação
+     * @return void
+     */
+    private function logModelUpload($userId, $modelId, $filename, $originalName, $validationResult) {
+        // TODO: Implementar log real
+        error_log(sprintf(
+            "Modelo 3D enviado: user_id=%d, model_id=%d, filename=%s, original_name=%s, validation=%s",
+            $userId,
+            $modelId,
+            $filename,
+            $originalName,
+            json_encode($validationResult)
+        ));
+    }
+    
+    /**
+     * Registra a atualização de status de um modelo no log
+     * 
+     * @param int $modelId ID do modelo
+     * @param string $status Novo status
+     * @param string $notes Notas de revisão
+     * @return void
+     */
+    private function logModelStatusUpdate($modelId, $status, $notes) {
+        // TODO: Implementar log real
+        error_log(sprintf(
+            "Status de modelo 3D atualizado: model_id=%d, status=%s, notes=%s",
+            $modelId,
+            $status,
+            $notes
+        ));
     }
 }

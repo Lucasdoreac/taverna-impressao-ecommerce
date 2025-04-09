@@ -15,6 +15,60 @@ class ProductModel extends Model {
     ];
     
     /**
+     * Valida e sanitiza parâmetros de ordenação para prevenir SQL Injection
+     * 
+     * @param string $orderBy String de ordenação
+     * @return string String de ordenação validada
+     */
+    private function validateOrderBy($orderBy) {
+        $allowedColumns = [
+            'id', 'name', 'price', 'sale_price', 'stock', 'created_at', 'updated_at', 
+            'category_id', 'is_active', 'is_featured'
+        ];
+        
+        $defaultOrderBy = 'created_at DESC';
+        
+        // Se vazio ou null, retorna o padrão
+        if (empty($orderBy)) {
+            return $defaultOrderBy;
+        }
+        
+        // Dividir por vírgula para casos de múltiplos campos de ordenação
+        $orderByParts = explode(',', $orderBy);
+        $validatedParts = [];
+        
+        foreach ($orderByParts as $part) {
+            // Remover espaços extras
+            $part = trim($part);
+            
+            // Separar coluna e direção
+            $partDetails = explode(' ', $part);
+            $column = $partDetails[0];
+            $direction = isset($partDetails[1]) ? strtoupper($partDetails[1]) : '';
+            
+            // Verificar se a coluna é permitida
+            if (!in_array($column, $allowedColumns)) {
+                continue; // Ignora colunas não permitidas
+            }
+            
+            // Verificar se a direção é válida
+            if (!in_array($direction, ['ASC', 'DESC', ''])) {
+                $direction = ''; // Ignora direções inválidas
+            }
+            
+            // Montar parte validada
+            $validatedParts[] = $column . ($direction ? ' ' . $direction : '');
+        }
+        
+        // Se nenhuma parte for válida, retorna o padrão
+        if (empty($validatedParts)) {
+            return $defaultOrderBy;
+        }
+        
+        return implode(', ', $validatedParts);
+    }
+    
+    /**
      * Obtém produtos em destaque
      * 
      * @param int $limit Número máximo de produtos a retornar
@@ -135,6 +189,9 @@ class ProductModel extends Model {
             
             $offset = ($page - 1) * $limit;
             
+            // CORREÇÃO: Validar orderBy para prevenir SQL Injection
+            $safeOrderBy = $this->validateOrderBy($orderBy);
+            
             // Filtro de disponibilidade - CORREÇÃO: simplificar para depender apenas de stock
             $availabilityFilter = "";
             if ($availability === 'tested') {
@@ -159,7 +216,7 @@ class ProductModel extends Model {
                     FROM {$this->table} p
                     LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.is_main = 1
                     WHERE {$conditions}" . $availabilityFilter . "
-                    ORDER BY " . $orderBy . "
+                    ORDER BY " . $safeOrderBy . "
                     LIMIT :offset, :limit";
             
             $queryParams = array_merge($params, ['offset' => $offset, 'limit' => $limit]);

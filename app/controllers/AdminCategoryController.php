@@ -24,8 +24,14 @@ class AdminCategoryController {
         $categories = $this->categoryModel->getFullHierarchy();
         
         // Renderizar view
-        require_once VIEWS_PATH . '/admin/categories/index.php';
+        $view_path = VIEWS_PATH . '/admin/categories/index.php';
+        if (file_exists($view_path) && is_file($view_path)) {
+            require_once $view_path;
+        } else {
+            throw new Exception("View file not found or is not a regular file.");
+        }
     }
+
     
     /**
      * Exibe o formulário para criar uma nova categoria
@@ -47,8 +53,14 @@ class AdminCategoryController {
         ];
         
         // Renderizar view
-        require_once VIEWS_PATH . '/admin/categories/form.php';
+        $viewPath = VIEWS_PATH . '/admin/categories/form.php';
+        if (file_exists($viewPath) && is_file($viewPath)) {
+            require_once $viewPath;
+        } else {
+            throw new Exception('View file not found');
+        }
     }
+
     
     /**
      * Exibe o formulário para editar uma categoria existente
@@ -63,10 +75,11 @@ class AdminCategoryController {
         if (!$category) {
             $_SESSION['error'] = 'Categoria não encontrada.';
             header('Location: ' . BASE_URL . 'admin/categorias');
-            exit;
+            return;
         }
         
         // Buscar categorias para o select de categoria pai
+
         // Excluindo a própria categoria e suas subcategorias para evitar ciclos
         $parentCategories = $this->categoryModel->getMainCategories();
         
@@ -79,8 +92,14 @@ class AdminCategoryController {
         });
         
         // Renderizar view
-        require_once VIEWS_PATH . '/admin/categories/form.php';
+        $safeViewPath = realpath(VIEWS_PATH . '/admin/categories/form.php');
+        if ($safeViewPath !== false && strpos($safeViewPath, VIEWS_PATH) === 0) {
+            require_once $safeViewPath;
+        } else {
+            throw new Exception('Invalid view path');
+        }
     }
+
     
     /**
      * Processa o formulário para salvar uma categoria (criar ou atualizar)

@@ -206,8 +206,11 @@ include_once APP_PATH . '/views/admin/includes/sidebar.php';
         <!-- Produtos mais vendidos -->
         <div class="col-md-7">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title">Produtos Mais Vendidos</h5>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Produtos Mais Vendidos</h5>
+                    <a href="<?= BASE_URL ?>admin/produtos" class="btn btn-sm btn-primary">
+                        <i class="bi bi-box-seam me-1"></i> Gerenciar Produtos
+                    </a>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -249,9 +252,6 @@ include_once APP_PATH . '/views/admin/includes/sidebar.php';
                             </tbody>
                         </table>
                     </div>
-                    <div class="text-end mt-3">
-                        <a href="<?= BASE_URL ?>admin/products" class="btn btn-outline-primary btn-sm">Ver todos os produtos</a>
-                    </div>
                 </div>
             </div>
         </div>
@@ -280,6 +280,9 @@ include_once APP_PATH . '/views/admin/includes/sidebar.php';
         </div>
     </div>
 </div>
+
+<!-- Widget de resumo de usuários e produtos -->
+<?php include APP_PATH . '/views/admin/dashboard/widgets/user_product_summary.php'; ?>
 
 <script>
 // Carregar dados do gráfico de vendas via AJAX

@@ -8,6 +8,7 @@ class PageController {
      * Exibe a página Sobre Nós
      */
     public function sobre() {
+        require_once 'app/views/pages/sobre.php';
         $pageTitle = 'Sobre Nós';
         $page = 'pages/sobre';
         
@@ -18,6 +19,11 @@ class PageController {
      * Exibe a página de Contato
      */
     public function contato() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->processContact();
+            return;
+        }
+        require_once 'app/views/pages/contato.php';
         $pageTitle = 'Contato';
         $page = 'pages/contato';
         

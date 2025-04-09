@@ -128,9 +128,13 @@ class AdminPerformanceController extends Controller {
             case 'category':
                 // Obter análise do CategoryModel
                 $modelFile = APP_PATH . '/models/CategoryModel.php';
+                if (!file_exists($modelFile) || !is_readable($modelFile)) {
+                    throw new Exception("Unable to access the CategoryModel file.");
+                }
                 $content = file_get_contents($modelFile);
                 
                 // Extrair consultas SQL
+
                 preg_match_all('/\\$sql\\s*=\\s*[\\\"\\\']([\s\S]+?)[\\\"\\\']/s', $content, $matches);
                 $queries = $matches[1] ?? [];
                 
@@ -357,10 +361,11 @@ class AdminPerformanceController extends Controller {
      */
     public function confirmOptimizations() {
         // Gerar token de segurança
-        $securityToken = md5(uniqid(rand(), true));
+        $securityToken = bin2hex(random_bytes(16));
         $_SESSION['security_token'] = $securityToken;
         
         // Verificar quais índices seriam aplicados
+
         $indices = [
             'products' => [
                 'idx_products_is_featured',
@@ -737,8 +742,17 @@ if ($hasFulltext) {
             ];
         }
         
+        // Validar o nome do arquivo
+        if (!preg_match('/^[a-zA-Z0-9_]+\.php$/', basename($modelFile))) {
+            return [
+                'error' => 'Nome de arquivo inválido',
+                'file' => $modelFile
+            ];
+        }
+        
         // Ler conteúdo do arquivo
         $content = file_get_contents($modelFile);
+
         
         // Extrair todas as consultas SQL
         preg_match_all('/\\$sql\\s*=\\s*[\\\"\\\']([\s\S]+?)[\\\"\\\']/s', $content, $matches);
@@ -983,10 +997,17 @@ if ($hasFulltext) {
                 $testId2 = $this->request->post('test_id_2');
                 
                 // Redirecionar para URL com os IDs
-                $this->redirect("admin_performance/compare_tests/$testId1/$testId2");
+                $allowedDestinations = ['admin_performance/compare_tests'];
+                $destination = "admin_performance/compare_tests/" . intval($testId1) . "/" . intval($testId2);
+                if (in_array(strtok($destination, '/'), $allowedDestinations)) {
+                    $this->redirect($destination);
+                } else {
+                    throw new Exception('Invalid redirect destination.');
+                }
                 return;
             }
             
+
             // Validar IDs
             $testId1 = intval($testId1);
             $testId2 = intval($testId2);
@@ -1085,9 +1106,11 @@ if ($hasFulltext) {
         
         // Carregar índice existente ou criar novo
         $index = [];
-        if (file_exists($indexPath)) {
+        if (file_exists($indexPath) && is_readable($indexPath)) {
             $indexContent = file_get_contents($indexPath);
-            $index = json_decode($indexContent, true) ?: [];
+            if ($indexContent !== false) {
+                $index = json_decode($indexContent, true) ?: [];
+            }
         }
         
         // Preparar informações resumidas
@@ -1124,8 +1147,11 @@ if ($hasFulltext) {
         ];
         
         // Salvar índice atualizado
-        file_put_contents($indexPath, json_encode($index, JSON_PRETTY_PRINT));
+        if (is_writable($indexPath)) {
+            file_put_contents($indexPath, json_encode($index, JSON_PRETTY_PRINT));
+        }
     }
+
     
     /**
      * Carrega a lista de testes de performance anteriores
@@ -1144,10 +1170,18 @@ if ($hasFulltext) {
         
         // Carregar índice
         $indexContent = file_get_contents($indexPath);
-        $index = json_decode($indexContent, true) ?: [];
+        if ($indexContent === false) {
+            return [];
+        }
+        
+        $index = json_decode($indexContent, true);
+        if (!is_array($index)) {
+            return [];
+        }
         
         // Excluir ID específico se solicitado
         if ($excludeId !== null) {
+
             unset($index[$excludeId]);
         }
         
@@ -1167,15 +1201,16 @@ if ($hasFulltext) {
      */
     private function loadTestResults($testId) {
         // Caminho para arquivo de resultados
-        $filePath = DATA_PATH . '/performance_tests/test_' . $testId . '.json';
+        $filePath = DATA_PATH . '/performance_tests/test_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $testId) . '.json';
         
         // Verificar se o arquivo existe
-        if (!file_exists($filePath)) {
+        if (!file_exists($filePath) || !is_readable($filePath)) {
             return null;
         }
         
         // Carregar resultados
         $content = file_get_contents($filePath);
+
         return json_decode($content, true);
     }
     
@@ -1193,11 +1228,18 @@ if ($hasFulltext) {
             return null;
         }
         
+        // Validar o caminho do arquivo
+        $realPath = realpath($baselinePath);
+        if ($realPath === false || strpos($realPath, DATA_PATH) !== 0) {
+            return null;
+        }
+        
         // Carregar baseline
-        $content = file_get_contents($baselinePath);
+        $content = file_get_contents($realPath);
         $data = json_decode($content, true);
         
         return $data['results'] ?? null;
+
     }
     
     /**

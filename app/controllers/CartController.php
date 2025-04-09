@@ -1,14 +1,24 @@
 <?php
 /**
  * CartController - Controlador para gerenciamento do carrinho de compras
+ * 
+ * Implementa validação consistente de entradas usando InputValidationTrait.
  */
 class CartController {
+    /**
+     * Incluir o trait de validação de entrada
+     */
+    use InputValidationTrait;
+    
     private $productModel;
     private $cartModel;
     private $filamentModel;
     
     public function __construct() {
         try {
+            // Incluir o trait
+            require_once dirname(__FILE__) . '/../lib/Security/InputValidationTrait.php';
+            
             $this->productModel = new ProductModel();
             $this->cartModel = new CartModel();
             $this->filamentModel = new FilamentModel();
@@ -43,7 +53,7 @@ class CartController {
             $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
             $sessionId = session_id();
             
-            // Obter ou criar carrinho no banco de dados - CORRIGIDO: invertida a ordem dos parâmetros
+            // Obter ou criar carrinho no banco de dados
             $cart = $this->cartModel->getOrCreate($sessionId, $userId);
             
             if ($cart) {
@@ -226,17 +236,69 @@ class CartController {
                 exit;
             }
             
-            // Obter dados do formulário
-            $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
-            $quantity = isset($_POST['quantity']) ? max(1, intval($_POST['quantity'])) : 1;
+            // Verificar token CSRF
+            require_once APP_PATH . '/lib/Security/CsrfProtection.php';
+            if (!CsrfProtection::validateRequest()) {
+                $_SESSION['error'] = 'Erro de segurança: Token inválido. Por favor, tente novamente.';
+                header('Location: ' . BASE_URL . 'carrinho');
+                exit;
+            }
+            
+            // Validar dados do formulário usando o novo sistema de validação
+            $productData = $this->postValidatedParams([
+                'product_id' => [
+                    'type' => 'int',
+                    'required' => true,
+                    'min' => 1,
+                    'requiredMessage' => 'ID do produto é obrigatório',
+                    'invalidMessage' => 'ID do produto inválido'
+                ],
+                'quantity' => [
+                    'type' => 'int',
+                    'required' => false,
+                    'min' => 1,
+                    'max' => 100,
+                    'default' => 1,
+                    'invalidMessage' => 'Quantidade inválida'
+                ],
+                'selected_scale' => [
+                    'type' => 'string',
+                    'required' => false
+                ],
+                'selected_filament' => [
+                    'type' => 'string',
+                    'required' => false
+                ],
+                'selected_color' => [
+                    'type' => 'int',
+                    'required' => false,
+                    'min' => 0
+                ],
+                'customer_model_id' => [
+                    'type' => 'int',
+                    'required' => false,
+                    'min' => 0
+                ]
+            ]);
+            
+            // Verificar erros de validação
+            if ($this->hasValidationErrors()) {
+                $_SESSION['error'] = 'Dados inválidos. Verifique as informações e tente novamente.';
+                header('Location: ' . BASE_URL . 'produtos');
+                exit;
+            }
+            
+            // Extrair dados validados
+            $product_id = $productData['product_id'];
+            $quantity = $productData['quantity'];
+            $selected_scale = $productData['selected_scale'];
+            $selected_filament = $productData['selected_filament'];
+            $selected_color = $productData['selected_color'];
+            $customer_model_id = $productData['customer_model_id'];
+            
+            // Obter e validar dados de personalização (tratamento especial devido à estrutura complexa)
             $customization = isset($_POST['customization']) ? $_POST['customization'] : null;
             $customization_files = isset($_POST['customization_file']) ? $_POST['customization_file'] : null;
-            
-            // Opções específicas para impressão 3D
-            $selected_scale = isset($_POST['selected_scale']) ? $_POST['selected_scale'] : null;
-            $selected_filament = isset($_POST['selected_filament']) ? $_POST['selected_filament'] : null;
-            $selected_color = isset($_POST['selected_color']) ? intval($_POST['selected_color']) : null;
-            $customer_model_id = isset($_POST['customer_model_id']) ? intval($_POST['customer_model_id']) : null;
             
             // Validar produto
             $product = $this->productModel->find($product_id);
@@ -319,7 +381,7 @@ class CartController {
             $userId = isset($_SESSION['user']) ? $_SESSION['user']['id'] : null;
             $sessionId = session_id();
             
-            // Obter ou criar carrinho - CORRIGIDO: invertida a ordem dos parâmetros
+            // Obter ou criar carrinho
             $cart = $this->cartModel->getOrCreate($sessionId, $userId);
             if ($cart) {
                 // Adicionar item ao carrinho no banco de dados
@@ -377,13 +439,41 @@ class CartController {
                 exit;
             }
             
-            $cart_item_id = isset($_POST['cart_item_id']) ? $_POST['cart_item_id'] : null;
-            $quantity = isset($_POST['quantity']) ? max(1, intval($_POST['quantity'])) : 1;
-            
-            if (!$cart_item_id) {
+            // Verificar token CSRF
+            require_once APP_PATH . '/lib/Security/CsrfProtection.php';
+            if (!CsrfProtection::validateRequest()) {
+                $_SESSION['error'] = 'Erro de segurança: Token inválido. Por favor, tente novamente.';
                 header('Location: ' . BASE_URL . 'carrinho');
                 exit;
             }
+            
+            // Validar dados do formulário usando o novo sistema de validação
+            $updateData = $this->postValidatedParams([
+                'cart_item_id' => [
+                    'type' => 'string', // Pode ser um inteiro ou string UUID
+                    'required' => true,
+                    'requiredMessage' => 'ID do item é obrigatório'
+                ],
+                'quantity' => [
+                    'type' => 'int',
+                    'required' => true,
+                    'min' => 1,
+                    'max' => 100,
+                    'requiredMessage' => 'Quantidade é obrigatória',
+                    'invalidMessage' => 'Quantidade inválida'
+                ]
+            ]);
+            
+            // Verificar erros de validação
+            if ($this->hasValidationErrors()) {
+                $_SESSION['error'] = 'Dados inválidos. Verifique as informações e tente novamente.';
+                header('Location: ' . BASE_URL . 'carrinho');
+                exit;
+            }
+            
+            // Extrair dados validados
+            $cart_item_id = $updateData['cart_item_id'];
+            $quantity = $updateData['quantity'];
             
             // Verificar se é um item do banco (ID numérico) ou da sessão (string)
             if (is_numeric($cart_item_id)) {
@@ -442,15 +532,48 @@ class CartController {
                 exit;
             }
             
-            $cart_item_id = isset($_POST['cart_item_id']) ? $_POST['cart_item_id'] : null;
-            $selected_scale = isset($_POST['selected_scale']) ? $_POST['selected_scale'] : null;
-            $selected_filament = isset($_POST['selected_filament']) ? $_POST['selected_filament'] : null;
-            $selected_color = isset($_POST['selected_color']) ? intval($_POST['selected_color']) : null;
-            
-            if (!$cart_item_id) {
+            // Verificar token CSRF
+            require_once APP_PATH . '/lib/Security/CsrfProtection.php';
+            if (!CsrfProtection::validateRequest()) {
+                $_SESSION['error'] = 'Erro de segurança: Token inválido. Por favor, tente novamente.';
                 header('Location: ' . BASE_URL . 'carrinho');
                 exit;
             }
+            
+            // Validar dados do formulário usando o novo sistema de validação
+            $optionsData = $this->postValidatedParams([
+                'cart_item_id' => [
+                    'type' => 'string', // Pode ser um inteiro ou string UUID
+                    'required' => true,
+                    'requiredMessage' => 'ID do item é obrigatório'
+                ],
+                'selected_scale' => [
+                    'type' => 'string',
+                    'required' => false
+                ],
+                'selected_filament' => [
+                    'type' => 'string',
+                    'required' => false
+                ],
+                'selected_color' => [
+                    'type' => 'int',
+                    'required' => false,
+                    'min' => 0
+                ]
+            ]);
+            
+            // Verificar erros de validação
+            if ($this->hasValidationErrors()) {
+                $_SESSION['error'] = 'Dados inválidos. Verifique as informações e tente novamente.';
+                header('Location: ' . BASE_URL . 'carrinho');
+                exit;
+            }
+            
+            // Extrair dados validados
+            $cart_item_id = $optionsData['cart_item_id'];
+            $selected_scale = $optionsData['selected_scale'];
+            $selected_filament = $optionsData['selected_filament'];
+            $selected_color = $optionsData['selected_color'];
             
             // Verificar se é um item do banco (ID numérico) ou da sessão (string)
             if (is_numeric($cart_item_id)) {
@@ -489,9 +612,12 @@ class CartController {
      */
     public function remove($params) {
         try {
-            $cart_item_id = $params['id'] ?? null;
+            // Validar ID do item usando o novo sistema de validação
+            $cart_item_id = isset($params['id']) ? $params['id'] : null;
             
-            if (!$cart_item_id) {
+            // Validação manual neste caso, pois vem de parâmetro de rota
+            if (empty($cart_item_id)) {
+                $_SESSION['error'] = 'ID do item é obrigatório';
                 header('Location: ' . BASE_URL . 'carrinho');
                 exit;
             }
@@ -570,7 +696,7 @@ class CartController {
             $userId = $_SESSION['user']['id'];
             $sessionId = session_id();
             
-            // Obter ou criar carrinho - CORRIGIDO: invertida a ordem dos parâmetros
+            // Obter ou criar carrinho
             $cart = $this->cartModel->getOrCreate($sessionId, $userId);
             
             if ($cart) {

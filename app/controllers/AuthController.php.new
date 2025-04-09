@@ -1,0 +1,39 @@
+<?php
+
+class AuthController {
+    private $userModel;
+    private $loginLog;
+
+    public function __construct() {
+        $this->userModel = new UserModel();
+        $this->loginLog = new LoginLogModel();
+    }
+
+    public function logout() {
+        // Get user data before clearing session
+        $userId = $_SESSION['user']['id'] ?? null;
+        $userEmail = $_SESSION['user']['email'] ?? 'unknown';
+        
+        // Log the logout event
+        $this->loginLog->logLogout($userId, $userEmail, $_SERVER['REMOTE_ADDR']);
+        
+        // Remove remember token if exists
+        if (isset($_COOKIE['remember_token'])) {
+            $token = $_COOKIE['remember_token'];
+            
+            // Remove from database
+            $sql = "DELETE FROM remember_tokens WHERE token = :token";
+            Database::getInstance()->query($sql, ['token' => $token]);
+            
+            // Remove cookie
+            setcookie('remember_token', '', time() - 3600, '/');
+        }
+        
+        // Perform logout
+        $this->userModel->logout();
+        
+        // Redirect to home
+        header('Location: /');
+        exit();
+    }
+}
